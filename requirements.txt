@@ -1,0 +1,12 @@
+# DevForge backend dependencies.
+# Pinned to the versions in the shared interpreter (Python 3.14).
+# Postgres/redis/celery are added in their respective phases (see docs/PRODUCT.md).
+
+Django==6.0.2
+djangorestframework==3.17.1
+
+# --- Added in later phases (kept here as commented targets) ------------------
+# psycopg[binary]        # Phase 1+: PostgreSQL driver
+# redis                  # Phase 4+: cache / queue
+# celery                 # Phase 4+: background jobs
+# gunicorn               # Deployment: WSGI server
