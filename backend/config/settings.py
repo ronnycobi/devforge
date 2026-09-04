@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "apps.workspaces",
     "apps.agents",
     "apps.orchestrator",
+    "apps.ai_providers",
 ]
 
 # Email is the identity across DevForge; set before any migrations reference it.
@@ -141,6 +142,13 @@ if "test" in sys.argv:
     PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
 # --- DRF --------------------------------------------------------------------
+
+# --- AI providers (Phase 6) -------------------------------------------------
+# Which provider the gateway uses when none is named. Defaults to the offline
+# "stub" so a fresh checkout runs with no API keys. Set to "anthropic" (and
+# export ANTHROPIC_API_KEY) for real completions. Provider API keys are read
+# from the environment by each provider — never stored here.
+AI_DEFAULT_PROVIDER = env("AI_DEFAULT_PROVIDER", "stub")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
