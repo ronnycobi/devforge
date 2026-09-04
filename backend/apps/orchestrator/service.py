@@ -133,11 +133,17 @@ class Orchestrator:
             project_id=task.project_id,
             workspace_id=task.workspace_id,
             actor_id=task.created_by_id,
+            metadata={"task_id": task.id},
         )
         result = agent.run(context)  # BaseAgent.run never raises
 
         if result.ok:
-            task.complete(output=result.output, messages=result.messages)
+            task.complete(
+                output=result.output,
+                messages=result.messages,
+                model=result.model,
+                tokens=result.usage_tokens,
+            )
         else:
             return self._handle_failure(
                 task, result.error or "agent failed", messages=result.messages

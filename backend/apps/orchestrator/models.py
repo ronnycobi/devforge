@@ -215,14 +215,18 @@ class AgentTask(models.Model):
             self.started_at = timezone.now()
         self._transition(TaskStatus.RUNNING, extra_fields=["attempts", "started_at"])
 
-    def complete(self, output=None, messages=None):
+    def complete(self, output=None, messages=None, model="", tokens=0):
         self.output = output or {}
         if messages is not None:
             self.messages = messages
+        if model:
+            self.model = model
+        if tokens:
+            self.tokens = tokens
         self.completed_at = timezone.now()
         self._transition(
             TaskStatus.COMPLETED,
-            extra_fields=["output", "messages", "completed_at"],
+            extra_fields=["output", "messages", "model", "tokens", "completed_at"],
         )
 
     def fail(self, error, messages=None):

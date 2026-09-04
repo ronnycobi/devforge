@@ -57,18 +57,23 @@ class AgentResult:
     output: dict = field(default_factory=dict)
     messages: list[str] = field(default_factory=list)
     error: str | None = None
+    # AI usage, when the agent called a model (recorded onto the task).
+    model: str = ""
+    usage_tokens: int = 0
 
     @property
     def ok(self) -> bool:
         return self.status == AgentStatus.COMPLETED
 
     @classmethod
-    def completed(cls, agent_key, output=None, messages=None):
+    def completed(cls, agent_key, output=None, messages=None, model="", usage_tokens=0):
         return cls(
             agent_key=agent_key,
             status=AgentStatus.COMPLETED,
             output=output or {},
             messages=messages or [],
+            model=model,
+            usage_tokens=usage_tokens,
         )
 
     @classmethod
