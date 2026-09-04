@@ -20,6 +20,7 @@ class ContextKind(models.TextChoices):
     TECH_DECISION = "tech_decision", "Technical decision"
     SCHEMA = "schema", "Database schema"
     API = "api", "API"
+    SCREEN = "screen", "Screen / UI"
     DEPENDENCY = "dependency", "Dependency"
     KNOWN_ISSUE = "known_issue", "Known issue"
     AGENT_DECISION = "agent_decision", "Agent decision"
