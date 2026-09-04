@@ -176,7 +176,7 @@ done when implemented + integrated + tested + verified** (see `../CLAUDE.md`).
 | 2 | Users & organizations | **done — email-based custom User; Organization + role-based Membership tenancy; `/api/v1/me/`; admin; 17 tests** |
 | 3 | Projects & workspaces | **done — Project (per-org tenant scope) + Workspace (per-project, one default); tenant-scoped API; 35 tests** |
 | 4 | Agent framework | **done — Capability model + least-privilege catalog of the 10 agents; BaseAgent contract w/ enforced run() boundary; registry; read-only catalog API; 16 tests. Agent behaviour deferred to Phase 6 (needs AI providers)** |
-| 5 | Agent Orchestrator | not started |
+| 5 | Agent Orchestrator | **done — durable AgentTask (11-state machine, deps, retries, approval, usage fields); Orchestrator service drives BaseAgent.run(); restart recovery; tenant-scoped task API + approve/cancel; run_agent_tasks command; 18 tests** |
 | 6 | AI provider abstraction | not started |
 | 7 | Model Router | not started |
 | 8 | Project context & memory | not started |

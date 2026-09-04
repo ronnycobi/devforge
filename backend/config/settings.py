@@ -6,6 +6,7 @@ locally, in CI, and in production without edits. See `.env.example` for the full
 list. Secrets NEVER live in this file or in version control.
 """
 import os
+import sys
 from pathlib import Path
 
 # backend/ directory (this file is backend/config/settings.py).
@@ -50,6 +51,7 @@ INSTALLED_APPS = [
     "apps.projects",
     "apps.workspaces",
     "apps.agents",
+    "apps.orchestrator",
 ]
 
 # Email is the identity across DevForge; set before any migrations reference it.
@@ -132,6 +134,11 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Speed up the test suite: real password hashing dominates test setup time and
+# adds no coverage. Only applied when running tests.
+if "test" in sys.argv:
+    PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
 # --- DRF --------------------------------------------------------------------
 
