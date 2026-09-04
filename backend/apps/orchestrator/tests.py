@@ -86,8 +86,9 @@ class OrchestratorExecutionTests(TestCase):
         self.assertEqual(task.output, {"ran": True, "input": {"a": 1}})
 
     def test_no_executable_agent_fails_honestly(self):
-        # Default resolver has no implementations yet (Phase 6).
-        task = self._task()
+        # 'product' is a catalog agent with no executable runner yet, so the
+        # default resolver reports an honest blocker rather than fabricating.
+        task = Orchestrator().create_task(project=self.project, agent_key="product")
         Orchestrator().run_task(task)
         task.refresh_from_db()
         self.assertEqual(task.status, TaskStatus.FAILED)
