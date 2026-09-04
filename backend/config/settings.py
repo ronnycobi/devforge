@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "apps.model_router",
     "apps.project_context",
     "apps.requirements",
+    "apps.architecture",
 ]
 
 # Email is the identity across DevForge; set before any migrations reference it.

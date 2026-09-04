@@ -181,7 +181,7 @@ done when implemented + integrated + tested + verified** (see `../CLAUDE.md`).
 | 7 | Model Router | **done — picks provider+model by complexity/context/budget/preference over the model catalog (cheapest-sufficient default, prefer_quality flip, real>stub); failover on complete(); /ai/models/ + dry-run /ai/route/; 15 tests** |
 | 8 | Project context & memory | **done — ContextEntry store (14 kinds, per-project); ProjectContext service set/add/get/digest; tenant-scoped API + digest endpoint; shared project-scoping helper extracted; 12 tests** |
 | 9 | Requirements Agent | **done — first shipped executable specialist: BaseAgent subclass (registered runner) using Model Router + Project Context to extract & persist structured requirements; honest offline no-op; 10 tests. First agent task that really works end-to-end.** |
-| 10 | Architect Agent | not started |
+| 10 | Architect Agent | **done — reads requirements from context, designs components + tech decisions via router (HIGH complexity), upserts them as ARCHITECTURE/TECH_DECISION entries (idempotent re-run); honest offline no-op; fails without requirements; 9 tests** |
 | 11 | Backend Agent | not started |
 | 12 | Frontend Agent | not started |
 | 13 | Database Agent | not started |
