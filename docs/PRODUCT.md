@@ -175,7 +175,7 @@ done when implemented + integrated + tested + verified** (see `../CLAUDE.md`).
 | 1 | Repository foundation | **done — runnable Django modular monolith + `core` health endpoint + test** |
 | 2 | Users & organizations | **done — email-based custom User; Organization + role-based Membership tenancy; `/api/v1/me/`; admin; 17 tests** |
 | 3 | Projects & workspaces | **done — Project (per-org tenant scope) + Workspace (per-project, one default); tenant-scoped API; 35 tests** |
-| 4 | Agent framework | not started |
+| 4 | Agent framework | **done — Capability model + least-privilege catalog of the 10 agents; BaseAgent contract w/ enforced run() boundary; registry; read-only catalog API; 16 tests. Agent behaviour deferred to Phase 6 (needs AI providers)** |
 | 5 | Agent Orchestrator | not started |
 | 6 | AI provider abstraction | not started |
 | 7 | Model Router | not started |
