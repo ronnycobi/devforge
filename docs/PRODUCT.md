@@ -179,7 +179,7 @@ done when implemented + integrated + tested + verified** (see `../CLAUDE.md`).
 | 5 | Agent Orchestrator | **done — durable AgentTask (11-state machine, deps, retries, approval, usage fields); Orchestrator service drives BaseAgent.run(); restart recovery; tenant-scoped task API + approve/cancel; run_agent_tasks command; 18 tests** |
 | 6 | AI provider abstraction | **done — provider-independent CompletionRequest/Response interface; StubProvider (offline default) + real gated AnthropicProvider (ENV-only key); registry+gateway; provider catalog API; agent→provider proven through orchestrator offline; 11 tests** |
 | 7 | Model Router | **done — picks provider+model by complexity/context/budget/preference over the model catalog (cheapest-sufficient default, prefer_quality flip, real>stub); failover on complete(); /ai/models/ + dry-run /ai/route/; 15 tests** |
-| 8 | Project context & memory | not started |
+| 8 | Project context & memory | **done — ContextEntry store (14 kinds, per-project); ProjectContext service set/add/get/digest; tenant-scoped API + digest endpoint; shared project-scoping helper extracted; 12 tests** |
 | 9 | Requirements Agent | not started |
 | 10 | Architect Agent | not started |
 | 11 | Backend Agent | not started |

@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "apps.orchestrator",
     "apps.ai_providers",
     "apps.model_router",
+    "apps.project_context",
 ]
 
 # Email is the identity across DevForge; set before any migrations reference it.

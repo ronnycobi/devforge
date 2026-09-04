@@ -11,22 +11,8 @@ from apps.organizations.access import (
 from apps.orchestrator.models import AgentTask
 from apps.orchestrator.serializers import AgentTaskSerializer
 from apps.orchestrator.service import Orchestrator
-from apps.projects.models import Project
-
-
-def _project_for_read(user, project_pk):
-    # 404 for projects outside the user's organizations (no existence leak).
-    return get_object_or_404(
-        Project.objects.filter(organization__in=organizations_for(user)),
-        pk=project_pk,
-    )
-
-
-def _require_manageable_project(user, project_pk):
-    project = _project_for_read(user, project_pk)
-    if project.organization not in manageable_organizations_for(user):
-        raise PermissionDenied("You must be an owner or admin to run agent work.")
-    return project
+from apps.projects.access import project_for_read as _project_for_read
+from apps.projects.access import require_manageable_project as _require_manageable_project
 
 
 class TaskListCreateView(generics.ListCreateAPIView):
