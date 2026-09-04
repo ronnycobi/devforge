@@ -45,7 +45,12 @@ INSTALLED_APPS = [
     "rest_framework",
     # DevForge apps (modular monolith; add phased apps here — see docs/PRODUCT.md)
     "apps.core",
+    "apps.accounts",
+    "apps.organizations",
 ]
+
+# Email is the identity across DevForge; set before any migrations reference it.
+AUTH_USER_MODEL = "accounts.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

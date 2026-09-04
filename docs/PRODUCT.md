@@ -173,7 +173,7 @@ done when implemented + integrated + tested + verified** (see `../CLAUDE.md`).
 | # | Phase | Status |
 |---|-------|--------|
 | 1 | Repository foundation | **done — runnable Django modular monolith + `core` health endpoint + test** |
-| 2 | Users & organizations | not started |
+| 2 | Users & organizations | **done — email-based custom User; Organization + role-based Membership tenancy; `/api/v1/me/`; admin; 17 tests** |
 | 3 | Projects & workspaces | not started |
 | 4 | Agent framework | not started |
 | 5 | Agent Orchestrator | not started |
