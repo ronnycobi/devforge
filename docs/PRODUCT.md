@@ -186,7 +186,7 @@ done when implemented + integrated + tested + verified** (see `../CLAUDE.md`).
 | 12 | Frontend Agent | **done — reads requirements+API, designs Flutter screens, upserts as SCREEN entries; least-privilege (no backend/billing); offline no-op; 7 tests** |
 | 13 | Database Agent | **done — reads architecture/requirements/API, designs relational data models, upserts as SCHEMA entries; no prod-data capability; offline no-op; 8 tests** |
 | 14 | Testing Agent | **done — reads requirements+API, designs test cases (unit/integration/e2e/acceptance), upserts as TESTING entries; offline no-op; 7 tests** |
-| 15 | Code Review Agent | not started |
+| 15 | Code Review Agent | **done — reviews the accumulated design (reqs/arch/API/schema) for gaps/security, records REVIEW findings w/ severity; review-only capabilities; fails with nothing to review; 8 tests** |
 | 16 | Build sandbox | not started |
 | 17 | Git integration | not started |
 | 18 | Export | not started |

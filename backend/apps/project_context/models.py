@@ -23,6 +23,7 @@ class ContextKind(models.TextChoices):
     SCREEN = "screen", "Screen / UI"
     DEPENDENCY = "dependency", "Dependency"
     KNOWN_ISSUE = "known_issue", "Known issue"
+    REVIEW = "review", "Review finding"
     AGENT_DECISION = "agent_decision", "Agent decision"
     DEPLOYMENT = "deployment", "Deployment"
     INFRASTRUCTURE = "infrastructure", "Infrastructure"
