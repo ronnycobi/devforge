@@ -8,7 +8,8 @@ downstream code scopes queries by organization, never by user alone.
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
-from django.utils.text import slugify
+
+from apps.core.slugs import unique_slug
 
 
 class Role(models.TextChoices):
@@ -44,18 +45,10 @@ class Organization(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = self._unique_slug()
+            self.slug = unique_slug(
+                Organization, self.name, instance=self, fallback="org"
+            )
         super().save(*args, **kwargs)
-
-    def _unique_slug(self):
-        base = slugify(self.name) or "org"
-        slug = base
-        i = 2
-        qs = Organization.objects.exclude(pk=self.pk)
-        while qs.filter(slug=slug).exists():
-            slug = f"{base}-{i}"
-            i += 1
-        return slug
 
     def add_member(self, user, role=Role.MEMBER):
         """Idempotently attach a user; returns the Membership."""

@@ -47,6 +47,8 @@ INSTALLED_APPS = [
     "apps.core",
     "apps.accounts",
     "apps.organizations",
+    "apps.projects",
+    "apps.workspaces",
 ]
 
 # Email is the identity across DevForge; set before any migrations reference it.

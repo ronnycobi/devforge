@@ -174,7 +174,7 @@ done when implemented + integrated + tested + verified** (see `../CLAUDE.md`).
 |---|-------|--------|
 | 1 | Repository foundation | **done — runnable Django modular monolith + `core` health endpoint + test** |
 | 2 | Users & organizations | **done — email-based custom User; Organization + role-based Membership tenancy; `/api/v1/me/`; admin; 17 tests** |
-| 3 | Projects & workspaces | not started |
+| 3 | Projects & workspaces | **done — Project (per-org tenant scope) + Workspace (per-project, one default); tenant-scoped API; 35 tests** |
 | 4 | Agent framework | not started |
 | 5 | Agent Orchestrator | not started |
 | 6 | AI provider abstraction | not started |
