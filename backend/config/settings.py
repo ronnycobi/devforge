@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "apps.backend",
     "apps.frontend",
     "apps.database",
+    "apps.testing",
 ]
 
 # Email is the identity across DevForge; set before any migrations reference it.
