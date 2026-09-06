@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "apps.code_review",
     "apps.build_sandbox",
     "apps.repositories",
+    "apps.exporter",
 ]
 
 # Email is the identity across DevForge; set before any migrations reference it.

@@ -12,4 +12,5 @@ urlpatterns = [
     path("api/v1/", include("apps.ai_providers.urls")),
     path("api/v1/", include("apps.model_router.urls")),
     path("api/v1/", include("apps.project_context.urls")),
+    path("api/v1/", include("apps.exporter.urls")),
 ]

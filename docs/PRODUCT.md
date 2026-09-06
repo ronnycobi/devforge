@@ -189,7 +189,7 @@ done when implemented + integrated + tested + verified** (see `../CLAUDE.md`).
 | 15 | Code Review Agent | **done — reviews the accumulated design (reqs/arch/API/schema) for gaps/security, records REVIEW findings w/ severity; review-only capabilities; fails with nothing to review; 8 tests** |
 | 16 | Build sandbox | **done — Sandbox interface + SubprocessSandbox: scratch workdir, POSIX rlimits (cpu/mem/fsize/nproc/nofile), wall-timeout via process-group kill, scrubbed env, path-traversal guard, bounded output. Network isolation NOT enforced (needs containers — documented); interface ready for a container backend. 9 tests** |
 | 17 | Git integration | **done — ProjectRepo per-project local git tree: init (main), write_files (traversal-guarded), commit (per-commit bot identity, no global config), branch/checkout, diff, log, ls-files. Local only (no remotes). 6 tests** |
-| 18 | Export | not started |
+| 18 | Export | **done — build_export() packages a project into a zip: README, docs/ (reqs/arch/api/data-model/screens/tests/review from context), api-spec.json, data-model.json, .env.example, and git-tracked source/; tenant-scoped download endpoint. No lock-in. 8 tests** |
 | 19 | Credits & usage | not started |
 | 20 | Cost estimation | not started |
 | 21 | Deployment | not started |
