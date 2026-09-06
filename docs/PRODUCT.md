@@ -192,7 +192,7 @@ done when implemented + integrated + tested + verified** (see `../CLAUDE.md`).
 | 18 | Export | **done — build_export() packages a project into a zip: README, docs/ (reqs/arch/api/data-model/screens/tests/review from context), api-spec.json, data-model.json, .env.example, and git-tracked source/; tenant-scoped download endpoint. No lock-in. 8 tests** |
 | 19 | Credits & usage | **done — CreditAccount (per-org balance/plan) + UsageRecord ledger (org/project/task/model attribution); cost from catalog pricing → credits (config CREDITS_PER_USD); orchestrator records usage+debits on completion and STOPS tasks when balance depleted (budget protection); balance/usage API. 13 tests** |
 | 20 | Cost estimation | **done — project cost analyzer: per-agent + total credit/USD RANGES from real catalog pricing (stub-excluded, meaningful offline), risk level, recommended plan; POST /projects/{id}/cost-estimate/ dry-run. 10 tests** |
-| 21 | Deployment | not started |
+| 21 | Deployment | **done — CloudProvider abstraction (real local target materializes the export; aws/gcp/azure/do/k8s gated as unavailable); Deployment records; production is approval-gated (never autonomous); list/create/approve/run API. 11 tests** |
 
 ## 8. Long-term destination
 
