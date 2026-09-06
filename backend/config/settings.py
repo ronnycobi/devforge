@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     "apps.testing",
     "apps.code_review",
     "apps.build_sandbox",
+    "apps.repositories",
 ]
 
 # Email is the identity across DevForge; set before any migrations reference it.
@@ -159,6 +160,13 @@ if "test" in sys.argv:
 # export ANTHROPIC_API_KEY) for real completions. Provider API keys are read
 # from the environment by each provider — never stored here.
 AI_DEFAULT_PROVIDER = env("AI_DEFAULT_PROVIDER", "stub")
+
+# --- Generated-project storage ----------------------------------------------
+# Where per-project git working trees live (apps.repositories). Defaults to a
+# gitignored dir beside the backend; set DEVFORGE_WORKSPACES_ROOT in production.
+DEVFORGE_WORKSPACES_ROOT = env(
+    "DEVFORGE_WORKSPACES_ROOT", str(BASE_DIR / "workspaces")
+)
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
