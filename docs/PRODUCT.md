@@ -187,7 +187,7 @@ done when implemented + integrated + tested + verified** (see `../CLAUDE.md`).
 | 13 | Database Agent | **done — reads architecture/requirements/API, designs relational data models, upserts as SCHEMA entries; no prod-data capability; offline no-op; 8 tests** |
 | 14 | Testing Agent | **done — reads requirements+API, designs test cases (unit/integration/e2e/acceptance), upserts as TESTING entries; offline no-op; 7 tests** |
 | 15 | Code Review Agent | **done — reviews the accumulated design (reqs/arch/API/schema) for gaps/security, records REVIEW findings w/ severity; review-only capabilities; fails with nothing to review; 8 tests** |
-| 16 | Build sandbox | not started |
+| 16 | Build sandbox | **done — Sandbox interface + SubprocessSandbox: scratch workdir, POSIX rlimits (cpu/mem/fsize/nproc/nofile), wall-timeout via process-group kill, scrubbed env, path-traversal guard, bounded output. Network isolation NOT enforced (needs containers — documented); interface ready for a container backend. 9 tests** |
 | 17 | Git integration | not started |
 | 18 | Export | not started |
 | 19 | Credits & usage | not started |
