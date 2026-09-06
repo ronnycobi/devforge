@@ -55,12 +55,14 @@ _TRANSITIONS: dict[str, set[str]] = {
         TaskStatus.WAITING_FOR_APPROVAL,
         TaskStatus.BLOCKED,
         TaskStatus.CANCELLED,
+        TaskStatus.FAILED,  # pre-run checks (e.g. insufficient credits)
     },
     TaskStatus.BLOCKED: {
         TaskStatus.QUEUED,
         TaskStatus.PLANNING,
         TaskStatus.RUNNING,
         TaskStatus.CANCELLED,
+        TaskStatus.FAILED,  # pre-run checks (e.g. insufficient credits)
     },
     TaskStatus.WAITING_FOR_APPROVAL: {TaskStatus.QUEUED, TaskStatus.CANCELLED},
     TaskStatus.PLANNING: {

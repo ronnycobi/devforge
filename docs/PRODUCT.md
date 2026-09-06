@@ -190,7 +190,7 @@ done when implemented + integrated + tested + verified** (see `../CLAUDE.md`).
 | 16 | Build sandbox | **done — Sandbox interface + SubprocessSandbox: scratch workdir, POSIX rlimits (cpu/mem/fsize/nproc/nofile), wall-timeout via process-group kill, scrubbed env, path-traversal guard, bounded output. Network isolation NOT enforced (needs containers — documented); interface ready for a container backend. 9 tests** |
 | 17 | Git integration | **done — ProjectRepo per-project local git tree: init (main), write_files (traversal-guarded), commit (per-commit bot identity, no global config), branch/checkout, diff, log, ls-files. Local only (no remotes). 6 tests** |
 | 18 | Export | **done — build_export() packages a project into a zip: README, docs/ (reqs/arch/api/data-model/screens/tests/review from context), api-spec.json, data-model.json, .env.example, and git-tracked source/; tenant-scoped download endpoint. No lock-in. 8 tests** |
-| 19 | Credits & usage | not started |
+| 19 | Credits & usage | **done — CreditAccount (per-org balance/plan) + UsageRecord ledger (org/project/task/model attribution); cost from catalog pricing → credits (config CREDITS_PER_USD); orchestrator records usage+debits on completion and STOPS tasks when balance depleted (budget protection); balance/usage API. 13 tests** |
 | 20 | Cost estimation | not started |
 | 21 | Deployment | not started |
 

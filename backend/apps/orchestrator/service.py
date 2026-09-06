@@ -118,6 +118,13 @@ class Orchestrator:
         if task.status not in (TaskStatus.QUEUED, TaskStatus.BLOCKED):
             return task
 
+        # Budget protection: stop before spending if the org is out of credits.
+        from apps.credits.services import guard_can_run
+
+        if not guard_can_run(task.project.organization):
+            task.fail("Insufficient credits — top up to run agent work.")
+            return task
+
         task.start()
 
         if task.agent_key not in registry:
@@ -144,6 +151,13 @@ class Orchestrator:
                 model=result.model,
                 tokens=result.usage_tokens,
             )
+            # Record usage + debit credits (best-effort; never fail the task on it).
+            try:
+                from apps.credits.services import record_task_usage
+
+                record_task_usage(task)
+            except Exception:
+                pass
         else:
             return self._handle_failure(
                 task, result.error or "agent failed", messages=result.messages

@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "apps.build_sandbox",
     "apps.repositories",
     "apps.exporter",
+    "apps.credits",
 ]
 
 # Email is the identity across DevForge; set before any migrations reference it.
@@ -168,6 +169,12 @@ AI_DEFAULT_PROVIDER = env("AI_DEFAULT_PROVIDER", "stub")
 DEVFORGE_WORKSPACES_ROOT = env(
     "DEVFORGE_WORKSPACES_ROOT", str(BASE_DIR / "workspaces")
 )
+
+# --- Credits & plans (Phase 19) ---------------------------------------------
+# Credits are a platform abstraction over cost. These are config, never
+# hard-coded into billing logic — tune freely.
+DEVFORGE_CREDITS_PER_USD = env("DEVFORGE_CREDITS_PER_USD", "100")
+DEVFORGE_PLANS = {"free": 1000, "pro": 5000, "business": 25000}
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

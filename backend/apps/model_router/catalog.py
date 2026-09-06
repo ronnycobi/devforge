@@ -44,3 +44,7 @@ def profile_for(provider: str, model: str) -> ModelProfile | None:
         (p for p in MODEL_CATALOG if p.provider == provider and p.model == model),
         None,
     )
+
+
+def profile_by_model(model: str) -> ModelProfile | None:
+    return next((p for p in MODEL_CATALOG if p.model == model), None)
