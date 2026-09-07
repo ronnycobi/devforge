@@ -1,4 +1,4 @@
-<!doctype html>
+{% load static %}<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -30,7 +30,8 @@
     .side{width:250px;flex:none;background:var(--sidebar);border-right:1px solid var(--line);
       padding:18px 14px;position:sticky;top:0;height:100vh;overflow-y:auto}
     .logo{display:flex;align-items:center;gap:9px;padding:6px 8px 16px;font-weight:800;font-size:18px;letter-spacing:.2px}
-    .logo .mark{width:22px;height:22px;border-radius:7px;background:var(--grad);box-shadow:0 0 18px rgba(79,124,255,.5)}
+    .logo .mark{width:22px;height:22px;border-radius:7px;background:var(--grad);box-shadow:0 0 18px rgba(79,124,255,.5);overflow:hidden;flex:none;display:inline-flex}
+    .logo .mark img{width:100%;height:100%;object-fit:contain;display:block}
     .logo b{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
     .navgroup{margin-top:14px}
     .navgroup .lbl{font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);padding:0 8px 6px;font-weight:700}
@@ -108,7 +109,7 @@
 <body>
 <div class="layout">
   <aside class="side">
-    <div class="logo"><span class="mark"></span>Dev<b>Forge</b></div>
+    <div class="logo"><span class="mark"><img src="{% static 'img/devforge-mark.png' %}" alt="" onerror="this.remove()"></span>Dev<b>Forge</b></div>
     {% include "dashboard/_nav.html" %}
   </aside>
   <main class="main">

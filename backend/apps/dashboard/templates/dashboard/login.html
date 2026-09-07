@@ -1,4 +1,4 @@
-<!doctype html>
+{% load static %}<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -29,8 +29,12 @@
 </head>
 <body>
   <form class="box" method="post" action="{% url 'dashboard:login' %}">
-    <div class="logo"><span class="mark"></span>Dev<b>Forge</b></div>
-    <p class="tag">AI software engineering for the stack you choose.</p>
+    <div style="text-align:center;margin-bottom:8px">
+      <img src="{% static 'img/devforge-logo.png' %}" alt="DevForge" style="max-width:78%;max-height:120px"
+           onerror="this.style.display='none';document.getElementById('wm').style.display='inline-flex'">
+      <div id="wm" class="logo" style="display:none;justify-content:center"><span class="mark"></span>Dev<b>Forge</b></div>
+    </div>
+    <p class="tag" style="text-align:center">AI software engineering for the stack you choose.</p>
     {% csrf_token %}
     {% if form.errors %}<div class="err">Invalid email or password.</div>{% endif %}
     <label for="id_username">Email</label>
