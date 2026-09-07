@@ -63,6 +63,13 @@ class RegistrationTests(SimpleTestCase):
 
 class TestingFlowTests(TestCase):
     def setUp(self):
+        # Isolate the workspaces root so tests never touch (or inherit) the
+        # real on-disk workspaces dir used by the running app.
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        override = override_settings(DEVFORGE_WORKSPACES_ROOT=self._tmp.name)
+        override.enable()
+        self.addCleanup(override.disable)
         self.org = Organization.objects.create(name="Acme")
         self.project = Project.objects.create(organization=self.org, name="App")
         ProjectContext(self.project).set(

@@ -196,6 +196,49 @@ def project(request, pk):
 
 
 @login_required
+def import_software(request):
+    """Import an existing codebase (ZIP) as a new project and analyze it."""
+    from apps.ingest.analyzer import IngestError, extract_zip, import_codebase
+
+    orgs = list(organizations_for(request.user))
+    manageable = [o for o in orgs if o.id in _manageable_ids(request.user)]
+
+    if request.method == "POST":
+        org = get_object_or_404(Organization, pk=request.POST.get("organization", 0))
+        name = (request.POST.get("name") or "").strip()
+        upload = request.FILES.get("archive")
+        if org.id not in {o.id for o in manageable} or not name:
+            messages.error(request, "Need a name and owner/admin rights in that org.")
+        elif not upload:
+            messages.error(request, "Choose a .zip of your codebase to import.")
+        elif upload.size > 20 * 1024 * 1024:
+            messages.error(request, "Archive too large (max 20 MB for now).")
+        else:
+            try:
+                files = extract_zip(upload)
+            except IngestError as exc:
+                messages.error(request, str(exc))
+                return redirect("dashboard:import")
+            project = Project.objects.create(
+                organization=org, name=name, mode="import", created_by=request.user
+            )
+            project.ensure_default_workspace()
+            summary = import_codebase(project, files, created_by=request.user)
+            stack = ", ".join(f"{r}: {t}" for r, t in summary["stack"].items()) or "unknown stack"
+            messages.success(
+                request,
+                f"Imported {summary['files']} files · detected {stack}. "
+                "DevForge now understands this app — request changes below.",
+            )
+            return redirect("dashboard:project", pk=project.id)
+        return redirect("dashboard:import")
+
+    return render(request, "dashboard/import.html", {
+        "active": "analyze-software", "manageable_orgs": manageable,
+    })
+
+
+@login_required
 def change_detail(request, pk):
     change = get_object_or_404(
         ChangeRequest.objects.filter(
