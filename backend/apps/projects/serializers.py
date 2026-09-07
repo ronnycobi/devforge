@@ -36,6 +36,19 @@ class ProjectSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
+    def validate_technology(self, value):
+        # Values must be known technologies (roles are free-form keys).
+        from apps.technology.registry import registry
+
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("technology must be an object.")
+        for role, tech in value.items():
+            if tech and tech not in registry:
+                raise serializers.ValidationError(
+                    {role: f"Unknown technology '{tech}'."}
+                )
+        return value
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get("request")

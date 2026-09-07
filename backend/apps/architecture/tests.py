@@ -36,6 +36,11 @@ ARCH_JSON = json.dumps(
                 "rationale": "Relational data with JSONB flexibility.",
             }
         ],
+        "stacks": {
+            "backend": {"recommended": "django", "rationale": "Batteries included."},
+            "database": {"recommended": "postgresql", "rationale": "Relational."},
+            "frontend": {"recommended": "made_up_framework", "rationale": "x"},
+        },
     }
 )
 
@@ -111,6 +116,28 @@ class ArchitectAgentFlowTests(TestCase):
         self.assertEqual(ctx.by_kind(ContextKind.TECH_DECISION).count(), 1)
         api = ctx.get(ContextKind.ARCHITECTURE, "api")
         self.assertEqual(api.data["technology"], "Django REST Framework")
+
+    def test_proposes_a_stack_with_registry_backed_options(self):
+        with mock.patch(
+            "apps.model_router.router.gateway_complete",
+            side_effect=_fake_completion(ARCH_JSON),
+        ):
+            task = self._run()
+        proposal = task.output["stack_proposal"]["roles"]
+        # Model recommendation honoured where valid.
+        self.assertEqual(proposal["backend"]["recommended"], "django")
+        self.assertEqual(proposal["database"]["recommended"], "postgresql")
+        # Hallucinated frontend id ignored -> falls back to a supported/first option.
+        self.assertNotEqual(proposal["frontend"]["recommended"], "made_up_framework")
+        # Options come from the registry, with codegen status.
+        backend_ids = {o["id"] for o in proposal["backend"]["options"]}
+        self.assertTrue({"django", "fastapi"} <= backend_ids)
+        self.assertIn("codegen", proposal["backend"]["options"][0])
+
+    def test_proposal_built_even_offline(self):
+        task = self._run()  # stub -> no model stacks, registry defaults still used
+        roles = task.output["stack_proposal"]["roles"]
+        self.assertEqual(roles["backend"]["recommended"], "django")  # first supported
 
     def test_rerun_upserts_rather_than_duplicating(self):
         with mock.patch(

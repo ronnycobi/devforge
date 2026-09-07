@@ -18,6 +18,7 @@ class ContextKind(models.TextChoices):
     ARCHITECTURE = "architecture", "Architecture"
     BUSINESS_RULE = "business_rule", "Business rule"
     TECH_DECISION = "tech_decision", "Technical decision"
+    STACK = "stack", "Stack proposal"
     SCHEMA = "schema", "Database schema"
     API = "api", "API"
     SCREEN = "screen", "Screen / UI"

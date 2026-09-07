@@ -56,6 +56,24 @@ def _clean_decisions(items) -> list[dict]:
     return out
 
 
+def parse_stacks(text: str) -> dict:
+    """Extract the model's per-role stack recommendations: {role: {recommended, rationale}}."""
+    payload = extract_json(text)
+    stacks = payload.get("stacks") if isinstance(payload, dict) else None
+    if not isinstance(stacks, dict):
+        return {}
+    out = {}
+    for role, rec in stacks.items():
+        if not isinstance(rec, dict):
+            continue
+        recommended = str(rec.get("recommended") or "").strip() or None
+        out[str(role).strip()] = {
+            "recommended": recommended,
+            "rationale": str(rec.get("rationale") or "").strip(),
+        }
+    return out
+
+
 def parse_architecture(text: str) -> dict:
     payload = extract_json(text)
     if isinstance(payload, dict):

@@ -16,12 +16,13 @@ from apps.agents.capabilities import Capability
 from apps.agents.definitions import ARCHITECT
 from apps.agents.runners import register_runner
 from apps.ai_providers.base import Message
-from apps.architecture.parsing import parse_architecture
+from apps.architecture.parsing import parse_architecture, parse_stacks
 from apps.architecture.prompts import SYSTEM_PROMPT, build_user_prompt
 from apps.model_router.router import ModelRouter, RoutingRequest, TaskComplexity
 from apps.project_context.models import ContextKind
 from apps.project_context.services import ProjectContext
 from apps.projects.models import Project
+from apps.technology.registry import ROLES, registry as tech_registry
 
 
 class ArchitectAgent(BaseAgent):
@@ -89,6 +90,19 @@ class ArchitectAgent(BaseAgent):
                 source=source,
             )
 
+        # Propose a technology stack per role for the user to select. The model
+        # recommends + explains; DevForge fills the options from the registry
+        # (so the proposal is reliable even when the model returns nothing).
+        proposal = self._build_stack_proposal(parse_stacks(response.text))
+        ctx.set(
+            ContextKind.STACK,
+            "proposal",
+            title="Stack proposal",
+            content="Recommended technology stack per role (user selects).",
+            data=proposal,
+            source=source,
+        )
+
         n_comp = len(design["components"])
         n_dec = len(design["tech_decisions"])
         if n_comp or n_dec:
@@ -107,11 +121,36 @@ class ArchitectAgent(BaseAgent):
                 "model": response.model,
                 "components_written": n_comp,
                 "decisions_written": n_dec,
+                "stack_proposal": proposal,
             },
             messages=[message],
             model=response.model,
             usage_tokens=response.usage.total_tokens,
         )
+
+    def _build_stack_proposal(self, model_stacks: dict) -> dict:
+        """Merge the model's recommendations with registry-backed options."""
+        roles = {}
+        for role in ROLES:
+            options = [
+                {"id": t.id, "name": t.name, "codegen": t.codegen}
+                for t in tech_registry.options_for_role(role)
+            ]
+            rec = model_stacks.get(role, {})
+            recommended = rec.get("recommended")
+            if recommended not in tech_registry:
+                recommended = None  # ignore hallucinated ids
+            if recommended is None:
+                # Default to the first generation-supported option, else the first.
+                supported = [o for o in options if o["codegen"] == "supported"]
+                pool = supported or options
+                recommended = pool[0]["id"] if pool else None
+            roles[role] = {
+                "recommended": recommended,
+                "rationale": rec.get("rationale", ""),
+                "options": options,
+            }
+        return {"roles": roles}
 
 
 register_runner(ArchitectAgent)

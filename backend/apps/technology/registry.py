@@ -131,5 +131,25 @@ class TechnologyRegistry:
     def __contains__(self, tech_id):
         return tech_id in self._by_id
 
+    def options_for_role(self, role):
+        """Candidate technologies a project can pick for a given role."""
+        if role == "database":
+            return self.by_category(Category.DATABASE)
+        kind = {
+            "backend": Kind.BACKEND,
+            "frontend": Kind.FRONTEND,
+            "mobile": Kind.MOBILE,
+        }.get(role)
+        if not kind:
+            return []
+        return [
+            t
+            for t in self._by_id.values()
+            if t.category == Category.FRAMEWORK and t.kind == kind
+        ]
+
 
 registry = TechnologyRegistry(TECHNOLOGIES)
+
+ROLES = ("backend", "frontend", "database", "mobile")
+

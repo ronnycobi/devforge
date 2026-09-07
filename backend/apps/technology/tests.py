@@ -46,6 +46,70 @@ class StackTests(SimpleTestCase):
         self.assertIsNone(get_stack("cobol"))
 
 
+class StackSelectionTests(TestCase):
+    def setUp(self):
+        from apps.organizations.models import Organization, Role
+        from apps.projects.models import Project
+
+        self.owner = User.objects.create_user(email="o@x.com", password="pw12345!")
+        self.member = User.objects.create_user(email="m@x.com", password="pw12345!")
+        self.org = Organization.objects.create(name="Acme")
+        self.org.add_member(self.owner, role=Role.OWNER)
+        self.org.add_member(self.member, role=Role.MEMBER)
+        self.project = Project.objects.create(organization=self.org, name="App")
+
+    def _proposal_url(self):
+        return reverse("technology:stack-proposal", args=[self.project.id])
+
+    def _select_url(self):
+        return reverse("technology:select-stack", args=[self.project.id])
+
+    def test_proposal_404_before_architect_runs(self):
+        self.client.force_login(self.owner)
+        self.assertEqual(self.client.get(self._proposal_url()).status_code, 404)
+
+    def test_proposal_returned_after_it_exists(self):
+        from apps.project_context.models import ContextKind
+        from apps.project_context.services import ProjectContext
+
+        ProjectContext(self.project).set(
+            ContextKind.STACK, "proposal", data={"roles": {"backend": {"recommended": "django"}}}
+        )
+        self.client.force_login(self.owner)
+        resp = self.client.get(self._proposal_url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["proposal"]["roles"]["backend"]["recommended"], "django")
+
+    def test_owner_selects_stack(self):
+        self.client.force_login(self.owner)
+        resp = self.client.post(
+            self._select_url(),
+            {"backend": "django", "database": "postgresql"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.technology, {"backend": "django", "database": "postgresql"})
+
+    def test_member_cannot_select(self):
+        self.client.force_login(self.member)
+        resp = self.client.post(
+            self._select_url(),
+            {"backend": "django"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_unknown_technology_rejected(self):
+        self.client.force_login(self.owner)
+        resp = self.client.post(
+            self._select_url(),
+            {"backend": "cobol_web"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+
 class TechnologyAPITests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="u@x.com", password="pw12345!")
