@@ -215,6 +215,37 @@ class TestingFlowTests(TestCase):
         self.assertTrue(run["passed"])  # real node --test HTTP call succeeded
         self.assertEqual(run["ran"], 1)
 
+    def test_go_project_runs_or_skips_honestly(self):
+        import shutil
+
+        from apps.codegen.go_scaffold import scaffold_go_project
+
+        scaffold = scaffold_go_project(
+            "app",
+            {
+                "app.go": "package app\n\nfunc Add(a, b int) int { return a + b }\n",
+                "app_test.go": (
+                    "package app\n\nimport \"testing\"\n\n"
+                    "func TestAdd(t *testing.T){ if Add(2,3)!=5 {t.Fatal(\"x\")} }\n"
+                ),
+            },
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+                materialize(
+                    self.project,
+                    [{"path": p, "content": c} for p, c in scaffold.items()],
+                    message="seed go",
+                )
+                task = self._run()
+        run = task.output["test_run"]
+        if shutil.which("go"):
+            self.assertTrue(run["passed"])  # real `go test` where go is installed
+        else:
+            # Honest skip, not a confusing failure, where go is absent.
+            self.assertIsNone(run["passed"])
+            self.assertIn("go", run["note"])
+
     def test_reports_failing_repo_tests_for_real(self):
         with tempfile.TemporaryDirectory() as tmp:
             with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):

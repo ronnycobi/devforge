@@ -40,7 +40,12 @@ class RegistryTests(SimpleTestCase):
 class StackTests(SimpleTestCase):
     def test_runnable_stacks_registered(self):
         ids = {s.id for s in backend_stacks()}
-        self.assertEqual(ids, {"python-stdlib", "django", "fastapi", "node"})
+        self.assertEqual(ids, {"python-stdlib", "django", "fastapi", "node", "go"})
+
+    def test_go_stack_runnable_only_when_toolchain_present(self):
+        import shutil
+
+        self.assertEqual(get_stack("go").is_runnable(), shutil.which("go") is not None)
 
     def test_python_stacks_are_runnable(self):
         self.assertTrue(get_stack("django").is_runnable())
@@ -153,4 +158,4 @@ class TechnologyAPITests(TestCase):
         self.client.force_login(self.user)
         resp = self.client.get(reverse("technology:stacks"))
         ids = {s["id"] for s in resp.json()}
-        self.assertEqual(ids, {"python-stdlib", "django", "fastapi", "node"})
+        self.assertEqual(ids, {"python-stdlib", "django", "fastapi", "node", "go"})

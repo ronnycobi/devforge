@@ -61,26 +61,29 @@ class SubprocessSandbox(Sandbox):
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(content)
 
-    def run(self, command, *, files=None, limits=None, stdin="") -> SandboxResult:
+    def run(self, command, *, files=None, limits=None, stdin="", env=None) -> SandboxResult:
         limits = limits or SandboxLimits()
         workdir = Path(tempfile.mkdtemp(prefix="devforge-sbx-"))
         try:
             if files:
                 self._write_files(workdir, files)
 
-            env = {
+            run_env = {
                 "PATH": _SCRUBBED_PATH,
                 "HOME": str(workdir),
                 "TMPDIR": str(workdir),
                 "LANG": "C.UTF-8",
             }
+            if env:
+                # Caller-supplied vars augment the scrubbed base (e.g. GOPROXY=off).
+                run_env.update({str(k): str(v) for k, v in env.items()})
 
             start = time.monotonic()
             timed_out = False
             proc = subprocess.Popen(
                 command,
                 cwd=str(workdir),
-                env=env,
+                env=run_env,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

@@ -65,7 +65,9 @@ class Sandbox(ABC):
         files: dict[str, str] | None = None,
         limits: SandboxLimits | None = None,
         stdin: str = "",
+        env: dict[str, str] | None = None,
     ) -> SandboxResult:
         """Write `files` into an isolated workdir, run `command` there under
-        `limits`, and return the captured result."""
+        `limits`, and return the captured result. `env` adds/overrides variables
+        on top of the scrubbed base environment."""
         raise NotImplementedError

@@ -22,9 +22,12 @@ project's chosen stack rather than assuming one. The authoritative catalog is th
 deployment, infrastructure); the executable subset — stacks DevForge can generate
 AND run today — is the **Stack Registry** (`apps/technology/stacks.py`), currently
 `python-stdlib`, `django` (ORM + real test DB), `fastapi` (in-process API tests
-via TestClient), and `node` (Node built-in http + `node --test`, no npm),
-extensible by adding a Stack + scaffolder. (Express-the-framework needs an npm
-install, so it stays generation-planned where npm/network is unavailable.) A project
+via TestClient), `node` (Node built-in http + `node --test`, no npm),
+and `go` (stdlib net/http + `go test`, no modules), extensible by adding a Stack +
+scaffolder. Each stack runs only where its toolchain exists; where it doesn't
+(e.g. no `go` binary), DevForge still generates the project and the runner skips
+with an honest note rather than a fake pass. (Express needs an npm install, so it
+stays generation-planned where npm/network is unavailable.) A project
 carries a `technology` profile (`{backend, frontend, database, mobile}`) that the
 agents read. **Django + Flutter are DevForge's reference stack** — the one it
 bootstraps itself in — not a restriction imposed on customers; a requested stack

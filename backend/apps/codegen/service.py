@@ -9,6 +9,7 @@ Dart needs its own toolchain); callers get an honest "no Python to compile".
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import sys
@@ -64,7 +65,11 @@ def _test_command_for(files: dict[str, str]) -> list[str]:
         except (json.JSONDecodeError, TypeError):
             command = None
         if isinstance(command, list) and command:
-            resolved = {"python": sys.executable, "node": shutil.which("node") or "node"}
+            resolved = {
+                "python": sys.executable,
+                "node": shutil.which("node") or "node",
+                "go": shutil.which("go") or "go",
+            }
             return [resolved.get(c, str(c)) for c in command]
     return [sys.executable, "-m", "unittest", "discover", "-v"]
 
@@ -105,14 +110,29 @@ def run_repo_tests(project, *, command=None) -> dict:
         return {"ran": 0, "passed": None, "note": "no runnable tests found"}
 
     command = command or _test_command_for(files)
+
+    # Honest toolchain check: if the runner binary isn't available here, skip with
+    # a clear note instead of a confusing ENOENT / import error.
+    runner = command[0]
+    if runner != sys.executable and not (
+        os.path.isabs(runner) and os.access(runner, os.X_OK)
+    ):
+        declared = (manifest.get("test_command") or [runner])[0]
+        return {
+            "ran": 0,
+            "passed": None,
+            "note": f"toolchain '{declared}' is not available in this environment",
+        }
+
     result = get_sandbox().run(
         command,
         files=files,
+        env=manifest.get("env") or None,
         limits=SandboxLimits(
             wall_timeout_seconds=90,
             cpu_seconds=90,
             memory_bytes=1024 * 1024 * 1024,
-            max_processes=512,  # node --test forks a worker per file
+            max_processes=512,  # node --test / go test fork workers
         ),
     )
     output = (result.stderr or "") + (result.stdout or "")
