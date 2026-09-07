@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Optional
 
 from apps.codegen.django_scaffold import scaffold_django_project
+from apps.codegen.node_scaffold import scaffold_node_project
 
 _STDLIB_HINT = (
     "Generate a COMPLETE, self-contained, standard-library-only Python project. "
@@ -41,6 +42,16 @@ _FASTAPI_HINT = (
     "test_*.py using `from fastapi.testclient import TestClient` and "
     "`from main import app` — the TestClient makes in-process HTTP calls, so no "
     "server or network is needed. It must pass `python -m unittest discover`."
+)
+
+_NODE_HINT = (
+    "Generate a COMPLETE, runnable Node.js project using ONLY Node's built-in "
+    "modules (node:http, etc.) and the built-in test runner — NO npm packages "
+    "(no Express, no supertest), because the sandbox has no network to install "
+    "them. Flat layout at the repository root: put the app in app.js exporting a "
+    "factory via module.exports; put tests in files named *.test.js using "
+    "node:test and node:assert, starting the server with .listen(0) and calling "
+    "it over http://127.0.0.1 with the global fetch(). It must pass `node --test`."
 )
 
 
@@ -86,6 +97,10 @@ _STACKS = {
     "fastapi": Stack(
         "fastapi", "python", "fastapi", "backend", False, _FASTAPI_HINT,
         requires_import=("fastapi",),
+    ),
+    "node": Stack(
+        "node", "javascript", None, "backend", False, _NODE_HINT,
+        scaffolder=scaffold_node_project, toolchain="node",
     ),
 }
 

@@ -21,8 +21,10 @@ project's chosen stack rather than assuming one. The authoritative catalog is th
 **Technology Registry** (`apps/technology`: languages, frameworks, databases,
 deployment, infrastructure); the executable subset — stacks DevForge can generate
 AND run today — is the **Stack Registry** (`apps/technology/stacks.py`), currently
-`python-stdlib`, `django` (ORM + real test DB), and `fastapi` (in-process API
-tests via TestClient), extensible by adding a Stack + scaffolder. A project
+`python-stdlib`, `django` (ORM + real test DB), `fastapi` (in-process API tests
+via TestClient), and `node` (Node built-in http + `node --test`, no npm),
+extensible by adding a Stack + scaffolder. (Express-the-framework needs an npm
+install, so it stays generation-planned where npm/network is unavailable.) A project
 carries a `technology` profile (`{backend, frontend, database, mobile}`) that the
 agents read. **Django + Flutter are DevForge's reference stack** — the one it
 bootstraps itself in — not a restriction imposed on customers; a requested stack

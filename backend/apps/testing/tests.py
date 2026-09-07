@@ -178,6 +178,43 @@ class TestingFlowTests(TestCase):
         self.assertTrue(run["passed"])  # real in-process API call succeeded
         self.assertEqual(run["ran"], 1)
 
+    def test_runs_node_builtin_http_tests_for_real(self):
+        import shutil
+
+        if not shutil.which("node"):
+            self.skipTest("node not installed")
+        from apps.codegen.node_scaffold import scaffold_node_project
+
+        app_files = {
+            "app.js": (
+                "const http=require('node:http');\n"
+                "function makeServer(){return http.createServer((req,res)=>res.end(JSON.stringify({ok:true})));}\n"
+                "module.exports={makeServer};\n"
+            ),
+            "app.test.js": (
+                "const {test}=require('node:test');const assert=require('node:assert');\n"
+                "const {makeServer}=require('./app');\n"
+                "test('responds ok', async ()=>{\n"
+                "  const s=makeServer().listen(0);const p=s.address().port;\n"
+                "  const r=await fetch(`http://127.0.0.1:${p}`);\n"
+                "  assert.deepEqual(await r.json(), {ok:true});\n"
+                "  s.close();\n"
+                "});\n"
+            ),
+        }
+        scaffold = scaffold_node_project("app", app_files)
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+                materialize(
+                    self.project,
+                    [{"path": p, "content": c} for p, c in scaffold.items()],
+                    message="seed node",
+                )
+                task = self._run()
+        run = task.output["test_run"]
+        self.assertTrue(run["passed"])  # real node --test HTTP call succeeded
+        self.assertEqual(run["ran"], 1)
+
     def test_reports_failing_repo_tests_for_real(self):
         with tempfile.TemporaryDirectory() as tmp:
             with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):

@@ -148,6 +148,23 @@ class BackendCodegenFlowTests(TestCase):
         self.assertIn("main.py", files)
         self.assertIn("test_main.py", files)
 
+    def test_node_mode_scaffolds_flat_project(self):
+        node_json = json.dumps(
+            {
+                "endpoints": [{"method": "GET", "path": "/", "purpose": "root", "module": "app"}],
+                "files": [
+                    {"path": "app.js", "content": "module.exports={makeServer:()=>null};\n"},
+                    {"path": "app.test.js", "content": "const {test}=require('node:test');\ntest('x',()=>{});\n"},
+                ],
+            }
+        )
+        task, files = self._run(node_json, task_input={"stack": "node"})
+        self.assertEqual(task.status, "completed")
+        self.assertEqual(task.output["stack"], "node")
+        self.assertIn("app.js", files)
+        self.assertIn("package.json", files)  # DevForge scaffolded
+        self.assertIn("devforge.json", files)
+
     def test_stack_comes_from_project_technology_profile(self):
         # No input stack; the project's chosen backend stack drives generation.
         self.project.technology = {"backend": "django"}

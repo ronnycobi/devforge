@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import sys
 
 from apps.build_sandbox.base import SandboxLimits
@@ -63,7 +64,8 @@ def _test_command_for(files: dict[str, str]) -> list[str]:
         except (json.JSONDecodeError, TypeError):
             command = None
         if isinstance(command, list) and command:
-            return [sys.executable if c == "python" else str(c) for c in command]
+            resolved = {"python": sys.executable, "node": shutil.which("node") or "node"}
+            return [resolved.get(c, str(c)) for c in command]
     return [sys.executable, "-m", "unittest", "discover", "-v"]
 
 
@@ -85,21 +87,46 @@ def run_repo_tests(project, *, command=None) -> dict:
             files[rel] = (repo.path / rel).read_text()
         except (OSError, UnicodeDecodeError):
             continue
-    if not any(k.endswith(".py") for k in files):
-        return {"ran": 0, "passed": None, "note": "no Python files to test"}
+    manifest = {}
+    if "devforge.json" in files:
+        try:
+            manifest = json.loads(files["devforge.json"])
+        except (json.JSONDecodeError, TypeError):
+            manifest = {}
+    if manifest.get("runnable") is False:
+        return {
+            "ran": 0,
+            "passed": None,
+            "note": manifest.get("reason", "stack is not runnable in this sandbox"),
+        }
+
+    has_python = any(k.endswith(".py") for k in files)
+    if not has_python and not manifest.get("test_command"):
+        return {"ran": 0, "passed": None, "note": "no runnable tests found"}
 
     command = command or _test_command_for(files)
     result = get_sandbox().run(
         command,
         files=files,
         limits=SandboxLimits(
-            wall_timeout_seconds=90, cpu_seconds=90, memory_bytes=1024 * 1024 * 1024
+            wall_timeout_seconds=90,
+            cpu_seconds=90,
+            memory_bytes=1024 * 1024 * 1024,
+            max_processes=512,  # node --test forks a worker per file
         ),
     )
     output = (result.stderr or "") + (result.stdout or "")
+    # Parse either unittest ("Ran N tests" / "failures=N") or node --test TAP
+    # ("# tests N" / "# fail N").
+    ran = _int(re.search(r"Ran (\d+) test", output)) or _int(
+        re.search(r"# tests (\d+)", output)
+    )
+    failures = _int(re.search(r"failures=(\d+)", output)) or _int(
+        re.search(r"# fail (\d+)", output)
+    )
     return {
-        "ran": _int(re.search(r"Ran (\d+) test", output)),
-        "failures": _int(re.search(r"failures=(\d+)", output)),
+        "ran": ran,
+        "failures": failures,
         "errors": _int(re.search(r"errors=(\d+)", output)),
         "passed": result.exit_code == 0 and not result.timed_out,
         "exit_code": result.exit_code,

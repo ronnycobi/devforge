@@ -86,7 +86,7 @@ _BACKEND_FRAMEWORKS = [
     Technology("django", "Django", Category.FRAMEWORK, "python", Kind.BACKEND, S),
     Technology("fastapi", "FastAPI", Category.FRAMEWORK, "python", Kind.BACKEND, S),
     Technology("flask", "Flask", Category.FRAMEWORK, "python", Kind.BACKEND, P),
-    Technology("node", "Node.js", Category.FRAMEWORK, "javascript", Kind.BACKEND, P),
+    Technology("node", "Node.js", Category.FRAMEWORK, "javascript", Kind.BACKEND, S),
     Technology("express", "Express", Category.FRAMEWORK, "javascript", Kind.BACKEND, P),
     Technology("nestjs", "NestJS", Category.FRAMEWORK, "typescript", Kind.BACKEND, P),
     Technology("spring_boot", "Spring Boot", Category.FRAMEWORK, "java", Kind.BACKEND, P),

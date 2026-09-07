@@ -40,12 +40,17 @@ class RegistryTests(SimpleTestCase):
 class StackTests(SimpleTestCase):
     def test_runnable_stacks_registered(self):
         ids = {s.id for s in backend_stacks()}
-        self.assertEqual(ids, {"python-stdlib", "django", "fastapi"})
+        self.assertEqual(ids, {"python-stdlib", "django", "fastapi", "node"})
 
     def test_python_stacks_are_runnable(self):
         self.assertTrue(get_stack("django").is_runnable())
         self.assertTrue(get_stack("python-stdlib").is_runnable())
         self.assertTrue(get_stack("fastapi").is_runnable())  # fastapi installed
+
+    def test_node_stack_runnable_when_node_present(self):
+        import shutil
+
+        self.assertEqual(get_stack("node").is_runnable(), shutil.which("node") is not None)
 
     def test_django_scaffolds_stdlib_does_not(self):
         dj = get_stack("django").build_project("shop", [{"path": "models.py", "content": "x=1\n"}])
@@ -148,5 +153,4 @@ class TechnologyAPITests(TestCase):
         self.client.force_login(self.user)
         resp = self.client.get(reverse("technology:stacks"))
         ids = {s["id"] for s in resp.json()}
-        self.assertEqual(ids, {"python-stdlib", "django", "fastapi"})
-        self.assertTrue(all(s["runnable"] for s in resp.json()))
+        self.assertEqual(ids, {"python-stdlib", "django", "fastapi", "node"})
