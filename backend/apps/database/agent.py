@@ -14,6 +14,8 @@ from apps.agents.capabilities import Capability
 from apps.agents.definitions import DATABASE
 from apps.agents.runners import register_runner
 from apps.ai_providers.base import Message
+from apps.codegen.parsing import parse_files
+from apps.codegen.service import materialize, verify_python
 from apps.database.parsing import parse_schema
 from apps.database.prompts import SYSTEM_PROMPT, build_user_prompt
 from apps.model_router.router import ModelRouter, RoutingRequest, TaskComplexity
@@ -78,16 +80,41 @@ class DatabaseAgent(BaseAgent):
                 source=source,
             )
 
+        # Generate model source -> repo, then compile-check it.
+        files = parse_files(response.text)
+        commit_sha = None
+        verified, verify_log = None, ""
+        if files:
+            _, commit_sha = materialize(
+                project,
+                files,
+                message=f"Data models by {self.key} (task {context.metadata.get('task_id', '')})",
+            )
+            verified, verify_log = verify_python(files)
+
         n = len(models)
-        message = (
-            f"Designed {n} data model(s) via {response.model}."
-            if n
-            else f"{response.model} returned no parseable schema; nothing written."
-        )
+        messages = [
+            f"Designed {n} data model(s) and generated {len(files)} file(s) "
+            f"via {response.model}."
+        ]
+        if files:
+            messages.append(
+                f"Compile check: {'passed' if verified else 'FAILED'} — {verify_log}"
+            )
+        elif not n:
+            messages = [f"{response.model} returned no parseable schema; nothing written."]
+
         return AgentResult.completed(
             self.key,
-            output={"model": response.model, "models_written": n},
-            messages=[message],
+            output={
+                "model": response.model,
+                "models_written": n,
+                "files_generated": len(files),
+                "commit": commit_sha,
+                "verified": verified,
+                "compile_log": verify_log,
+            },
+            messages=messages,
             model=response.model,
             usage_tokens=response.usage.total_tokens,
         )

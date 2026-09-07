@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "apps.code_review",
     "apps.build_sandbox",
     "apps.repositories",
+    "apps.codegen",
     "apps.exporter",
     "apps.credits",
     "apps.costs",

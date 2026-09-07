@@ -2,12 +2,14 @@
 
 SYSTEM_PROMPT = (
     "You are the Database Agent for DevForge. Given a project's architecture, "
-    "requirements, and API, design the relational data model (PostgreSQL).\n\n"
-    "Respond with ONLY a JSON object with one key:\n"
-    '  "models": array of objects with "name", "description", "fields" (array of '
-    '{"name","type","nullable","note"}), and "relations" (array of strings like '
-    '"belongs_to Organization").\n'
-    "Design normalized tables that satisfy the requirements. No prose outside the JSON."
+    "requirements, and API, design the relational data model AND implement it as "
+    "Django models.\n\n"
+    "Respond with ONLY a JSON object with two keys:\n"
+    '  "models": array of {"name","description","fields":[{"name","type",'
+    '"nullable","note"}],"relations":[...]} — the logical data model,\n'
+    '  "files": array of {"path","content"} — Django models source (valid Python '
+    'that compiles on its own), relative paths under "backend/".\n'
+    "Keep the models normalized and the code compiling. No prose outside the JSON."
 )
 
 
@@ -24,5 +26,5 @@ def build_user_prompt(architecture_digest, requirements_digest, api_digest,
         parts.append("API:\n" + api_digest.strip())
     if existing_schema.strip():
         parts.append("Existing schema (refine, don't duplicate):\n" + existing_schema.strip())
-    parts.append("Return the JSON data model for this project.")
+    parts.append("Return the JSON with the data model and Django model files.")
     return "\n\n".join(parts)

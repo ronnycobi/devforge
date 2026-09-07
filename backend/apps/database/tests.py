@@ -1,7 +1,10 @@
 import json
+import tempfile
 from unittest import mock
 
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
+
+from apps.repositories.service import repo_for_project
 
 from apps.agents.runners import resolve_agent
 from apps.ai_providers.base import CompletionResponse, Usage
@@ -87,6 +90,36 @@ class DatabaseFlowTests(TestCase):
 
     def test_offline_zero(self):
         self.assertEqual(self._run().output["models_written"], 0)
+
+    def test_generates_and_verifies_model_files(self):
+        payload = json.dumps(
+            {
+                "models": [{"name": "Task", "fields": [{"name": "title", "type": "text"}]}],
+                "files": [
+                    {
+                        "path": "backend/apps/core/models.py",
+                        "content": "class Task:\n    title = ''\n",
+                    }
+                ],
+            }
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+                with mock.patch(
+                    "apps.model_router.router.gateway_complete",
+                    side_effect=_fake(payload),
+                ):
+                    orch = Orchestrator()
+                    task = orch.create_task(
+                        project=self.project, agent_key="database", input={}
+                    )
+                    orch.run_task(task)
+                    task.refresh_from_db()
+                    files = repo_for_project(self.project).list_files()
+        self.assertEqual(task.output["models_written"], 1)
+        self.assertEqual(task.output["files_generated"], 1)
+        self.assertTrue(task.output["verified"])
+        self.assertIn("backend/apps/core/models.py", files)
 
     def test_fails_without_upstream(self):
         bare = Project.objects.create(organization=self.org, name="Empty")
