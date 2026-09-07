@@ -28,6 +28,15 @@ class UserModelTests(TestCase):
         self.assertEqual(User.USERNAME_FIELD, "email")
         self.assertEqual(User.REQUIRED_FIELDS, [])
 
+    def test_get_by_natural_key_enables_authentication(self):
+        from django.contrib.auth import authenticate
+
+        User.objects.create_user(email="log@example.com", password="pw12345!")
+        # Exercises ModelBackend -> manager.get_by_natural_key (admin login path).
+        self.assertEqual(User.objects.get_by_natural_key("log@example.com").email, "log@example.com")
+        self.assertIsNotNone(authenticate(username="log@example.com", password="pw12345!"))
+        self.assertIsNone(authenticate(username="log@example.com", password="wrong"))
+
     def test_short_name(self):
         user = User.objects.create_user(
             email="grace@example.com", password="pw12345!", full_name="Grace Hopper"

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "devforge",
+      "runtimeExecutable": "/Users/apple/Documents/pythonProjects/env/bin/python",
+      "runtimeArgs": ["backend/manage.py", "runserver", "8020"],
+      "port": 8020
+    }
+  ]
+}

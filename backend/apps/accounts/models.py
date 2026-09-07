@@ -47,6 +47,11 @@ class UserManager(models.Manager):
             raise ValueError("Superuser must have is_superuser=True.")
         return self._create_user(email, password, **extra_fields)
 
+    def get_by_natural_key(self, username):
+        # Required by Django auth (login, createsuperuser). Look up by email,
+        # the USERNAME_FIELD.
+        return self.get(**{self.model.USERNAME_FIELD: username})
+
 
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
