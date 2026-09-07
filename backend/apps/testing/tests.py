@@ -1,7 +1,10 @@
 import json
+import tempfile
 from unittest import mock
 
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
+
+from apps.codegen.service import materialize
 
 from apps.agents.runners import resolve_agent
 from apps.ai_providers.base import CompletionResponse, Usage
@@ -80,7 +83,58 @@ class TestingFlowTests(TestCase):
         self.assertEqual(ProjectContext(self.project).by_kind(ContextKind.TESTING).count(), 2)
 
     def test_offline_zero(self):
-        self.assertEqual(self._run().output["tests_written"], 0)
+        out = self._run().output
+        self.assertEqual(out["tests_written"], 0)
+        # No repo yet -> nothing to run, reported honestly.
+        self.assertIsNone(out["test_run"]["passed"])
+
+    def test_runs_passing_repo_tests_for_real(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+                materialize(
+                    self.project,
+                    [
+                        {"path": "calc.py", "content": "def add(a, b):\n    return a + b\n"},
+                        {
+                            "path": "test_calc.py",
+                            "content": (
+                                "import unittest\nfrom calc import add\n\n"
+                                "class T(unittest.TestCase):\n"
+                                "    def test_add(self):\n        self.assertEqual(add(2, 3), 5)\n"
+                            ),
+                        },
+                    ],
+                    message="seed",
+                )
+                task = self._run()
+        run = task.output["test_run"]
+        self.assertTrue(run["passed"])
+        self.assertEqual(run["ran"], 1)
+        self.assertEqual(run["failures"], 0)
+
+    def test_reports_failing_repo_tests_for_real(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+                materialize(
+                    self.project,
+                    [
+                        {"path": "calc.py", "content": "def add(a, b):\n    return a + b\n"},
+                        {
+                            "path": "test_calc.py",
+                            "content": (
+                                "import unittest\nfrom calc import add\n\n"
+                                "class T(unittest.TestCase):\n"
+                                "    def test_bad(self):\n        self.assertEqual(add(1, 1), 3)\n"
+                            ),
+                        },
+                    ],
+                    message="seed",
+                )
+                task = self._run()
+        run = task.output["test_run"]
+        self.assertFalse(run["passed"])
+        self.assertEqual(run["failures"], 1)
+        self.assertIn("FAILED", task.messages[-1])
 
     def test_fails_without_requirements(self):
         bare = Project.objects.create(organization=self.org, name="Empty")

@@ -165,13 +165,17 @@ V1 standardizes the generated stack (Django + DRF, PostgreSQL, Flutter Web,
 Flutter mobile, Docker). Additional frameworks come after the agent architecture
 is proven.
 
-**Post-V1: agents generate real code.** `apps/codegen` parses guarded
-`{path, content}` files, writes and commits them to the project's git repo, and
-compile-checks Python in the build sandbox. The Backend and Database agents now
-generate real Django source (committed + compile-verified) alongside their design
-output. Offline (stub) generates nothing; code that fails to compile is reported,
-never hidden. Frontend/Testing stay design-only for now (Dart isn't
-compile-verifiable on this host); they can adopt the same `codegen` module.
+**Post-V1: agents generate and run a real project.** `apps/codegen` parses
+guarded `{path, content}` files, commits them to the project's git repo,
+compile-checks Python, and (`run_repo_tests`) runs the repo's suite in the build
+sandbox. The Backend Agent generates a COMPLETE, self-contained, stdlib-only
+runnable project (flat layout, `test_*.py` included) — the sandbox has no network,
+so stdlib-only is what actually runs — commits it, and compile-checks it. The
+Testing Agent then RUNS that project's `python -m unittest` in the sandbox and
+reports real ran/failure/error counts. The Database Agent likewise generates Django
+model source. Offline (stub) generates nothing; compile failures and test failures
+are reported, never hidden. (Django-app generation with a real test-DB run, and
+Dart/Frontend execution, are the next refinements.)
 
 ## 7. Build order (phases)
 

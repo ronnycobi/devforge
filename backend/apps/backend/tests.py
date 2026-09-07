@@ -15,7 +15,7 @@ from apps.project_context.services import ProjectContext
 from apps.projects.models import Project
 from apps.repositories.service import repo_for_project
 
-# A response with both API design and real (compiling) Python files.
+# A complete, self-contained, stdlib-only runnable project + API design.
 GOOD_JSON = json.dumps(
     {
         "endpoints": [
@@ -24,12 +24,12 @@ GOOD_JSON = json.dumps(
         ],
         "files": [
             {
-                "path": "backend/apps/jobs/models.py",
-                "content": "class Job:\n    def __init__(self, title):\n        self.title = title\n",
+                "path": "jobs.py",
+                "content": "class Job:\n    def __init__(self, title):\n        self.title = title\n\n\ndef create(title):\n    return Job(title)\n",
             },
             {
-                "path": "backend/apps/jobs/views.py",
-                "content": "def list_jobs():\n    return []\n",
+                "path": "test_jobs.py",
+                "content": "import unittest\nfrom jobs import create\n\n\nclass JobTests(unittest.TestCase):\n    def test_create(self):\n        self.assertEqual(create('x').title, 'x')\n",
             },
         ],
     }
@@ -37,10 +37,7 @@ GOOD_JSON = json.dumps(
 
 # Files that do NOT compile.
 BROKEN_JSON = json.dumps(
-    {
-        "endpoints": [],
-        "files": [{"path": "backend/bad.py", "content": "def broken(:\n  pass\n"}],
-    }
+    {"endpoints": [], "files": [{"path": "bad.py", "content": "def broken(:\n  pass\n"}]}
 )
 
 
@@ -93,7 +90,8 @@ class BackendCodegenFlowTests(TestCase):
         self.assertEqual(task.output["endpoints_written"], 2)
         self.assertTrue(task.output["verified"])  # compiled
         self.assertTrue(task.output["commit"])  # a commit sha
-        self.assertIn("backend/apps/jobs/models.py", files)
+        self.assertIn("jobs.py", files)
+        self.assertIn("test_jobs.py", files)
         # API design persisted too.
         self.assertEqual(ProjectContext(self.project).by_kind(ContextKind.API).count(), 2)
 
@@ -102,7 +100,7 @@ class BackendCodegenFlowTests(TestCase):
         self.assertEqual(task.status, "completed")
         self.assertEqual(task.output["files_generated"], 1)
         self.assertFalse(task.output["verified"])  # did NOT compile
-        self.assertIn("backend/bad.py", files)  # still written for inspection
+        self.assertIn("bad.py", files)  # still written for inspection
         self.assertIn("FAILED", task.messages[-1])
 
     def test_offline_stub_generates_nothing(self):

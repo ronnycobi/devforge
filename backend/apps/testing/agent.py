@@ -14,6 +14,7 @@ from apps.agents.capabilities import Capability
 from apps.agents.definitions import TESTING
 from apps.agents.runners import register_runner
 from apps.ai_providers.base import Message
+from apps.codegen.service import run_repo_tests
 from apps.model_router.router import ModelRouter, RoutingRequest, TaskComplexity
 from apps.project_context.models import ContextKind
 from apps.project_context.services import ProjectContext
@@ -76,15 +77,31 @@ class TestingAgent(BaseAgent):
             )
 
         n = len(cases)
-        message = (
+        messages = [
             f"Designed {n} test case(s) via {response.model}."
             if n
-            else f"{response.model} returned no parseable tests; nothing written."
-        )
+            else f"{response.model} returned no parseable tests."
+        ]
+
+        # Actually run the generated project's test suite in the sandbox.
+        test_run = run_repo_tests(project)
+        if test_run.get("passed") is None:
+            messages.append(f"No runnable tests in repo ({test_run.get('note')}).")
+        else:
+            verdict = "PASSED" if test_run["passed"] else "FAILED"
+            messages.append(
+                f"Ran {test_run['ran']} repo test(s): {verdict} "
+                f"(failures={test_run['failures']}, errors={test_run['errors']})."
+            )
+
         return AgentResult.completed(
             self.key,
-            output={"model": response.model, "tests_written": n},
-            messages=[message],
+            output={
+                "model": response.model,
+                "tests_written": n,
+                "test_run": test_run,
+            },
+            messages=messages,
             model=response.model,
             usage_tokens=response.usage.total_tokens,
         )
