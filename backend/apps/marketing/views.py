@@ -10,36 +10,44 @@ from django.contrib import messages
 from django.contrib.auth import login
 from django.shortcuts import redirect, render
 
-from apps.agents.definitions import registry as agent_registry
 from apps.credits.services import ensure_account, plans
 from apps.marketing.models import ContactMessage
 from apps.organizations.models import Organization, Role
 from apps.technology.registry import Category
 from apps.technology.registry import registry as tech_registry
-from apps.technology.stacks import all_stacks
 
-# The four lifecycle pillars shown across the site.
+# Public messaging shows OUTCOMES across the software lifecycle — never the
+# internal machinery (no agent names, orchestration, routing, permissions, or
+# model-selection logic). That topology is proprietary and stays behind auth.
 _PILLARS = [
-    ("Build", "Describe software; specialist agents design, implement, test, and review it in the stack you choose."),
-    ("Improve", "Import an existing codebase, understand it, then fix, refactor, secure, and extend it."),
+    ("Build", "Turn ideas into working software in the technology stack you choose."),
+    ("Improve", "Analyze existing software, then fix, refactor, secure, and extend it."),
     ("Deploy", "Ship to dev and staging automatically; production stays behind an approval gate."),
-    ("Operate", "Monitor, track cost per project, and scale — with a full audit trail."),
+    ("Operate", "Monitor, track cost per project, and keep improving — with a full audit trail."),
+]
+
+_CAPABILITIES = [
+    ("Build", "Turn ideas into working software.",
+     "Describe what you need and get designed, generated, and tested software you can run and export."),
+    ("Understand", "Analyze existing applications and codebases.",
+     "Bring in a repository and get a clear picture of its architecture, APIs, and data."),
+    ("Improve", "Find and resolve technical, security and performance issues.",
+     "Modernize, refactor and harden the software you already have."),
+    ("Test", "Validate software automatically.",
+     "Generated projects come with tests that actually run."),
+    ("Deploy", "Move applications into production environments.",
+     "Promote to dev and staging; production changes stay behind an approval gate."),
+    ("Operate", "Monitor and continuously improve running software.",
+     "Track usage and cost per project, with a full audit trail."),
 ]
 
 
-def _runnable_stack_ids():
-    return {s.id for s in all_stacks() if s.is_runnable()}
-
-
 def _base_context():
-    langs = tech_registry.by_category(Category.LANGUAGE)
-    frameworks = tech_registry.by_category(Category.FRAMEWORK)
     return {
         "pillars": _PILLARS,
-        "agents": agent_registry.all(),
-        "languages": langs,
-        "frameworks": frameworks,
-        "runnable_ids": _runnable_stack_ids(),
+        "capabilities": _CAPABILITIES,
+        "languages": tech_registry.by_category(Category.LANGUAGE),
+        "frameworks": tech_registry.by_category(Category.FRAMEWORK),
     }
 
 
@@ -52,19 +60,20 @@ def platform(request):
 
 
 def how_it_works(request):
+    # Outcome steps only — no agent names or internal routing.
     steps = [
-        ("Describe", "Tell DevForge what to build, in plain language."),
-        ("Requirements", "The Requirements Agent turns intent into testable requirements."),
-        ("Architecture", "The Architect designs components and proposes a technology stack you select."),
-        ("Implement", "Backend, Frontend, Database and Mobile agents build in the chosen stack."),
-        ("Test & Review", "The Testing agent runs real tests; Code Review checks the design."),
-        ("Deploy & Operate", "Ship to dev/staging; production needs approval. Then monitor and scale."),
+        ("Describe", "Tell DevForge what you want to build, in plain language."),
+        ("Plan", "Your intent becomes clear requirements and a technical plan — and you choose the technology stack."),
+        ("Build", "Your application is generated in the chosen stack."),
+        ("Validate", "Tests run automatically to check it works."),
+        ("Deploy", "Ship to development and staging; production changes need your approval."),
+        ("Operate", "Monitor, track cost, and keep improving."),
     ]
     return render(request, "marketing/how_it_works.html", {**_base_context(), "steps": steps})
 
 
-def agents(request):
-    return render(request, "marketing/agents.html", _base_context())
+def capabilities(request):
+    return render(request, "marketing/capabilities.html", _base_context())
 
 
 def pricing(request):

@@ -9,8 +9,10 @@ User = get_user_model()
 
 
 class PublicPagesTests(TestCase):
+    PAGES = ["home", "platform", "how_it_works", "capabilities", "pricing", "about", "contact", "signup"]
+
     def test_all_public_pages_render_without_login(self):
-        for name in ["home", "platform", "how_it_works", "agents", "pricing", "about", "contact", "signup"]:
+        for name in self.PAGES:
             resp = self.client.get(reverse("marketing:" + name))
             self.assertEqual(resp.status_code, 200, name)
 
@@ -18,6 +20,20 @@ class PublicPagesTests(TestCase):
         resp = self.client.get(reverse("marketing:home"))
         self.assertContains(resp, "Build.")
         self.assertContains(resp, "Deploy.")
+
+    def test_public_pages_never_leak_internal_machinery(self):
+        # The internal agent topology / orchestration is proprietary and must not
+        # appear on the public marketing site (show outcomes, hide the machinery).
+        forbidden = [
+            "Requirements Agent", "Architect Agent", "Backend Agent",
+            "Database Agent", "Testing Agent", "Code Review Agent",
+            "orchestrator", "model router", "least-privilege",
+            "write_backend", "review_code",
+        ]
+        for name in self.PAGES:
+            body = self.client.get(reverse("marketing:" + name)).content.decode().lower()
+            for term in forbidden:
+                self.assertNotIn(term.lower(), body, f"{term!r} leaked on marketing:{name}")
 
 
 class ContactTests(TestCase):

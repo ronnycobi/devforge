@@ -1,0 +1,29 @@
+{% extends "marketing/base.html" %}
+{% block title %}AI Software Engineering · DevForge{% endblock %}
+{% block body %}
+<section class="hero-glow"><div class="wrap">
+  <div class="eyebrow">AI software engineering</div>
+  <h1>Capabilities across the<br><span class="grad">software lifecycle</span></h1>
+  <p class="lead" style="margin-top:16px">
+    DevForge coordinates AI software engineering across the whole lifecycle —
+    from understanding requirements to building, testing, deploying and improving
+    your software, in the technology stack you choose.
+  </p>
+</div></section>
+
+<section style="padding-top:0"><div class="wrap grid g3">
+  {% for title, tagline, desc in capabilities %}
+    <div class="card">
+      <div class="eyebrow" style="font-size:11px">{{ title }}</div>
+      <h3 style="margin-top:8px">{{ tagline }}</h3>
+      <p class="muted" style="margin:0;font-size:14px">{{ desc }}</p>
+    </div>
+  {% endfor %}
+</div></section>
+
+<section><div class="wrap card" style="text-align:center;padding:44px 24px">
+  <h2>Outcomes, in your stack</h2>
+  <p class="lead" style="margin:8px auto 20px">Start building and see it work on your own project.</p>
+  <a class="btn grad lg" href="{% url 'marketing:signup' %}">Start building free</a>
+</div></section>
+{% endblock %}
