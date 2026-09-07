@@ -1,0 +1,100 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{{ project.name }} · DevForge{% endblock %}
+{% block content %}
+  <p class="sub"><a href="{% url 'dashboard:home' %}">← Dashboard</a></p>
+  <h1>{{ project.name }}</h1>
+  <p class="sub">{{ project.organization.name }} · {{ project.get_mode_display }} · {{ project.get_status_display }}
+    {% if project.description %}<br>{{ project.description }}{% endif %}</p>
+
+  <div class="row">
+    <!-- Technology stack -->
+    <div class="card">
+      <h2 style="margin-top:0">Technology stack</h2>
+      {% if can_manage %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="select_stack">
+        {% for r in stack_roles %}
+          <label>{{ r.role|title }}</label>
+          <select name="{{ r.role }}">
+            <option value="">— none —</option>
+            {% for opt in r.options %}
+              <option value="{{ opt.id }}" {% if opt.id == r.chosen %}selected{% endif %}>
+                {{ opt.name }}{% if opt.codegen == "supported" %} ✓{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        {% endfor %}
+        <div style="margin-top:12px"><button type="submit">Save stack</button></div>
+        <p class="muted" style="margin:8px 0 0;font-size:12px">✓ = DevForge can build &amp; run it now</p>
+      </form>
+      {% else %}
+        {% for role, tech in project.technology.items %}<span class="chip">{{ role }}: {{ tech }}</span>{% endfor %}
+        {% if not project.technology %}<span class="empty">No stack selected.</span>{% endif %}
+      {% endif %}
+    </div>
+
+    <!-- Agent tasks -->
+    <div class="card" style="flex:2">
+      <h2 style="margin-top:0">Agent tasks</h2>
+      {% if tasks %}
+        <table>
+          <tr><th>#</th><th>Agent</th><th>Status</th><th>Detail</th></tr>
+          {% for t in tasks %}
+            <tr>
+              <td>{{ t.id }}</td>
+              <td>{{ t.agent_key }}</td>
+              <td><span class="badge b-{{ t.status }}">{{ t.get_status_display }}</span></td>
+              <td class="muted">{% if t.messages %}{{ t.messages|last }}{% elif t.error %}{{ t.error }}{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </table>
+      {% else %}
+        <p class="empty">No tasks yet.</p>
+      {% endif %}
+
+      {% if can_manage %}
+      <div class="inline" style="margin-top:14px">
+        <form method="post" class="inline" style="flex:3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_task">
+          <div style="flex:1">
+            <label>Run an agent</label>
+            <select name="agent_key">
+              {% for a in agents %}<option value="{{ a.key }}">{{ a.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div style="flex:2"><label>Brief (optional)</label><input name="brief" placeholder="What to build…"></div>
+          <div style="flex:0"><button type="submit">Queue</button></div>
+        </form>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="run">
+          <label>&nbsp;</label>
+          <button type="submit" class="ghost">▶ Run pending</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Design pipeline (project context = the digital twin) -->
+  <h2>Project workspace</h2>
+  {% for section in pipeline %}
+    {% if section.entries %}
+      <div class="card">
+        <h2 style="margin-top:0;color:var(--ink);text-transform:none;font-size:15px">{{ section.label }}
+          <span class="muted" style="font-weight:400">· {{ section.entries|length }}</span></h2>
+        <table>
+          {% for e in section.entries %}
+            <tr>
+              <td style="width:34%"><strong>{{ e.title }}</strong></td>
+              <td class="muted">{{ e.content|default:"—"|truncatechars:160 }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+      </div>
+    {% endif %}
+  {% endfor %}
+  {% with any=pipeline|length %}{% endwith %}
+{% endblock %}

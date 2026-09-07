@@ -17,4 +17,6 @@ urlpatterns = [
     path("api/v1/", include("apps.credits.urls")),
     path("api/v1/", include("apps.costs.urls")),
     path("api/v1/", include("apps.deployments.urls")),
+    # Server-rendered UI at the site root.
+    path("", include("apps.dashboard.urls")),
 ]

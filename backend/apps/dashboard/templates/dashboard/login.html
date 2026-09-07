@@ -1,0 +1,18 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Sign in · DevForge{% endblock %}
+{% block content %}
+<div class="card" style="max-width:380px;margin:6vh auto">
+  <h1>Sign in</h1>
+  <p class="sub">DevForge control plane</p>
+  {% if form.errors %}<div class="msg error">Invalid email or password.</div>{% endif %}
+  <form method="post" action="{% url 'dashboard:login' %}">
+    {% csrf_token %}
+    <label for="id_username">Email</label>
+    <input type="email" name="username" id="id_username" autofocus required>
+    <label for="id_password">Password</label>
+    <input type="password" name="password" id="id_password" required>
+    <input type="hidden" name="next" value="{{ next }}">
+    <div style="margin-top:14px"><button type="submit">Sign in</button></div>
+  </form>
+</div>
+{% endblock %}

@@ -72,7 +72,13 @@ INSTALLED_APPS = [
     "apps.credits",
     "apps.costs",
     "apps.deployments",
+    "apps.dashboard",
 ]
+
+# --- Auth redirects (server-rendered dashboard UI) --------------------------
+LOGIN_URL = "dashboard:login"
+LOGIN_REDIRECT_URL = "dashboard:home"
+LOGOUT_REDIRECT_URL = "dashboard:login"
 
 # Email is the identity across DevForge; set before any migrations reference it.
 AUTH_USER_MODEL = "accounts.User"

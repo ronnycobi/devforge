@@ -1,0 +1,45 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Dashboard · DevForge{% endblock %}
+{% block content %}
+  <h1>Your projects</h1>
+  <p class="sub">Software DevForge is building for you, across your organizations.</p>
+
+  {% if projects %}
+    <div class="grid">
+      {% for p in projects %}
+        <a class="proj" href="{% url 'dashboard:project' p.id %}">
+          <div class="name">{{ p.name }}</div>
+          <div class="org">{{ p.organization.name }} · {{ p.get_status_display }}</div>
+          <div>
+            {% for role, tech in p.technology.items %}<span class="chip">{{ tech }}</span>{% endfor %}
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card empty">No projects yet. Create one below.</div>
+  {% endif %}
+
+  {% if manageable_orgs %}
+    <h2>New project</h2>
+    <div class="card">
+      <form method="post" class="inline">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_project">
+        <div style="flex:2">
+          <label>Name</label>
+          <input name="name" placeholder="e.g. Field Service SaaS" required>
+        </div>
+        <div>
+          <label>Organization</label>
+          <select name="organization">
+            {% for o in manageable_orgs %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div style="flex:0"><button type="submit">Create</button></div>
+      </form>
+    </div>
+  {% else %}
+    <p class="muted">You need owner/admin rights in an organization to create projects.</p>
+  {% endif %}
+{% endblock %}
