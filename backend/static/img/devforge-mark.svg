@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 156 120" fill="none" role="img" aria-label="DevForge">
+  <defs>
+    <linearGradient id="dfD" x1="8" y1="10" x2="96" y2="110" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#31c8ff"/>
+      <stop offset="1" stop-color="#3f74ff"/>
+    </linearGradient>
+    <linearGradient id="dfF" x1="104" y1="8" x2="156" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6f5bff"/>
+      <stop offset="1" stop-color="#b74bff"/>
+    </linearGradient>
+  </defs>
+  <!-- Angular "D": hexagonal bowl with a punched counter (evenodd) -->
+  <path fill="url(#dfD)" fill-rule="evenodd" d="
+    M10 12 H60 L92 42 V78 L60 108 H10 Z
+    M30 34 H54 L70 50 V70 L54 86 H30 Z"/>
+  <!-- "F": stem + two rocket-fin bars -->
+  <path fill="url(#dfF)" d="M104 12 H124 V108 H104 Z"/>
+  <path fill="url(#dfF)" d="M104 12 H156 L138 34 H104 Z"/>
+  <path fill="url(#dfF)" d="M104 50 H146 L128 72 H104 Z"/>
+</svg>

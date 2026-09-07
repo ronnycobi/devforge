@@ -29,10 +29,9 @@
 </head>
 <body>
   <form class="box" method="post" action="{% url 'dashboard:login' %}">
-    <div style="text-align:center;margin-bottom:8px">
-      <img src="{% static 'img/devforge-logo.png' %}" alt="DevForge" style="max-width:78%;max-height:120px"
-           onerror="this.style.display='none';document.getElementById('wm').style.display='inline-flex'">
-      <div id="wm" class="logo" style="display:none;justify-content:center"><span class="mark"></span>Dev<b>Forge</b></div>
+    <div style="text-align:center;margin-bottom:10px">
+      <img src="{% static 'img/devforge-mark.svg' %}" alt="DevForge" style="height:64px;filter:drop-shadow(0 0 16px rgba(79,124,255,.4))">
+      <div class="logo" style="justify-content:center;font-size:24px;font-weight:800;margin-top:12px">Dev<b>Forge</b></div>
     </div>
     <p class="tag" style="text-align:center">AI software engineering for the stack you choose.</p>
     {% csrf_token %}
