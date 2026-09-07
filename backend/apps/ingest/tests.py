@@ -2,13 +2,15 @@
 import io
 import tempfile
 import zipfile
+from unittest import mock
 
 from django.test import TestCase, override_settings
+from django.urls import reverse
 
 from apps.accounts.models import User
 from apps.ingest import analyzer
 from apps.ingest.detect import detect_dependencies, detect_stack
-from apps.organizations.models import Organization
+from apps.organizations.models import Membership, Organization, Role
 from apps.project_context.models import ContextEntry, ContextKind
 from apps.projects.models import Mode, Project
 
@@ -105,3 +107,49 @@ class ImportCodebaseTests(TestCase):
         self.assertTrue(kinds.filter(kind=ContextKind.DEPENDENCY, key="dependencies").exists())
         # top-level dirs recorded as components
         self.assertIn("billing", summary["components"])
+
+
+class GitImportViewTests(TestCase):
+    """The Analyze-Software page importing from a Git provider (fetch mocked)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        override = override_settings(DEVFORGE_WORKSPACES_ROOT=self._tmp.name)
+        override.enable()
+        self.addCleanup(override.disable)
+        self.user = User.objects.create_user(email="owner@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
+        self.client.force_login(self.user)
+
+    def _archive(self):
+        return _zip({
+            "manage.py": "import django\n",
+            "requirements.txt": "Django==6.0\n",
+            "billing/models.py": "class Invoice: pass\n",
+        }, root="acme-billing-deadbeef")
+
+    def test_git_import_creates_project_and_twin(self):
+        with mock.patch("apps.ingest.connect.fetch_repo_archive", return_value=self._archive()) as fetch:
+            r = self.client.post(reverse("dashboard:import"), {
+                "source": "git", "provider": "github", "name": "Billing",
+                "organization": self.org.id, "repo": "acme/billing", "ref": "main",
+            })
+        self.assertEqual(r.status_code, 302)
+        fetch.assert_called_once()
+        self.assertEqual(fetch.call_args.args[0], "github")
+        project = Project.objects.get(name="Billing")
+        self.assertEqual(project.mode, "import")
+        self.assertEqual(project.technology.get("backend"), "django")
+
+    def test_git_connect_error_surfaces_no_project(self):
+        from apps.ingest.connect import ConnectError
+        with mock.patch("apps.ingest.connect.fetch_repo_archive",
+                        side_effect=ConnectError("Repository or branch not found.")):
+            r = self.client.post(reverse("dashboard:import"), {
+                "source": "git", "provider": "github", "name": "Ghost",
+                "organization": self.org.id, "repo": "acme/nope",
+            }, follow=True)
+        self.assertFalse(Project.objects.filter(name="Ghost").exists())
+        self.assertContains(r, "not found")

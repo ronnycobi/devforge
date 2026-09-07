@@ -8,36 +8,83 @@
     the same way you would for something it built.</p>
 
   {% if manageable_orgs %}
-  <div class="card">
+  <style>
+    .tabs{display:flex;gap:6px;margin-bottom:16px}
+    .tabs button{background:var(--panel2);color:var(--ink2);border:1px solid var(--line2);
+      border-radius:9px;padding:8px 16px;font-weight:600;font-size:13px;width:auto}
+    .tabs button.on{background:var(--grad);color:#fff;border-color:transparent}
+    .pane{display:none}.pane.on{display:block}
+    .field{margin-bottom:16px}
+  </style>
+  <div class="tabs">
+    <button type="button" class="on" data-tab="zip">Upload ZIP</button>
+    <button type="button" data-tab="git">Connect GitHub / GitLab</button>
+  </div>
+
+  <div class="card pane on" data-pane="zip">
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
-      <div style="margin-bottom:16px">
-        <label>Project name</label>
-        <input name="name" placeholder="e.g. Legacy Billing App" required>
-      </div>
-      <div style="margin-bottom:16px">
-        <label>Organization</label>
-        <select name="organization">{% for o in manageable_orgs %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select>
-      </div>
-      <div style="margin-bottom:16px">
-        <label>Codebase archive (.zip)</label>
+      <input type="hidden" name="source" value="zip">
+      <div class="field"><label>Project name</label>
+        <input name="name" placeholder="e.g. Legacy Billing App" required></div>
+      <div class="field"><label>Organization</label>
+        <select name="organization">{% for o in manageable_orgs %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Codebase archive (.zip)</label>
         <input type="file" name="archive" accept=".zip" required>
         <p class="muted" style="margin:6px 0 0;font-size:13px">
           Source only — up to 20&nbsp;MB. Build artifacts, dependencies and binaries
-          are skipped automatically. Nothing leaves your workspace.</p>
-      </div>
+          are skipped automatically. Nothing leaves your workspace.</p></div>
       <button type="submit">Import &amp; analyze</button>
+    </form>
+  </div>
+
+  <div class="card pane" data-pane="git">
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="source" value="git">
+      <div class="field"><label>Project name</label>
+        <input name="name" placeholder="e.g. Legacy Billing App" required></div>
+      <div class="field"><label>Organization</label>
+        <select name="organization">{% for o in manageable_orgs %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select></div>
+      <div class="inline" style="align-items:flex-start">
+        <div style="flex:0 0 150px"><label>Provider</label>
+          <select name="provider"><option value="github">GitHub</option><option value="gitlab">GitLab</option></select></div>
+        <div style="flex:2"><label>Repository</label>
+          <input name="repo" placeholder="owner/repo  (or paste the repo URL)" required></div>
+        <div style="flex:1"><label>Branch / tag <span class="muted">(optional)</span></label>
+          <input name="ref" placeholder="default branch"></div>
+      </div>
+      <div class="field" style="margin-top:16px"><label>Access token <span class="muted">(only for private repos)</span></label>
+        <input name="token" type="password" autocomplete="off" placeholder="ghp_… / glpat-…">
+        <p class="muted" style="margin:6px 0 0;font-size:13px">
+          Used once to fetch the code, then discarded — never stored. Public repos need no token.</p></div>
+      <button type="submit">Connect &amp; analyze</button>
     </form>
   </div>
 
   <h2>What happens next</h2>
   <div class="card">
     <ol style="margin:0;padding-left:18px;line-height:1.9">
-      <li><b>Read</b> — DevForge extracts your source and detects the technology stack and dependencies.</li>
+      <li><b>Read</b> — DevForge fetches your source and detects the technology stack and dependencies.</li>
       <li><b>Understand</b> — it builds a live model of the app (its digital twin): components, structure and decisions.</li>
       <li><b>Improve</b> — from the project page you describe a change; DevForge plans the impact, gets your approval, implements and tests it.</li>
     </ol>
   </div>
+
+  <script>
+    (function(){
+      var tabs = document.querySelectorAll('.tabs button');
+      var panes = document.querySelectorAll('.pane');
+      tabs.forEach(function(t){
+        t.addEventListener('click', function(){
+          tabs.forEach(function(x){x.classList.remove('on')});
+          panes.forEach(function(p){p.classList.remove('on')});
+          t.classList.add('on');
+          document.querySelector('.pane[data-pane="'+t.dataset.tab+'"]').classList.add('on');
+        });
+      });
+    })();
+  </script>
   {% else %}
   <div class="card"><p class="empty">You need owner or admin rights in an organization to import software.</p></div>
   {% endif %}

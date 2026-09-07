@@ -197,8 +197,9 @@ def project(request, pk):
 
 @login_required
 def import_software(request):
-    """Import an existing codebase (ZIP) as a new project and analyze it."""
+    """Import an existing codebase (ZIP upload or Git connect) and analyze it."""
     from apps.ingest.analyzer import IngestError, extract_zip, import_codebase
+    from apps.ingest.connect import PROVIDERS, fetch_repo_archive, parse_repo
 
     orgs = list(organizations_for(request.user))
     manageable = [o for o in orgs if o.id in _manageable_ids(request.user)]
@@ -206,32 +207,48 @@ def import_software(request):
     if request.method == "POST":
         org = get_object_or_404(Organization, pk=request.POST.get("organization", 0))
         name = (request.POST.get("name") or "").strip()
-        upload = request.FILES.get("archive")
+        source = request.POST.get("source") or "zip"
         if org.id not in {o.id for o in manageable} or not name:
             messages.error(request, "Need a name and owner/admin rights in that org.")
-        elif not upload:
-            messages.error(request, "Choose a .zip of your codebase to import.")
-        elif upload.size > 20 * 1024 * 1024:
-            messages.error(request, "Archive too large (max 20 MB for now).")
-        else:
-            try:
-                files = extract_zip(upload)
-            except IngestError as exc:
-                messages.error(request, str(exc))
-                return redirect("dashboard:import")
-            project = Project.objects.create(
-                organization=org, name=name, mode="import", created_by=request.user
-            )
-            project.ensure_default_workspace()
-            summary = import_codebase(project, files, created_by=request.user)
-            stack = ", ".join(f"{r}: {t}" for r, t in summary["stack"].items()) or "unknown stack"
-            messages.success(
-                request,
-                f"Imported {summary['files']} files · detected {stack}. "
-                "DevForge now understands this app — request changes below.",
-            )
-            return redirect("dashboard:project", pk=project.id)
-        return redirect("dashboard:import")
+            return redirect("dashboard:import")
+
+        # Resolve the chosen source into an in-memory archive.
+        try:
+            if source == "git":
+                provider = request.POST.get("provider") or "github"
+                owner, repo = parse_repo(request.POST.get("repo", ""))
+                archive = fetch_repo_archive(
+                    provider, owner, repo,
+                    ref=(request.POST.get("ref") or "").strip(),
+                    token=(request.POST.get("token") or "").strip(),
+                )
+            else:
+                upload = request.FILES.get("archive")
+                if not upload:
+                    messages.error(request, "Choose a .zip of your codebase to import.")
+                    return redirect("dashboard:import")
+                if upload.size > 20 * 1024 * 1024:
+                    messages.error(request, "Archive too large (max 20 MB for now).")
+                    return redirect("dashboard:import")
+                archive = upload
+            files = extract_zip(archive)
+        except IngestError as exc:
+            messages.error(request, str(exc))
+            return redirect("dashboard:import")
+
+        project = Project.objects.create(
+            organization=org, name=name, mode="import", created_by=request.user
+        )
+        project.ensure_default_workspace()
+        summary = import_codebase(project, files, created_by=request.user)
+        stack = ", ".join(f"{r}: {t}" for r, t in summary["stack"].items()) or "unknown stack"
+        origin = f"from {PROVIDERS.get(request.POST.get('provider'), 'Git')} " if source == "git" else ""
+        messages.success(
+            request,
+            f"Imported {summary['files']} files {origin}· detected {stack}. "
+            "DevForge now understands this app — request changes below.",
+        )
+        return redirect("dashboard:project", pk=project.id)
 
     return render(request, "dashboard/import.html", {
         "active": "analyze-software", "manageable_orgs": manageable,
