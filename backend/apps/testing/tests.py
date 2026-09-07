@@ -112,6 +112,39 @@ class TestingFlowTests(TestCase):
         self.assertEqual(run["ran"], 1)
         self.assertEqual(run["failures"], 0)
 
+    def test_runs_django_orm_tests_against_a_real_test_db(self):
+        from apps.codegen.django_scaffold import scaffold_django_project
+
+        scaffold = scaffold_django_project(
+            "shop",
+            {
+                "models.py": (
+                    "from django.db import models\n\n"
+                    "class Product(models.Model):\n"
+                    "    name = models.CharField(max_length=50)\n"
+                ),
+                "tests.py": (
+                    "from django.test import TestCase\nfrom shop.models import Product\n\n"
+                    "class ProductTests(TestCase):\n"
+                    "    def test_create_and_query(self):\n"
+                    "        Product.objects.create(name='x')\n"
+                    "        self.assertEqual(Product.objects.count(), 1)\n"
+                ),
+            },
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+                materialize(
+                    self.project,
+                    [{"path": p, "content": c} for p, c in scaffold.items()],
+                    message="seed django app",
+                )
+                task = self._run()
+        run = task.output["test_run"]
+        self.assertTrue(run["passed"])  # real manage.py test against a real DB
+        self.assertEqual(run["ran"], 1)
+        self.assertEqual(run["failures"], 0)
+
     def test_reports_failing_repo_tests_for_real(self):
         with tempfile.TemporaryDirectory() as tmp:
             with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):

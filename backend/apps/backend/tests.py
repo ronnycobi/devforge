@@ -40,6 +40,32 @@ BROKEN_JSON = json.dumps(
     {"endpoints": [], "files": [{"path": "bad.py", "content": "def broken(:\n  pass\n"}]}
 )
 
+# A Django app (models + ORM tests) — DevForge scaffolds the project around it.
+DJANGO_JSON = json.dumps(
+    {
+        "app_label": "shop",
+        "endpoints": [
+            {"method": "POST", "path": "/api/v1/products/", "purpose": "Create", "module": "shop"}
+        ],
+        "files": [
+            {
+                "path": "models.py",
+                "content": "from django.db import models\n\n\nclass Product(models.Model):\n    name = models.CharField(max_length=50)\n",
+            },
+            {
+                "path": "tests.py",
+                "content": (
+                    "from django.test import TestCase\nfrom shop.models import Product\n\n\n"
+                    "class ProductTests(TestCase):\n"
+                    "    def test_create(self):\n"
+                    "        Product.objects.create(name='x')\n"
+                    "        self.assertEqual(Product.objects.count(), 1)\n"
+                ),
+            },
+        ],
+    }
+)
+
 
 def _fake(text, model="claude-opus-5"):
     def _inner(request, provider=None):
@@ -66,7 +92,7 @@ class BackendCodegenFlowTests(TestCase):
             ContextKind.ARCHITECTURE, "api", title="API", content="HTTP API"
         )
 
-    def _run(self, response_text):
+    def _run(self, response_text, task_input=None):
         with tempfile.TemporaryDirectory() as tmp:
             with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
                 with mock.patch(
@@ -75,13 +101,25 @@ class BackendCodegenFlowTests(TestCase):
                 ):
                     orch = Orchestrator()
                     task = orch.create_task(
-                        project=self.project, agent_key="backend", input={}
+                        project=self.project, agent_key="backend", input=task_input or {}
                     )
                     orch.run_task(task)
                     task.refresh_from_db()
                     # Capture repo state before the temp dir is cleaned up.
                     files = repo_for_project(self.project).list_files()
         return task, files
+
+    def test_django_mode_scaffolds_and_compiles(self):
+        task, files = self._run(DJANGO_JSON, task_input={"stack": "django"})
+        self.assertEqual(task.status, "completed")
+        self.assertEqual(task.output["stack"], "django")
+        self.assertEqual(task.output["app_label"], "shop")
+        self.assertTrue(task.output["verified"])
+        # DevForge supplied the scaffold; the model supplied the app.
+        self.assertIn("manage.py", files)
+        self.assertIn("settings.py", files)
+        self.assertIn("devforge.json", files)
+        self.assertIn("shop/models.py", files)
 
     def test_generates_commits_and_verifies_code(self):
         task, files = self._run(GOOD_JSON)

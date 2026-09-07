@@ -3,6 +3,7 @@ import tempfile
 
 from django.test import SimpleTestCase, TestCase, override_settings
 
+from apps.codegen.django_scaffold import normalize_app_label, scaffold_django_project
 from apps.codegen.parsing import parse_files
 from apps.codegen.service import materialize, verify_python
 from apps.organizations.models import Organization
@@ -50,6 +51,21 @@ class VerifyPythonTests(SimpleTestCase):
         ok, log = verify_python([{"path": "app.dart", "content": "void main() {}"}])
         self.assertTrue(ok)
         self.assertIn("No Python", log)
+
+
+class DjangoScaffoldTests(SimpleTestCase):
+    def test_normalizes_app_label(self):
+        self.assertEqual(normalize_app_label("My Shop!"), "my_shop_")
+        self.assertEqual(normalize_app_label("123abc")[:4], "app_")
+
+    def test_scaffold_wraps_app_files(self):
+        files = scaffold_django_project("shop", {"models.py": "x = 1\n"})
+        self.assertIn("manage.py", files)
+        self.assertIn("settings.py", files)
+        self.assertIn("devforge.json", files)
+        self.assertIn("shop/models.py", files)
+        self.assertIn('"shop"', files["settings.py"])  # app in INSTALLED_APPS
+        self.assertIn("manage.py", files["devforge.json"])  # test command
 
 
 class MaterializeTests(TestCase):

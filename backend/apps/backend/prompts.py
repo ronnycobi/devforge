@@ -19,6 +19,23 @@ SYSTEM_PROMPT = (
 )
 
 
+DJANGO_SYSTEM_PROMPT = (
+    "You are the Backend Agent for DevForge. Generate a Django app that realizes "
+    "the domain. It runs under a DevForge-provided project scaffold — settings.py, "
+    "manage.py, and a migration-free test database are supplied for you, so do NOT "
+    "generate them, and do NOT write migration files.\n\n"
+    "Constraints: use Django (installed) and the standard library only. tests.py "
+    "MUST use django.test.TestCase and exercise the models through the ORM "
+    "(create/query/update), so they run against a real test database.\n\n"
+    "Respond with ONLY a JSON object with three keys:\n"
+    '  "app_label": a short snake_case Django app name,\n'
+    '  "files": array of {"path","content"} where path is RELATIVE to the app '
+    'package (e.g. "models.py", "tests.py", optionally "serializers.py"/"views.py"),\n'
+    '  "endpoints": array of {"method","path","purpose","module","auth"}.\n'
+    "Keep it small and passing. No prose outside the JSON object."
+)
+
+
 def build_user_prompt(architecture_digest, requirements_digest, schema_digest,
                       existing_api="", brief=""):
     parts = []

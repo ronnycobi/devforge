@@ -174,8 +174,14 @@ so stdlib-only is what actually runs — commits it, and compile-checks it. The
 Testing Agent then RUNS that project's `python -m unittest` in the sandbox and
 reports real ran/failure/error counts. The Database Agent likewise generates Django
 model source. Offline (stub) generates nothing; compile failures and test failures
-are reported, never hidden. (Django-app generation with a real test-DB run, and
-Dart/Frontend execution, are the next refinements.)
+are reported, never hidden.
+
+Django mode (`stack: "django"`): DevForge deterministically scaffolds the project
+(settings, manage.py, a migration-free in-memory test DB) around the model's app
+(models.py + ORM tests.py), so the Testing Agent runs `manage.py test <app>`
+against a REAL test database — the ORM actually persists and queries. Verified end
+to end (Backend → scaffold → Testing → real DB run). (Dart/Frontend execution is
+the next refinement.)
 
 ## 7. Build order (phases)
 

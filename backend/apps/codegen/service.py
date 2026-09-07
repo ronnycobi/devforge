@@ -8,6 +8,7 @@ Dart needs its own toolchain); callers get an honest "no Python to compile".
 """
 from __future__ import annotations
 
+import json
 import re
 import sys
 
@@ -48,6 +49,24 @@ def _int(match) -> int:
     return int(match.group(1)) if match else 0
 
 
+def _test_command_for(files: dict[str, str]) -> list[str]:
+    """Choose how to run a repo's tests.
+
+    Honours a devforge.json manifest's `test_command` (used by the Django
+    scaffold, e.g. `manage.py test <app>`); otherwise `python -m unittest`.
+    The literal "python" is replaced with this interpreter.
+    """
+    manifest = files.get("devforge.json")
+    if manifest:
+        try:
+            command = json.loads(manifest).get("test_command")
+        except (json.JSONDecodeError, TypeError):
+            command = None
+        if isinstance(command, list) and command:
+            return [sys.executable if c == "python" else str(c) for c in command]
+    return [sys.executable, "-m", "unittest", "discover", "-v"]
+
+
 def run_repo_tests(project, *, command=None) -> dict:
     """Run the project repo's test suite in the sandbox and parse the results.
 
@@ -69,9 +88,13 @@ def run_repo_tests(project, *, command=None) -> dict:
     if not any(k.endswith(".py") for k in files):
         return {"ran": 0, "passed": None, "note": "no Python files to test"}
 
-    command = command or [sys.executable, "-m", "unittest", "discover", "-v"]
+    command = command or _test_command_for(files)
     result = get_sandbox().run(
-        command, files=files, limits=SandboxLimits(wall_timeout_seconds=60, cpu_seconds=60)
+        command,
+        files=files,
+        limits=SandboxLimits(
+            wall_timeout_seconds=90, cpu_seconds=90, memory_bytes=1024 * 1024 * 1024
+        ),
     )
     output = (result.stderr or "") + (result.stdout or "")
     return {
