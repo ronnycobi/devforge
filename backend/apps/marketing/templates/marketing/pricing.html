@@ -1,0 +1,28 @@
+{% extends "marketing/base.html" %}
+{% block title %}Pricing · DevForge{% endblock %}
+{% block body %}
+<section class="hero-glow"><div class="wrap" style="text-align:center">
+  <div class="eyebrow">Pricing</div>
+  <h1>Start free.<br><span class="grad">Scale when you ship.</span></h1>
+  <p class="lead" style="margin:16px auto 0">Credits are DevForge’s unit of AI work. Every plan can export its code — no lock-in.</p>
+</div></section>
+
+<section style="padding-top:12px"><div class="wrap grid g4">
+  {% for t in tiers %}
+    <div class="card" style="{% if t.highlight %}border-color:rgba(79,124,255,.6);box-shadow:0 12px 40px rgba(79,124,255,.18){% endif %}">
+      {% if t.highlight %}<div class="eyebrow">Most popular</div>{% endif %}
+      <h3 style="font-size:20px">{{ t.name }}</h3>
+      <div style="font-size:30px;font-weight:850;margin:2px 0">{{ t.price }}<span class="muted" style="font-size:14px;font-weight:500">{% if t.price != 'Custom' %}/mo{% endif %}</span></div>
+      {% if t.credits is not None %}<div class="muted" style="font-size:13px">{{ t.credits }} credits / month</div>{% endif %}
+      <p class="muted" style="font-size:14px;margin:10px 0 12px">{{ t.blurb }}</p>
+      <div style="margin-bottom:16px">
+        {% for f in t.features %}<div class="muted" style="font-size:13.5px">✓ {{ f }}</div>{% endfor %}
+      </div>
+      <a class="btn {% if t.highlight %}grad{% else %}ghost{% endif %}" style="width:100%;text-align:center"
+         href="{% if t.name == 'Enterprise' %}{% url 'marketing:contact' %}{% else %}{% url 'marketing:signup' %}{% endif %}">
+        {% if t.name == 'Enterprise' %}Contact sales{% else %}Get started{% endif %}
+      </a>
+    </div>
+  {% endfor %}
+</div></section>
+{% endblock %}

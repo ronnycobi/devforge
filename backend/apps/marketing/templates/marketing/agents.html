@@ -1,0 +1,19 @@
+{% extends "marketing/base.html" %}
+{% block title %}AI Agents · DevForge{% endblock %}
+{% block body %}
+<section class="hero-glow"><div class="wrap">
+  <div class="eyebrow">AI Agents</div>
+  <h1>A team of <span class="grad">specialist engineers</span></h1>
+  <p class="lead" style="margin-top:16px">Each agent does one job well, with only the permissions it needs. The Lead Agent and Orchestrator coordinate them — agents never act outside their remit.</p>
+</div></section>
+
+<section style="padding-top:0"><div class="wrap grid g2">
+  {% for a in agents %}
+    <div class="card">
+      <h3>{{ a.name }}</h3>
+      <p class="muted" style="margin:2px 0 10px;font-size:14px">{{ a.description }}</p>
+      <div>{% for c in a.capability_values %}<span class="chip">{{ c }}</span>{% endfor %}</div>
+    </div>
+  {% endfor %}
+</div></section>
+{% endblock %}

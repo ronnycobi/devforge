@@ -1,0 +1,22 @@
+{% extends "marketing/base.html" %}
+{% block title %}Start building · DevForge{% endblock %}
+{% block body %}
+<section class="hero-glow"><div class="wrap" style="max-width:460px">
+  <div class="eyebrow">Get started</div>
+  <h1 style="font-size:38px">Create your <span class="grad">workspace</span></h1>
+  <p class="lead" style="margin-top:12px;font-size:16px">Free to start, with credits included. Export your code anytime.</p>
+  <div class="card" style="margin-top:20px">
+    <form method="post">
+      {% csrf_token %}
+      <label>Full name (optional)</label><input name="full_name" placeholder="Ada Lovelace">
+      <label>Work email</label><input type="email" name="email" placeholder="you@company.com" required>
+      <label>Password</label><input type="password" name="password" placeholder="At least 8 characters" required minlength="8">
+      <label>Organization name (optional)</label><input name="org_name" placeholder="Acme Corp">
+      <div style="margin-top:18px"><button class="btn grad lg" style="width:100%" type="submit">Create account &amp; start →</button></div>
+      <p class="muted" style="font-size:12.5px;margin:12px 0 0;text-align:center">
+        Already have an account? <a href="{% url 'dashboard:login' %}" style="color:var(--brand)">Log in</a>
+      </p>
+    </form>
+  </div>
+</div></section>
+{% endblock %}

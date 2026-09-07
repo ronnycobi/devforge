@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     "apps.costs",
     "apps.deployments",
     "apps.dashboard",
+    "apps.marketing",
 ]
 
 # --- Auth redirects (server-rendered dashboard UI) --------------------------

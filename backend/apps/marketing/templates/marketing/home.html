@@ -1,0 +1,61 @@
+{% extends "marketing/base.html" %}
+{% block body %}
+<section class="hero-glow"><div class="wrap">
+  <div class="eyebrow">AI software engineering platform</div>
+  <h1>Build. Improve.<br><span class="grad">Deploy. Scale.</span></h1>
+  <p class="lead" style="margin-top:18px">
+    DevForge builds real software with a team of specialist AI agents — in the
+    technology stack <em>you</em> choose. Describe what you need; get designed,
+    generated, tested, and deployable software.
+  </p>
+  <div style="margin-top:26px;display:flex;gap:12px;flex-wrap:wrap">
+    <a class="btn grad lg" href="{% url 'marketing:signup' %}">Start building free</a>
+    <a class="btn ghost lg" href="{% url 'marketing:how_it_works' %}">See how it works</a>
+  </div>
+  <div style="margin-top:34px" class="pipe">
+    <span class="step">Requirements</span><span class="arw">→</span>
+    <span class="step">Architecture</span><span class="arw">→</span>
+    <span class="step">Backend</span><span class="step">Frontend</span><span class="step">Database</span><span class="arw">→</span>
+    <span class="step">Tests</span><span class="arw">→</span>
+    <span class="step">Review</span><span class="arw">→</span>
+    <span class="step">Deploy</span>
+  </div>
+</div></section>
+
+<section style="padding-top:0"><div class="wrap">
+  <div class="grid g4">
+    {% for name, blurb in pillars %}
+      <div class="card"><h3 class="grad-text">{{ name }}</h3><p class="muted" style="margin:0">{{ blurb }}</p></div>
+    {% endfor %}
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="eyebrow">The agent team</div>
+  <h2>One lead agent, many specialists</h2>
+  <p class="lead">An orchestrator coordinates specialist agents — each with least-privilege access — that plan, build, test, review and ship your software.</p>
+  <div class="grid g3" style="margin-top:22px">
+    {% for a in agents %}
+      <div class="card"><h3>{{ a.name }}</h3><p class="muted" style="margin:0;font-size:14px">{{ a.description }}</p></div>
+    {% endfor %}
+  </div>
+</div></section>
+
+<section style="padding-top:0"><div class="wrap">
+  <div class="eyebrow">Any stack</div>
+  <h2>Build in the technology you choose</h2>
+  <p class="lead">DevForge isn’t a Django-only tool. Pick your language and framework — a check marks the stacks DevForge can generate and run today.</p>
+  <div style="margin-top:18px">
+    <div class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Languages</div>
+    {% for t in languages %}<span class="chip {% if t.codegen == 'supported' %}on{% endif %}">{{ t.name }}{% if t.codegen == 'supported' %} <span class="dot">✓</span>{% endif %}</span>{% endfor %}
+    <div class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:1px;margin:16px 0 6px">Frameworks</div>
+    {% for t in frameworks %}<span class="chip {% if t.codegen == 'supported' %}on{% endif %}">{{ t.name }}{% if t.codegen == 'supported' %} <span class="dot">✓</span>{% endif %}</span>{% endfor %}
+  </div>
+</div></section>
+
+<section><div class="wrap card" style="text-align:center;padding:48px 24px;background:linear-gradient(135deg,rgba(79,124,255,.14),rgba(155,107,255,.10))">
+  <h2>Ship your first project today</h2>
+  <p class="lead" style="margin:8px auto 22px">Free to start. Export your code anytime — no lock-in.</p>
+  <a class="btn grad lg" href="{% url 'marketing:signup' %}">Start building free</a>
+</div></section>
+{% endblock %}

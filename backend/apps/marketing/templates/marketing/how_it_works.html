@@ -1,0 +1,21 @@
+{% extends "marketing/base.html" %}
+{% block title %}How it works · DevForge{% endblock %}
+{% block body %}
+<section class="hero-glow"><div class="wrap">
+  <div class="eyebrow">How DevForge works</div>
+  <h1>From a sentence to<br><span class="grad">shipped software</span></h1>
+  <p class="lead" style="margin-top:16px">A coordinated pipeline turns your intent into designed, generated, and tested software — you stay in control at every gate.</p>
+</div></section>
+
+<section style="padding-top:0"><div class="wrap grid g2">
+  {% for title, desc in steps %}
+    <div class="card"><div class="eyebrow">Step {{ forloop.counter }}</div><h3 style="margin-top:6px">{{ title }}</h3><p class="muted" style="margin:0">{{ desc }}</p></div>
+  {% endfor %}
+</div></section>
+
+<section><div class="wrap card" style="text-align:center;padding:44px 24px">
+  <h2>See it on your own project</h2>
+  <p class="lead" style="margin:8px auto 20px">Create a project, pick a stack, and queue the agents.</p>
+  <a class="btn grad lg" href="{% url 'marketing:signup' %}">Start free</a>
+</div></section>
+{% endblock %}

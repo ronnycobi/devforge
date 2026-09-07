@@ -17,6 +17,7 @@ urlpatterns = [
     path("api/v1/", include("apps.credits.urls")),
     path("api/v1/", include("apps.costs.urls")),
     path("api/v1/", include("apps.deployments.urls")),
-    # Server-rendered UI at the site root.
-    path("", include("apps.dashboard.urls")),
+    # Customer dashboard (the app) under /app/; public marketing site at the root.
+    path("app/", include("apps.dashboard.urls")),
+    path("", include("apps.marketing.urls")),
 ]

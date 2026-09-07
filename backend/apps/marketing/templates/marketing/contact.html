@@ -1,0 +1,21 @@
+{% extends "marketing/base.html" %}
+{% block title %}Contact · DevForge{% endblock %}
+{% block body %}
+<section class="hero-glow"><div class="wrap" style="max-width:640px">
+  <div class="eyebrow">Contact</div>
+  <h1>Let’s <span class="grad">talk</span></h1>
+  <p class="lead" style="margin-top:14px">Questions about the platform, enterprise, or a project? Send us a note.</p>
+  <div class="card" style="margin-top:22px">
+    <form method="post">
+      {% csrf_token %}
+      <div class="grid g2">
+        <div><label>Name</label><input name="name" required></div>
+        <div><label>Email</label><input type="email" name="email" required></div>
+      </div>
+      <label>Company (optional)</label><input name="company">
+      <label>Message</label><textarea name="message" rows="5" required></textarea>
+      <div style="margin-top:16px"><button class="btn grad" type="submit">Send message</button></div>
+    </form>
+  </div>
+</div></section>
+{% endblock %}
