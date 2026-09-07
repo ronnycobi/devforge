@@ -6,11 +6,19 @@ from apps.dashboard import views
 app_name = "dashboard"
 
 urlpatterns = [
-    path("", views.dashboard, name="home"),
+    path("", views.overview, name="home"),
+    path("projects/", views.projects, name="projects"),
     path("projects/<int:pk>/", views.project, name="project"),
+    path("agents/", views.agents, name="agents"),
+    path("tasks/", views.tasks, name="tasks"),
+    path("deployments/", views.deployments, name="deployments"),
+    path("usage/", views.usage, name="usage"),
+    path("soon/<slug:slug>/", views.soon, name="soon"),
     path(
         "login/",
-        auth_views.LoginView.as_view(template_name="dashboard/login.html"),
+        auth_views.LoginView.as_view(
+            template_name="dashboard/login.html", redirect_authenticated_user=True
+        ),
         name="login",
     ),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),

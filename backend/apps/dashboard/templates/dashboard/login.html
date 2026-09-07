@@ -1,18 +1,44 @@
-{% extends "dashboard/base.html" %}
-{% block title %}Sign in · DevForge{% endblock %}
-{% block content %}
-<div class="card" style="max-width:380px;margin:6vh auto">
-  <h1>Sign in</h1>
-  <p class="sub">DevForge control plane</p>
-  {% if form.errors %}<div class="msg error">Invalid email or password.</div>{% endif %}
-  <form method="post" action="{% url 'dashboard:login' %}">
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · DevForge</title>
+  <style>
+    :root{--grad:linear-gradient(135deg,#4f7cff,#9b6bff)}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+      background:radial-gradient(900px 500px at 70% -10%,rgba(155,107,255,.16),transparent 60%),
+        radial-gradient(800px 500px at -10% 10%,rgba(79,124,255,.16),transparent 55%),#080c18;
+      color:#e8edfb;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Arial,sans-serif}
+    .box{width:370px;max-width:92vw;background:linear-gradient(180deg,#111a30,#0e1526);
+      border:1px solid #1d2743;border-radius:18px;padding:30px 28px;
+      box-shadow:0 30px 80px rgba(0,0,0,.5)}
+    .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;margin-bottom:4px}
+    .logo .mark{width:24px;height:24px;border-radius:8px;background:var(--grad);box-shadow:0 0 20px rgba(79,124,255,.6)}
+    .logo b{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .tag{color:#7f8aa8;margin:0 0 20px;font-size:13px}
+    label{display:block;font-size:11.5px;color:#7f8aa8;margin:12px 0 4px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+    input{width:100%;padding:11px 12px;border:1px solid #26324f;border-radius:10px;background:#0e1526;color:#e8edfb}
+    input::placeholder{color:#5c678a}
+    button{width:100%;margin-top:20px;padding:12px;border:0;border-radius:10px;background:var(--grad);
+      color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+    .err{background:rgba(248,113,113,.14);color:#f87171;border:1px solid rgba(248,113,113,.3);
+      padding:9px 12px;border-radius:9px;font-size:13px;margin-bottom:8px}
+  </style>
+</head>
+<body>
+  <form class="box" method="post" action="{% url 'dashboard:login' %}">
+    <div class="logo"><span class="mark"></span>Dev<b>Forge</b></div>
+    <p class="tag">AI software engineering for the stack you choose.</p>
     {% csrf_token %}
+    {% if form.errors %}<div class="err">Invalid email or password.</div>{% endif %}
     <label for="id_username">Email</label>
-    <input type="email" name="username" id="id_username" autofocus required>
+    <input type="email" name="username" id="id_username" placeholder="you@company.com" autofocus required>
     <label for="id_password">Password</label>
-    <input type="password" name="password" id="id_password" required>
+    <input type="password" name="password" id="id_password" placeholder="••••••••" required>
     <input type="hidden" name="next" value="{{ next }}">
-    <div style="margin-top:14px"><button type="submit">Sign in</button></div>
+    <button type="submit">Sign in →</button>
   </form>
-</div>
-{% endblock %}
+</body>
+</html>

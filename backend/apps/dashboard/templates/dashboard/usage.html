@@ -1,0 +1,32 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Costs & AI Usage · DevForge{% endblock %}
+{% block crumb %}Project / Costs &amp; AI Usage{% endblock %}
+{% block content %}
+  <h1>Costs &amp; AI Usage</h1>
+  <p class="sub">Every agent run is attributable to a project, model, and provider.</p>
+
+  <div class="cards">
+    <div class="card stat"><div class="k">Spend (recent)</div><div class="v">${{ spend|floatformat:2 }}</div></div>
+    <div class="card stat"><div class="k">Credits used</div><div class="v grad">{{ credits|floatformat:0 }}</div></div>
+    {% for a in accounts %}
+      <div class="card stat"><div class="k">{{ a.organization.name }} · {{ a.plan }}</div><div class="v">{{ a.balance|floatformat:0 }}</div><div class="muted" style="font-size:12px">credits left</div></div>
+    {% endfor %}
+  </div>
+
+  <h2>Usage ledger</h2>
+  <div class="card">
+    {% if records %}
+    <table>
+      <tr><th>When</th><th>Project</th><th>Agent</th><th>Model</th><th>Tokens</th><th>Cost</th><th>Credits</th></tr>
+      {% for r in records %}
+      <tr>
+        <td class="muted">{{ r.created_at|timesince }} ago</td>
+        <td>{% if r.project %}{{ r.project.name }}{% else %}—{% endif %}</td>
+        <td>{{ r.agent_key }}</td><td>{{ r.model|default:"—" }}</td>
+        <td>{{ r.total_tokens }}</td><td>${{ r.cost_usd|floatformat:4 }}</td><td>{{ r.credits_charged|floatformat:2 }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No usage recorded yet. Runs on the offline stub cost nothing.</p>{% endif %}
+  </div>
+{% endblock %}

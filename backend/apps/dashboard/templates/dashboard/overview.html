@@ -1,0 +1,58 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Overview · DevForge{% endblock %}
+{% block crumb %}Overview{% endblock %}
+{% block content %}
+  <h1>Good day, {{ greeting_name }}</h1>
+  <p class="sub">Here's what DevForge is building for you.</p>
+
+  <div class="row">
+    <div class="cards">
+      <div class="card stat"><div class="k">Projects</div><div class="v">{{ stats.projects }}</div></div>
+      <div class="card stat"><div class="k">Running</div><div class="v grad">{{ stats.running }}</div></div>
+      <div class="card stat"><div class="k">Deployments</div><div class="v">{{ stats.deployments }}</div></div>
+      <div class="card stat"><div class="k">Incidents</div><div class="v">{{ stats.incidents }}</div></div>
+    </div>
+    <div class="card">
+      <div class="k" style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.4px">AI usage · this month</div>
+      {% if usage_pct is not None %}
+        <div class="v grad" style="font-size:30px;font-weight:800;margin:6px 0 10px">{{ usage_pct }}%</div>
+        <div class="bar"><i style="width:{{ usage_pct }}%"></i></div>
+      {% else %}
+        <div class="v" style="font-size:22px;font-weight:800;margin:6px 0 10px">Unlimited <span class="muted" style="font-size:13px;font-weight:400">(dev)</span></div>
+      {% endif %}
+      <div style="margin-top:14px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.4px">Spend</div>
+      <div style="font-size:22px;font-weight:800">${{ spend|floatformat:2 }}</div>
+    </div>
+  </div>
+
+  <h2>Active projects</h2>
+  <div class="card">
+    {% if active_rows %}
+    <table>
+      {% for r in active_rows %}
+      <tr>
+        <td style="width:38%"><a href="{% url 'dashboard:project' r.project.id %}" style="color:var(--ink);font-weight:600">{{ r.project.name }}</a>
+          <div class="muted" style="font-size:12px">{{ r.project.organization.name }}</div></td>
+        <td style="width:18%"><span class="badge b-{{ r.state|lower }}">{{ r.state }}</span></td>
+        <td><div class="bar"><i style="width:{{ r.progress }}%"></i></div></td>
+        <td style="width:56px;text-align:right;font-weight:700">{{ r.progress }}%</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No projects yet. <a href="{% url 'dashboard:projects' %}">Create one →</a></p>{% endif %}
+  </div>
+
+  <h2>AI engineering activity</h2>
+  <div class="card feed">
+    {% for a in activity %}
+      <div class="it">
+        <span class="dot"></span>
+        <span class="who">{{ a.agent }}</span>
+        <span class="act">{{ a.action|truncatechars:70 }}</span>
+        <span class="when">{{ a.when|timesince }} ago</span>
+      </div>
+    {% empty %}
+      <p class="empty">No agent activity yet. Open a project and queue an agent.</p>
+    {% endfor %}
+  </div>
+{% endblock %}

@@ -1,0 +1,68 @@
+{% comment %}Sidebar nav. `active` names the current item.{% endcomment %}
+<div class="navgroup">
+  <div class="nav">
+    <a href="{% url 'dashboard:home' %}" class="{% if active == 'overview' %}on{% endif %}">Overview</a>
+  </div>
+</div>
+
+<div class="navgroup">
+  <div class="lbl">Build</div>
+  <div class="nav">
+    <a href="{% url 'dashboard:projects' %}" class="{% if active == 'projects' %}on{% endif %}">Projects</a>
+    <a href="{% url 'dashboard:projects' %}" class="{% if active == 'new' %}on{% endif %}">New Project</a>
+    <a href="{% url 'dashboard:soon' 'templates' %}" class="{% if active == 'templates' %}on{% endif %}">Templates <span class="soon">SOON</span></a>
+  </div>
+</div>
+
+<div class="navgroup">
+  <div class="lbl">Engineering</div>
+  <div class="nav">
+    <a href="{% url 'dashboard:agents' %}" class="{% if active == 'agents' %}on{% endif %}">AI Agents</a>
+    <a href="{% url 'dashboard:tasks' %}" class="{% if active == 'tasks' %}on{% endif %}">Tasks</a>
+    <a href="{% url 'dashboard:soon' 'code' %}" class="{% if active == 'code' %}on{% endif %}">Code <span class="soon">SOON</span></a>
+    <a href="{% url 'dashboard:soon' 'repository' %}" class="{% if active == 'repository' %}on{% endif %}">Repository <span class="soon">SOON</span></a>
+    <a href="{% url 'dashboard:soon' 'database' %}" class="{% if active == 'database' %}on{% endif %}">Database <span class="soon">SOON</span></a>
+    <a href="{% url 'dashboard:soon' 'apis' %}" class="{% if active == 'apis' %}on{% endif %}">APIs <span class="soon">SOON</span></a>
+    <a href="{% url 'dashboard:soon' 'tests' %}" class="{% if active == 'tests' %}on{% endif %}">Tests <span class="soon">SOON</span></a>
+  </div>
+</div>
+
+<div class="navgroup">
+  <div class="lbl">Improve</div>
+  <div class="nav">
+    <a href="{% url 'dashboard:soon' 'analyze-software' %}" class="{% if active == 'analyze-software' %}on{% endif %}">Analyze Software <span class="soon">SOON</span></a>
+    <a href="{% url 'dashboard:soon' 'code-issues' %}" class="{% if active == 'code-issues' %}on{% endif %}">Code Issues <span class="soon">SOON</span></a>
+    <a href="{% url 'dashboard:soon' 'security' %}" class="{% if active == 'security' %}on{% endif %}">Security <span class="soon">SOON</span></a>
+    <a href="{% url 'dashboard:soon' 'performance' %}" class="{% if active == 'performance' %}on{% endif %}">Performance <span class="soon">SOON</span></a>
+    <a href="{% url 'dashboard:soon' 'modernization' %}" class="{% if active == 'modernization' %}on{% endif %}">Modernization <span class="soon">SOON</span></a>
+  </div>
+</div>
+
+<div class="navgroup">
+  <div class="lbl">Deploy</div>
+  <div class="nav">
+    <a href="{% url 'dashboard:soon' 'environments' %}" class="{% if active == 'environments' %}on{% endif %}">Environments <span class="soon">SOON</span></a>
+    <a href="{% url 'dashboard:deployments' %}" class="{% if active == 'deployments' %}on{% endif %}">Deployments</a>
+    <a href="{% url 'dashboard:soon' 'cloud' %}" class="{% if active == 'cloud' %}on{% endif %}">Cloud <span class="soon">SOON</span></a>
+    <a href="{% url 'dashboard:soon' 'infrastructure' %}" class="{% if active == 'infrastructure' %}on{% endif %}">Infrastructure <span class="soon">SOON</span></a>
+  </div>
+</div>
+
+<div class="navgroup">
+  <div class="lbl">Operate</div>
+  <div class="nav">
+    <a href="{% url 'dashboard:soon' 'monitoring' %}" class="{% if active == 'monitoring' %}on{% endif %}">Monitoring <span class="soon">SOON</span></a>
+    <a href="{% url 'dashboard:soon' 'logs' %}" class="{% if active == 'logs' %}on{% endif %}">Logs <span class="soon">SOON</span></a>
+    <a href="{% url 'dashboard:soon' 'incidents' %}" class="{% if active == 'incidents' %}on{% endif %}">Incidents <span class="soon">SOON</span></a>
+    <a href="{% url 'dashboard:soon' 'scaling' %}" class="{% if active == 'scaling' %}on{% endif %}">Scaling <span class="soon">SOON</span></a>
+  </div>
+</div>
+
+<div class="navgroup">
+  <div class="lbl">Project</div>
+  <div class="nav">
+    <a href="{% url 'dashboard:usage' %}" class="{% if active == 'usage' %}on{% endif %}">Costs &amp; AI Usage</a>
+    <a href="{% url 'dashboard:tasks' %}" class="{% if active == 'activity' %}on{% endif %}">Activity</a>
+    <a href="{% url 'dashboard:soon' 'settings' %}" class="{% if active == 'settings' %}on{% endif %}">Settings <span class="soon">SOON</span></a>
+  </div>
+</div>

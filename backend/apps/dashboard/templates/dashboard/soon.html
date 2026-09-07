@@ -1,0 +1,15 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}{{ title }} · DevForge{% endblock %}
+{% block crumb %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <div class="card" style="text-align:center;padding:48px 24px">
+    <div style="width:52px;height:52px;border-radius:14px;background:var(--grad);margin:0 auto 16px;box-shadow:0 0 26px rgba(79,124,255,.5)"></div>
+    <div style="font-weight:700;font-size:17px">{{ title }} is coming soon</div>
+    <p class="muted" style="max-width:440px;margin:8px auto 0">
+      This area of the DevForge platform is on the roadmap. It's shown here so the
+      full product surface is navigable — no placeholder data is invented until the
+      feature is real.
+    </p>
+  </div>
+{% endblock %}

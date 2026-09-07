@@ -1,0 +1,23 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Tasks · DevForge{% endblock %}
+{% block crumb %}Engineering / Tasks{% endblock %}
+{% block content %}
+  <h1>Agent tasks</h1>
+  <p class="sub">Recent orchestrated work across your projects.</p>
+  <div class="card">
+    {% if tasks %}
+    <table>
+      <tr><th>#</th><th>Agent</th><th>Project</th><th>Status</th><th>Detail</th><th>Created</th></tr>
+      {% for t in tasks %}
+      <tr>
+        <td>{{ t.id }}</td><td>{{ t.agent_key }}</td>
+        <td><a href="{% url 'dashboard:project' t.project.id %}">{{ t.project.name }}</a></td>
+        <td><span class="badge b-{{ t.status }}">{{ t.get_status_display }}</span></td>
+        <td class="muted">{% if t.messages %}{{ t.messages|last|truncatechars:56 }}{% elif t.error %}{{ t.error|truncatechars:56 }}{% else %}—{% endif %}</td>
+        <td class="muted">{{ t.created_at|timesince }} ago</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No tasks yet.</p>{% endif %}
+  </div>
+{% endblock %}

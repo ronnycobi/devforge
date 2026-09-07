@@ -33,7 +33,7 @@ class DashboardUITests(TestCase):
     def test_owner_creates_project_via_ui(self):
         self.client.force_login(self.owner)
         resp = self.client.post(
-            reverse("dashboard:home"),
+            reverse("dashboard:projects"),
             {"action": "create_project", "name": "New Site", "organization": self.org.id},
             follow=True,
         )
@@ -43,10 +43,18 @@ class DashboardUITests(TestCase):
     def test_member_cannot_create_project(self):
         self.client.force_login(self.member)
         self.client.post(
-            reverse("dashboard:home"),
+            reverse("dashboard:projects"),
             {"action": "create_project", "name": "Nope", "organization": self.org.id},
         )
         self.assertFalse(Project.objects.filter(name="Nope").exists())
+
+    def test_overview_and_key_pages_render(self):
+        self.client.force_login(self.member)
+        for name in ["home", "projects", "agents", "tasks", "deployments", "usage"]:
+            self.assertEqual(self.client.get(reverse("dashboard:" + name)).status_code, 200)
+        self.assertEqual(
+            self.client.get(reverse("dashboard:soon", args=["monitoring"])).status_code, 200
+        )
 
     def test_project_workspace_renders(self):
         self.client.force_login(self.member)

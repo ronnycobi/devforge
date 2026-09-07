@@ -1,0 +1,23 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Deployments · DevForge{% endblock %}
+{% block crumb %}Deploy / Deployments{% endblock %}
+{% block content %}
+  <h1>Deployments</h1>
+  <p class="sub">Deploys across your projects. Production deploys are approval-gated.</p>
+  <div class="card">
+    {% if deployments %}
+    <table>
+      <tr><th>#</th><th>Project</th><th>Environment</th><th>Provider</th><th>Status</th><th>Created</th></tr>
+      {% for d in deployments %}
+      <tr>
+        <td>{{ d.id }}</td>
+        <td><a href="{% url 'dashboard:project' d.project.id %}">{{ d.project.name }}</a></td>
+        <td>{{ d.get_environment_display }}</td><td>{{ d.provider }}</td>
+        <td><span class="badge b-{{ d.status }}">{{ d.get_status_display }}</span></td>
+        <td class="muted">{{ d.created_at|timesince }} ago</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No deployments yet.</p>{% endif %}
+  </div>
+{% endblock %}

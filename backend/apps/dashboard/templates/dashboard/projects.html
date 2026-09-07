@@ -1,0 +1,38 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Projects · DevForge{% endblock %}
+{% block crumb %}Build / Projects{% endblock %}
+{% block content %}
+  <h1>Projects</h1>
+  <p class="sub">Software DevForge is building for you, across your organizations.</p>
+
+  <div class="card">
+    {% if rows %}
+    <table>
+      <tr><th>Project</th><th>Organization</th><th>State</th><th>Stack</th><th style="width:150px">Progress</th></tr>
+      {% for r in rows %}
+      <tr>
+        <td><a href="{% url 'dashboard:project' r.project.id %}" style="color:var(--ink);font-weight:600">{{ r.project.name }}</a></td>
+        <td class="muted">{{ r.project.organization.name }}</td>
+        <td><span class="badge b-{{ r.state|lower }}">{{ r.state }}</span></td>
+        <td>{% for role, tech in r.project.technology.items %}<span class="chip">{{ tech }}</span>{% endfor %}{% if not r.project.technology %}<span class="muted">—</span>{% endif %}</td>
+        <td><div class="bar"><i style="width:{{ r.progress }}%"></i></div></td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No projects yet.</p>{% endif %}
+  </div>
+
+  {% if manageable_orgs %}
+  <h2>New project</h2>
+  <div class="card">
+    <form method="post" class="inline">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create_project">
+      <div style="flex:2"><label>Name</label><input name="name" placeholder="e.g. Field Service SaaS" required></div>
+      <div style="flex:1"><label>Organization</label>
+        <select name="organization">{% for o in manageable_orgs %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select></div>
+      <div><button type="submit">Create project</button></div>
+    </form>
+  </div>
+  {% endif %}
+{% endblock %}
