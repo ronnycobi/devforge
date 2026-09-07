@@ -23,6 +23,19 @@ class RegistryTests(SimpleTestCase):
         self.assertEqual(registry.get("django").codegen, CodegenStatus.SUPPORTED)
         self.assertEqual(registry.get("nextjs").codegen, CodegenStatus.PLANNED)
 
+    def test_frontend_catalog_includes_the_major_frameworks(self):
+        options = {t.id for t in registry.options_for_role("frontend")}
+        self.assertTrue(
+            {"react", "vue", "angular", "svelte", "sveltekit", "nextjs", "nuxt"}
+            <= options
+        )
+
+    def test_mobile_and_testing_and_deployment_expanded(self):
+        mobile = {t.id for t in registry.options_for_role("mobile")}
+        self.assertTrue({"flutter", "react_native", "swiftui"} <= mobile)
+        testing = {t.id for t in registry.by_category(Category.TESTING)}
+        self.assertTrue({"pytest", "jest", "vitest", "junit"} <= testing)
+
 
 class StackTests(SimpleTestCase):
     def test_runnable_stacks_registered(self):
