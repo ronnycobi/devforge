@@ -1,39 +1,29 @@
-"""Prompt construction for the Backend Agent."""
+"""Prompt construction for the Backend Agent (stack-driven).
 
-SYSTEM_PROMPT = (
-    "You are the Backend Agent for DevForge. Given a project's architecture, "
-    "requirements, and data model, implement a COMPLETE, SELF-CONTAINED, RUNNABLE "
-    "Python project that realizes the core domain logic AND its HTTP API surface.\n\n"
-    "Hard constraints (the project runs in an isolated sandbox with NO network and "
-    "NO installed third-party packages):\n"
-    "- Use ONLY the Python standard library. No Django, Flask, requests, pytest, etc.\n"
-    "- Flat layout: modules and test files live at the repository root.\n"
-    "- Include unittest tests in files named test_*.py that exercise the domain "
-    "logic. The whole thing must pass `python -m unittest discover`.\n\n"
-    "Respond with ONLY a JSON object with two keys:\n"
-    '  "files": array of {"path","content"} — the complete project (domain '
-    "modules + test_*.py), each a valid, importable Python file.\n"
-    '  "endpoints": array of {"method","path","purpose","module","auth"} '
-    "describing the HTTP API the domain logic is meant to expose.\n"
-    "Prefer a small, coherent, passing project over breadth. No prose outside the JSON."
-)
+The system prompt is assembled from a stack-agnostic base plus the chosen stack's
+own guidance (Stack.prompt_hint), so the same agent generates Django, a stdlib
+project, or any future stack without special-casing.
+"""
 
 
-DJANGO_SYSTEM_PROMPT = (
-    "You are the Backend Agent for DevForge. Generate a Django app that realizes "
-    "the domain. It runs under a DevForge-provided project scaffold — settings.py, "
-    "manage.py, and a migration-free test database are supplied for you, so do NOT "
-    "generate them, and do NOT write migration files.\n\n"
-    "Constraints: use Django (installed) and the standard library only. tests.py "
-    "MUST use django.test.TestCase and exercise the models through the ORM "
-    "(create/query/update), so they run against a real test database.\n\n"
-    "Respond with ONLY a JSON object with three keys:\n"
-    '  "app_label": a short snake_case Django app name,\n'
-    '  "files": array of {"path","content"} where path is RELATIVE to the app '
-    'package (e.g. "models.py", "tests.py", optionally "serializers.py"/"views.py"),\n'
-    '  "endpoints": array of {"method","path","purpose","module","auth"}.\n'
-    "Keep it small and passing. No prose outside the JSON object."
-)
+def system_prompt(stack) -> str:
+    base = [
+        "You are the Backend Agent for DevForge. Implement the backend for this "
+        f"project in the chosen stack: {stack.framework or stack.language}.",
+        "",
+        "Respond with ONLY a JSON object. It MUST include:",
+        '  "files": array of {"path","content"} — the source files,',
+        '  "endpoints": array of {"method","path","purpose","module","auth"} '
+        "describing the HTTP API.",
+    ]
+    if stack.needs_app_label:
+        base.append('  "app_label": a short snake_case app name.')
+    base.append("")
+    base.append("Stack-specific requirements:")
+    base.append(stack.prompt_hint)
+    base.append("")
+    base.append("Keep it small, coherent, and passing. No prose outside the JSON.")
+    return "\n".join(base)
 
 
 def build_user_prompt(architecture_digest, requirements_digest, schema_digest,
@@ -49,8 +39,5 @@ def build_user_prompt(architecture_digest, requirements_digest, schema_digest,
         parts.append("Data model:\n" + schema_digest.strip())
     if existing_api.strip():
         parts.append("Existing API (refine, don't duplicate):\n" + existing_api.strip())
-    parts.append(
-        "Return the JSON with a complete runnable stdlib-only project (with "
-        "unittest tests) and the API it exposes."
-    )
+    parts.append("Return the JSON with the backend files and the API they expose.")
     return "\n\n".join(parts)

@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "apps.organizations",
     "apps.projects",
     "apps.workspaces",
+    "apps.technology",
     "apps.agents",
     "apps.orchestrator",
     "apps.ai_providers",

@@ -23,6 +23,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "description",
             "mode",
             "status",
+            "technology",
             "created_by",
             "created_at",
             "updated_at",

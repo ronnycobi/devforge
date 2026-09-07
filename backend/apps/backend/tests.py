@@ -106,7 +106,8 @@ class BackendCodegenFlowTests(TestCase):
                     orch.run_task(task)
                     task.refresh_from_db()
                     # Capture repo state before the temp dir is cleaned up.
-                    files = repo_for_project(self.project).list_files()
+                    repo = repo_for_project(self.project)
+                    files = repo.list_files() if repo.is_initialized else []
         return task, files
 
     def test_django_mode_scaffolds_and_compiles(self):
@@ -120,6 +121,20 @@ class BackendCodegenFlowTests(TestCase):
         self.assertIn("settings.py", files)
         self.assertIn("devforge.json", files)
         self.assertIn("shop/models.py", files)
+
+    def test_stack_comes_from_project_technology_profile(self):
+        # No input stack; the project's chosen backend stack drives generation.
+        self.project.technology = {"backend": "django"}
+        self.project.save(update_fields=["technology"])
+        task, files = self._run(DJANGO_JSON)
+        self.assertEqual(task.output["stack"], "django")
+        self.assertIn("manage.py", files)
+
+    def test_unsupported_stack_fails_honestly(self):
+        # A known technology DevForge can't generate yet -> honest blocker, no fake.
+        task, _ = self._run(GOOD_JSON, task_input={"stack": "nextjs"})
+        self.assertEqual(task.status, "failed")
+        self.assertIn("cannot generate it yet", task.error)
 
     def test_generates_commits_and_verifies_code(self):
         task, files = self._run(GOOD_JSON)

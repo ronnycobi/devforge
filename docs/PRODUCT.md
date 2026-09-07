@@ -13,6 +13,20 @@ An AI software-engineering platform. Users describe software; specialized AI
 agents build, test, review, deploy, and operate it. It is an **engineering
 platform**, not a chatbot that generates code.
 
+**Stack-agnostic.** DevForge builds software in the technology the customer
+chooses — the user picks what they're building (website, SaaS, API, mobile, …)
+and the stack (Python/Django·FastAPI·Flask, TS/Next.js·NestJS, Go, Java/Spring,
+C#/.NET, Rust, PHP/Laravel, Ruby/Rails, Dart/Flutter, …). Agents reason about the
+project's chosen stack rather than assuming one. The authoritative catalog is the
+**Technology Registry** (`apps/technology`: languages, frameworks, databases,
+deployment, infrastructure); the executable subset — stacks DevForge can generate
+AND run today — is the **Stack Registry** (`apps/technology/stacks.py`), currently
+`python-stdlib` and `django`, extensible by adding a Stack + scaffolder. A project
+carries a `technology` profile (`{backend, frontend, database, mobile}`) that the
+agents read. **Django + Flutter are DevForge's reference stack** — the one it
+bootstraps itself in — not a restriction imposed on customers; a requested stack
+DevForge can't yet generate fails honestly ("generation planned"), never faked.
+
 Users can: build websites, web apps, SaaS, APIs, and mobile apps; import,
 analyze, improve, rebuild, and modernize existing/legacy software; deploy,
 monitor, and maintain applications; export full source; deploy to their own

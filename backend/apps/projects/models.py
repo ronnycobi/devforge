@@ -39,6 +39,11 @@ class Project(models.Model):
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.ACTIVE
     )
+    # Chosen technology per role, e.g. {"backend": "django", "frontend": "nextjs",
+    # "database": "postgresql", "mobile": "flutter"}. DevForge is stack-agnostic;
+    # agents read this to generate in the customer's chosen stack. Empty => the
+    # agent's default (python-stdlib for backend).
+    technology = models.JSONField(default=dict, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
