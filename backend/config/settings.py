@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     "apps.changes",
     "apps.ingest",
     "apps.dashboard",
+    "apps.console",
     "apps.marketing",
 ]
 

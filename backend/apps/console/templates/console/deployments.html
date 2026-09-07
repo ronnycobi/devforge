@@ -1,0 +1,25 @@
+{% extends "console/base_console.html" %}
+{% block title %}Deployments · Staff Console{% endblock %}
+{% block crumb %}Operations / Deployments{% endblock %}
+{% block content %}
+  <h1>Deployments</h1>
+  <p class="sub">Every deployment across all tenants. Showing up to 200, newest first.</p>
+  <div class="card">
+    {% if rows %}
+    <table>
+      <tr><th>Project</th><th>Tenant</th><th>Environment</th><th>Provider</th><th>Status</th><th>URL</th><th>When</th></tr>
+      {% for d in rows %}
+      <tr>
+        <td class="strong">{{ d.project.name }}</td>
+        <td><a href="{% url 'console:org' d.project.organization.id %}">{{ d.project.organization.name }}</a></td>
+        <td><span class="chip">{{ d.get_environment_display }}</span></td>
+        <td class="muted">{{ d.provider }}</td>
+        <td><span class="badge b-{{ d.status }}">{{ d.get_status_display }}</span></td>
+        <td>{% if d.url %}<a href="{{ d.url }}" target="_blank" rel="noopener">{{ d.url|truncatechars:36 }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="muted">{{ d.created_at|date:"M j, H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No deployments yet.</p>{% endif %}
+  </div>
+{% endblock %}

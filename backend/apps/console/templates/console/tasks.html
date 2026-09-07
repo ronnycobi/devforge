@@ -1,0 +1,34 @@
+{% extends "console/base_console.html" %}
+{% block title %}Agent Tasks · Staff Console{% endblock %}
+{% block crumb %}Operations / Agent Tasks{% endblock %}
+{% block content %}
+  <h1>Agent tasks</h1>
+  <p class="sub">Orchestrator activity across every tenant. Showing up to 200, newest first.</p>
+
+  <div class="filters">
+    <a href="{% url 'console:tasks' %}" class="{% if not current %}on{% endif %}">All</a>
+    {% for s in statuses %}
+    <a href="?status={{ s.value }}" class="{% if current == s.value %}on{% endif %}">{{ s.label }}{% if s.count %} ({{ s.count }}){% endif %}</a>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    {% if rows %}
+    <table>
+      <tr><th>Agent</th><th>Project</th><th>Tenant</th><th>Status</th><th>Model</th><th class="num">Tokens</th><th class="num">Cost</th><th>When</th></tr>
+      {% for t in rows %}
+      <tr>
+        <td class="strong">{{ t.agent_key }}</td>
+        <td>{{ t.project.name }}</td>
+        <td class="muted">{{ t.project.organization.name }}</td>
+        <td><span class="badge b-{{ t.status }}">{{ t.get_status_display }}</span>{% if t.attempts > 1 %} <span class="muted">×{{ t.attempts }}</span>{% endif %}</td>
+        <td class="muted">{{ t.model|default:"—" }}</td>
+        <td class="num">{{ t.tokens }}</td>
+        <td class="num">${{ t.cost|floatformat:4 }}</td>
+        <td class="muted">{{ t.created_at|date:"M j, H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No tasks match.</p>{% endif %}
+  </div>
+{% endblock %}

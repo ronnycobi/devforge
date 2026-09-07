@@ -1,0 +1,59 @@
+{% extends "console/base_console.html" %}
+{% block title %}{{ org.name }} · Staff Console{% endblock %}
+{% block crumb %}Tenants / Organizations / {{ org.name }}{% endblock %}
+{% block content %}
+  <h1>{{ org.name }}</h1>
+  <p class="sub">Created {{ org.created_at|date:"F j, Y" }} · slug <code class="muted">{{ org.slug }}</code></p>
+
+  <div class="cards">
+    <div class="card stat"><div class="k">Plan</div><div class="v" style="font-size:22px">{% if account %}{{ account.plan }}{% else %}—{% endif %}</div></div>
+    <div class="card stat"><div class="k">Balance</div><div class="v">{% if account %}{{ account.balance|floatformat:0 }}{% else %}—{% endif %}</div><div class="sm">credits</div></div>
+    <div class="card stat"><div class="k">AI spend</div><div class="v">${{ totals.cost|floatformat:2 }}</div><div class="sm">{{ totals.tokens }} tokens</div></div>
+    <div class="card stat"><div class="k">Credits charged</div><div class="v">{{ totals.credits|floatformat:0 }}</div></div>
+  </div>
+
+  <h2>Members</h2>
+  <div class="card">
+    {% if members %}
+    <table>
+      <tr><th>User</th><th>Role</th><th>Joined</th></tr>
+      {% for m in members %}
+      <tr><td><a class="strong" href="{% url 'console:users' %}">{{ m.user.email }}</a></td>
+        <td><span class="chip">{{ m.get_role_display }}</span></td>
+        <td class="muted">{{ m.created_at|date:"M j, Y" }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No members.</p>{% endif %}
+  </div>
+
+  <h2>Projects</h2>
+  <div class="card">
+    {% if projects %}
+    <table>
+      <tr><th>Project</th><th>Mode</th><th>Stack</th><th>Created</th></tr>
+      {% for p in projects %}
+      <tr><td class="strong">{{ p.name }}</td>
+        <td><span class="chip">{{ p.get_mode_display }}</span></td>
+        <td>{% for role, tech in p.technology.items %}<span class="chip blue">{{ tech }}</span>{% empty %}<span class="muted">—</span>{% endfor %}</td>
+        <td class="muted">{{ p.created_at|date:"M j, Y" }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No projects.</p>{% endif %}
+  </div>
+
+  <h2>Recent usage</h2>
+  <div class="card">
+    {% if recent_usage %}
+    <table>
+      <tr><th>When</th><th>Agent</th><th>Model</th><th class="num">Tokens</th><th class="num">Cost</th></tr>
+      {% for u in recent_usage %}
+      <tr><td class="muted">{{ u.created_at|date:"M j, H:i" }}</td>
+        <td>{{ u.agent_key|default:"—" }}</td>
+        <td class="muted">{{ u.provider }}{% if u.model %} · {{ u.model }}{% endif %}</td>
+        <td class="num">{{ u.total_tokens }}</td>
+        <td class="num">${{ u.cost_usd|floatformat:4 }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No usage recorded.</p>{% endif %}
+  </div>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "console/base_console.html" %}
+{% block title %}Leads · Staff Console{% endblock %}
+{% block crumb %}Business / Leads{% endblock %}
+{% block content %}
+  <h1>Leads</h1>
+  <p class="sub">Contact-form submissions from the marketing site — {{ rows|length }} shown.</p>
+  <div class="card">
+    {% if rows %}
+    <table>
+      <tr><th>Name</th><th>Email</th><th>Company</th><th>Message</th><th>When</th></tr>
+      {% for m in rows %}
+      <tr>
+        <td class="strong">{{ m.name }}</td>
+        <td><a href="mailto:{{ m.email }}">{{ m.email }}</a></td>
+        <td class="muted">{{ m.company|default:"—" }}</td>
+        <td>{{ m.message|truncatechars:90 }}</td>
+        <td class="muted">{{ m.created_at|date:"M j, Y H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No contact messages yet.</p>{% endif %}
+  </div>
+{% endblock %}

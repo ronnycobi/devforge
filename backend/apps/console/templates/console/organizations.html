@@ -1,0 +1,26 @@
+{% extends "console/base_console.html" %}
+{% block title %}Organizations · Staff Console{% endblock %}
+{% block crumb %}Tenants / Organizations{% endblock %}
+{% block content %}
+  <h1>Organizations</h1>
+  <p class="sub">Every tenant on the platform — {{ rows|length }} total.</p>
+  <div class="card">
+    {% if rows %}
+    <table>
+      <tr><th>Organization</th><th>Plan</th><th class="num">Members</th><th class="num">Projects</th>
+        <th class="num">Balance</th><th class="num">Spend</th><th>Created</th></tr>
+      {% for r in rows %}
+      <tr>
+        <td><a class="strong" href="{% url 'console:org' r.org.id %}">{{ r.org.name }}</a></td>
+        <td>{% if r.account %}<span class="chip">{{ r.account.plan }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="num">{{ r.org.n_members }}</td>
+        <td class="num">{{ r.org.n_projects }}</td>
+        <td class="num">{% if r.account %}{{ r.account.balance|floatformat:0 }}{% else %}—{% endif %}</td>
+        <td class="num">${{ r.spend|floatformat:2 }}</td>
+        <td class="muted">{{ r.org.created_at|date:"M j, Y" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No organizations yet.</p>{% endif %}
+  </div>
+{% endblock %}

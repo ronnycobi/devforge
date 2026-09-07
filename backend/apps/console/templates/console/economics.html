@@ -1,0 +1,40 @@
+{% extends "console/base_console.html" %}
+{% block title %}Economics · Staff Console{% endblock %}
+{% block crumb %}Business / Economics{% endblock %}
+{% block content %}
+  <h1>Unit economics</h1>
+  <p class="sub">What DevForge charges (credits) versus what the AI work actually costs.</p>
+
+  <div class="cards">
+    <div class="card stat"><div class="k">AI cost</div><div class="v">${{ totals.cost|floatformat:2 }}</div><div class="sm">provider spend</div></div>
+    <div class="card stat"><div class="k">Credits charged</div><div class="v">{{ totals.credits|floatformat:0 }}</div></div>
+    <div class="card stat"><div class="k">Gross margin</div><div class="v {% if margin >= 0 %}grad{% endif %}" {% if margin < 0 %}style="color:var(--fail)"{% endif %}>{{ margin|floatformat:0 }}</div><div class="sm">credits − cost</div></div>
+    <div class="card stat"><div class="k">Tokens</div><div class="v" style="font-size:24px">{{ totals.tokens }}</div></div>
+  </div>
+
+  <h2>By provider &amp; model</h2>
+  <div class="card">
+    {% if by_model %}
+    <table>
+      <tr><th>Provider</th><th>Model</th><th class="num">Calls</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Credits</th></tr>
+      {% for m in by_model %}
+      <tr><td>{{ m.provider|default:"—" }}</td><td class="muted">{{ m.model|default:"—" }}</td>
+        <td class="num">{{ m.n }}</td><td class="num">{{ m.tokens }}</td>
+        <td class="num">${{ m.cost|floatformat:4 }}</td><td class="num">{{ m.credits|floatformat:0 }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No usage recorded yet — offline runs cost nothing.</p>{% endif %}
+  </div>
+
+  <h2>By agent</h2>
+  <div class="card">
+    {% if by_agent %}
+    <table>
+      <tr><th>Agent</th><th class="num">Calls</th><th class="num">Cost</th></tr>
+      {% for a in by_agent %}
+      <tr><td class="strong">{{ a.agent_key|default:"—" }}</td><td class="num">{{ a.n }}</td><td class="num">${{ a.cost|floatformat:4 }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No agent usage recorded yet.</p>{% endif %}
+  </div>
+{% endblock %}

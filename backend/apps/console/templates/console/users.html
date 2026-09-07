@@ -1,0 +1,26 @@
+{% extends "console/base_console.html" %}
+{% block title %}Users · Staff Console{% endblock %}
+{% block crumb %}Tenants / Users{% endblock %}
+{% block content %}
+  <h1>Users</h1>
+  <p class="sub">{{ rows|length }} accounts · {{ staff_count }} staff.</p>
+  <div class="card">
+    {% if rows %}
+    <table>
+      <tr><th>Email</th><th>Name</th><th>Role</th><th class="num">Orgs</th><th>Status</th><th>Joined</th></tr>
+      {% for u in rows %}
+      <tr>
+        <td class="strong">{{ u.email }}</td>
+        <td class="muted">{{ u.full_name|default:"—" }}</td>
+        <td>{% if u.is_superuser %}<span class="chip" style="color:var(--brand);border-color:var(--line2)">Superuser</span>
+          {% elif u.is_staff %}<span class="chip" style="color:var(--brand)">Staff</span>
+          {% else %}<span class="chip">Customer</span>{% endif %}</td>
+        <td class="num">{{ u.n_orgs }}</td>
+        <td>{% if u.is_active %}<span class="ok">Active</span>{% else %}<span class="fail">Disabled</span>{% endif %}</td>
+        <td class="muted">{{ u.date_joined|date:"M j, Y" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No users yet.</p>{% endif %}
+  </div>
+{% endblock %}

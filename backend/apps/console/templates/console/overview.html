@@ -1,0 +1,51 @@
+{% extends "console/base_console.html" %}
+{% block title %}Overview · Staff Console{% endblock %}
+{% block crumb %}Operations / Overview{% endblock %}
+{% block content %}
+  <h1>Platform overview</h1>
+  <p class="sub">Live, cross-tenant state of everything DevForge is running right now.</p>
+
+  <div class="cards">
+    <div class="card stat"><div class="k">Organizations</div><div class="v grad">{{ stats.orgs }}</div></div>
+    <div class="card stat"><div class="k">Users</div><div class="v">{{ stats.users }}</div></div>
+    <div class="card stat"><div class="k">Projects</div><div class="v">{{ stats.projects }}</div></div>
+    <div class="card stat"><div class="k">Active tasks</div><div class="v">{{ stats.active_tasks }}</div>
+      {% if awaiting %}<div class="sm">{{ awaiting }} awaiting approval</div>{% endif %}</div>
+    <div class="card stat"><div class="k">Deployments</div><div class="v">{{ stats.deployments }}</div></div>
+    <div class="card stat"><div class="k">AI spend</div><div class="v">${{ stats.cost_usd|floatformat:2 }}</div>
+      <div class="sm">{{ stats.credits_charged|floatformat:0 }} credits charged</div></div>
+    <div class="card stat"><div class="k">Open leads</div><div class="v">{{ stats.open_leads }}</div></div>
+  </div>
+
+  <div class="row" style="margin-top:22px">
+    <div class="card">
+      <h2 style="margin-top:0">Recent agent tasks</h2>
+      {% if recent_tasks %}
+      <table>
+        <tr><th>Task</th><th>Tenant</th><th>Status</th><th class="num">Cost</th><th>When</th></tr>
+        {% for t in recent_tasks %}
+        <tr>
+          <td><a class="strong" href="{% url 'console:tasks' %}?status={{ t.status }}">{{ t.agent_key }}</a>
+            <span class="muted">· {{ t.project.name }}</span></td>
+          <td class="muted">{{ t.project.organization.name }}</td>
+          <td><span class="badge b-{{ t.status }}">{{ t.get_status_display }}</span></td>
+          <td class="num">${{ t.cost|floatformat:4 }}</td>
+          <td class="muted">{{ t.created_at|timesince }} ago</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}<p class="empty">No agent tasks yet.</p>{% endif %}
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0">Newest tenants</h2>
+      {% if recent_orgs %}
+      <table>
+        {% for o in recent_orgs %}
+        <tr><td><a class="strong" href="{% url 'console:org' o.id %}">{{ o.name }}</a></td>
+          <td class="muted">{{ o.created_at|date:"M j" }}</td></tr>
+        {% endfor %}
+      </table>
+      {% else %}<p class="empty">No organizations yet.</p>{% endif %}
+    </div>
+  </div>
+{% endblock %}

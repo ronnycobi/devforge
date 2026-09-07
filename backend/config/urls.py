@@ -19,5 +19,7 @@ urlpatterns = [
     path("api/v1/", include("apps.deployments.urls")),
     # Customer dashboard (the app) under /app/; public marketing site at the root.
     path("app/", include("apps.dashboard.urls")),
+    # Internal staff console (cross-tenant operations cockpit) — staff-only.
+    path("staff/", include("apps.console.urls")),
     path("", include("apps.marketing.urls")),
 ]

@@ -1,0 +1,25 @@
+{% extends "console/base_console.html" %}
+{% block title %}Projects · Staff Console{% endblock %}
+{% block crumb %}Tenants / Projects{% endblock %}
+{% block content %}
+  <h1>Projects</h1>
+  <p class="sub">Every project across all tenants — {{ rows|length }} total.</p>
+  <div class="card">
+    {% if rows %}
+    <table>
+      <tr><th>Project</th><th>Tenant</th><th>Mode</th><th>Stack</th><th class="num">Tasks</th><th class="num">Done</th><th>Created</th></tr>
+      {% for p in rows %}
+      <tr>
+        <td class="strong">{{ p.name }}</td>
+        <td><a href="{% url 'console:org' p.organization.id %}">{{ p.organization.name }}</a></td>
+        <td><span class="chip">{{ p.get_mode_display }}</span></td>
+        <td>{% for role, tech in p.technology.items %}<span class="chip blue">{{ tech }}</span>{% empty %}<span class="muted">—</span>{% endfor %}</td>
+        <td class="num">{{ p.n_tasks }}</td>
+        <td class="num">{{ p.n_done }}</td>
+        <td class="muted">{{ p.created_at|date:"M j, Y" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No projects yet.</p>{% endif %}
+  </div>
+{% endblock %}
