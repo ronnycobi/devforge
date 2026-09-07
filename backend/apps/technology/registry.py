@@ -53,7 +53,7 @@ _LANGUAGES = [
     Technology("python", "Python", Category.LANGUAGE, codegen=S),
     Technology("typescript", "TypeScript", Category.LANGUAGE),
     Technology("javascript", "JavaScript", Category.LANGUAGE),
-    Technology("go", "Go", Category.LANGUAGE),
+    Technology("go", "Go", Category.LANGUAGE, codegen=S),
     Technology("java", "Java", Category.LANGUAGE),
     Technology("csharp", "C#", Category.LANGUAGE),
     Technology("rust", "Rust", Category.LANGUAGE),

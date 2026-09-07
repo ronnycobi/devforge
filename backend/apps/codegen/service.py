@@ -144,6 +144,12 @@ def run_repo_tests(project, *, command=None) -> dict:
     failures = _int(re.search(r"failures=(\d+)", output)) or _int(
         re.search(r"# fail (\d+)", output)
     )
+    # go test -v: "--- PASS: ..." / "--- FAIL: ..." per test.
+    go_pass = len(re.findall(r"^--- PASS:", output, re.M))
+    go_fail = len(re.findall(r"^--- FAIL:", output, re.M))
+    if go_pass or go_fail:
+        ran = ran or (go_pass + go_fail)
+        failures = failures or go_fail
     return {
         "ran": ran,
         "failures": failures,

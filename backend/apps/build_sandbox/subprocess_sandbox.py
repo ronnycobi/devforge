@@ -68,10 +68,15 @@ class SubprocessSandbox(Sandbox):
             if files:
                 self._write_files(workdir, files)
 
+            # TMPDIR is a subdir, not the workdir itself: some toolchains (Go)
+            # refuse to treat a project as a module when its go.mod sits in the
+            # process's temp root.
+            tmp = workdir / ".sandbox-tmp"
+            tmp.mkdir(exist_ok=True)
             run_env = {
                 "PATH": _SCRUBBED_PATH,
                 "HOME": str(workdir),
-                "TMPDIR": str(workdir),
+                "TMPDIR": str(tmp),
                 "LANG": "C.UTF-8",
             }
             if env:

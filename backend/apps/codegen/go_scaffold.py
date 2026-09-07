@@ -16,7 +16,7 @@ _MANIFEST = json.dumps(
     {
         "stack": "go",
         "runnable": True,
-        "test_command": ["go", "test", "./..."],
+        "test_command": ["go", "test", "./...", "-v"],
         "env": {"GOPROXY": "off", "GOFLAGS": "-mod=mod", "CGO_ENABLED": "0"},
     },
     indent=2,
