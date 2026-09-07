@@ -56,6 +56,43 @@
     </div>
   </div>
 
+  <div class="row" style="margin-top:4px">
+    <!-- Continuous change: describe a modification to the EXISTING app -->
+    <div class="card">
+      <h2 style="margin-top:0">Request a change</h2>
+      <p class="muted" style="margin:-4px 0 10px;font-size:13px">Describe a change in plain language — DevForge plans its impact on the existing app before building.</p>
+      {% if can_manage %}
+      <form method="post">
+        {% csrf_token %}<input type="hidden" name="action" value="create_change">
+        <textarea name="description" rows="3" placeholder="e.g. Add PayFast payments · The checkout isn't working · Add multi-company support"></textarea>
+        <div style="margin-top:10px"><button type="submit">Plan this change</button></div>
+      </form>
+      {% else %}<p class="muted">Owner or admin required to request changes.</p>{% endif %}
+      {% if changes %}
+        <table style="margin-top:12px">
+          {% for c in changes %}
+          <tr>
+            <td><a href="{% url 'dashboard:change' c.id %}" style="color:var(--ink)">{{ c.description|truncatechars:52 }}</a></td>
+            <td style="width:130px;text-align:right"><span class="badge b-{{ c.status }}">{{ c.get_status_display }}</span></td>
+          </tr>
+          {% endfor %}
+        </table>
+      {% endif %}
+    </div>
+
+    <!-- Software Digital Twin: DevForge's structured model of the app -->
+    <div class="card">
+      <h2 style="margin-top:0">Digital twin</h2>
+      <p class="muted" style="margin:-4px 0 12px;font-size:13px">What DevForge understands about this application.</p>
+      <div class="cards" style="grid-template-columns:repeat(2,1fr)">
+        <div class="card stat" style="padding:12px 14px"><div class="k">Components</div><div class="v" style="font-size:24px">{{ twin.components }}</div></div>
+        <div class="card stat" style="padding:12px 14px"><div class="k">APIs</div><div class="v" style="font-size:24px">{{ twin.apis }}</div></div>
+        <div class="card stat" style="padding:12px 14px"><div class="k">Data models</div><div class="v" style="font-size:24px">{{ twin.models }}</div></div>
+        <div class="card stat" style="padding:12px 14px"><div class="k">Screens</div><div class="v" style="font-size:24px">{{ twin.screens }}</div></div>
+      </div>
+    </div>
+  </div>
+
   <h2>Project workspace</h2>
   {% for section in pipeline %}
     {% if section.entries %}

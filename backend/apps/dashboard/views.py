@@ -18,6 +18,8 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.agents.definitions import registry as agent_registry
+from apps.changes import service as changes_service
+from apps.changes.models import ChangeRequest
 from apps.credits.models import CreditAccount, UsageRecord
 from apps.credits.services import plans
 from apps.deployments.models import Deployment, DeploymentStatus
@@ -158,6 +160,14 @@ def project(request, pk):
         if not can_manage:
             messages.error(request, "Owner or admin required for this action.")
             return redirect("dashboard:project", pk=pk)
+        if request.POST.get("action") == "create_change":
+            desc = (request.POST.get("description") or "").strip()
+            if desc:
+                change = changes_service.create_change(proj, desc, request.user)
+                changes_service.build_plan(change)
+                return redirect("dashboard:change", pk=change.id)
+            messages.error(request, "Describe the change you want.")
+            return redirect("dashboard:project", pk=pk)
         _handle_project_action(request, proj)
         return redirect("dashboard:project", pk=pk)
 
@@ -170,11 +180,48 @@ def project(request, pk):
         {"role": r, "chosen": (proj.technology or {}).get(r), "options": tech_registry.options_for_role(r)}
         for r in ROLES
     ]
+    twin = {
+        "components": sum(1 for e in entries if e.kind == ContextKind.ARCHITECTURE),
+        "apis": sum(1 for e in entries if e.kind == ContextKind.API),
+        "models": sum(1 for e in entries if e.kind == ContextKind.SCHEMA),
+        "screens": sum(1 for e in entries if e.kind == ContextKind.SCREEN),
+    }
     return render(request, "dashboard/project.html", {
         "active": "projects", "project": proj, "can_manage": can_manage,
         "state": _project_state(proj), "progress": _project_progress(proj),
         "pipeline": pipeline, "tasks": proj.agent_tasks.all(),
         "agents": agent_registry.all(), "stack_roles": stack_roles,
+        "twin": twin, "changes": proj.changes.all()[:8],
+    })
+
+
+@login_required
+def change_detail(request, pk):
+    change = get_object_or_404(
+        ChangeRequest.objects.filter(
+            project__organization__in=organizations_for(request.user)
+        ).select_related("project"),
+        pk=pk,
+    )
+    can_manage = change.project.organization_id in _manageable_ids(request.user)
+    if request.method == "POST":
+        if not can_manage:
+            messages.error(request, "Owner or admin required.")
+            return redirect("dashboard:change", pk=pk)
+        action = request.POST.get("action")
+        if action == "approve":
+            changes_service.approve(change, request.user)
+            messages.success(request, "Change approved.")
+        elif action == "implement":
+            changes_service.implement(change)
+            messages.success(request, "Change implemented — agents ran against the project.")
+        return redirect("dashboard:change", pk=pk)
+
+    tasks = AgentTask.objects.filter(id__in=change.task_ids or [])
+    areas = (change.plan or {}).get("affected_areas", {})
+    return render(request, "dashboard/change.html", {
+        "active": "projects", "change": change, "can_manage": can_manage,
+        "areas": areas, "tasks": tasks,
     })
 
 

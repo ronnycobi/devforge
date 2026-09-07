@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     "apps.credits",
     "apps.costs",
     "apps.deployments",
+    "apps.changes",
     "apps.dashboard",
     "apps.marketing",
 ]
