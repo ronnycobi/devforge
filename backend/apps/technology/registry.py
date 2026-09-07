@@ -153,3 +153,9 @@ registry = TechnologyRegistry(TECHNOLOGIES)
 
 ROLES = ("backend", "frontend", "database", "mobile")
 
+
+def technology_for_role(project, role):
+    """The Technology a project has chosen for a role, or None."""
+    tech_id = (getattr(project, "technology", None) or {}).get(role)
+    return registry.get(tech_id) if tech_id else None
+

@@ -81,6 +81,16 @@ class FrontendFlowTests(TestCase):
     def test_offline_zero(self):
         self.assertEqual(self._run().output["screens_written"], 0)
 
+    def test_stack_aware_records_framework(self):
+        self.project.technology = {"frontend": "nextjs"}
+        self.project.save(update_fields=["technology"])
+        with mock.patch("apps.model_router.router.gateway_complete", side_effect=_fake(SCREENS_JSON)):
+            task = self._run()
+        self.assertEqual(task.output["frontend_stack"], "nextjs")
+        screen = ProjectContext(self.project).by_kind(ContextKind.SCREEN).first()
+        self.assertEqual(screen.data["framework"], "nextjs")
+        self.assertEqual(screen.data["platform"], "web")
+
     def test_fails_without_requirements(self):
         bare = Project.objects.create(organization=self.org, name="Empty")
         orch = Orchestrator()

@@ -20,6 +20,7 @@ from apps.model_router.router import ModelRouter, RoutingRequest, TaskComplexity
 from apps.project_context.models import ContextKind
 from apps.project_context.services import ProjectContext
 from apps.projects.models import Project
+from apps.technology.registry import technology_for_role
 
 
 class FrontendAgent(BaseAgent):
@@ -52,9 +53,17 @@ class FrontendAgent(BaseAgent):
         api = ctx.digest(kinds=[ContextKind.API], max_chars=2000)
         existing = ctx.digest(kinds=[ContextKind.SCREEN], max_chars=1500)
 
+        framework = technology_for_role(project, "frontend")
+        fw_name = framework.name if framework else ""
+
         response = self.router.complete(
             RoutingRequest(complexity=TaskComplexity.MEDIUM, task_type="frontend"),
-            messages=[Message("user", build_user_prompt(requirements, api, existing, brief))],
+            messages=[
+                Message(
+                    "user",
+                    build_user_prompt(requirements, api, existing, brief, framework=fw_name),
+                )
+            ],
             system=SYSTEM_PROMPT,
             max_tokens=3000,
         )
@@ -71,19 +80,26 @@ class FrontendAgent(BaseAgent):
                     "route": screen["route"],
                     "components": screen["components"],
                     "data_needs": screen["data_needs"],
+                    "framework": framework.id if framework else None,
+                    "platform": "web",
                 },
                 source=source,
             )
 
         n = len(screens)
+        fw_label = fw_name or "unspecified framework"
         message = (
-            f"Designed {n} screen(s) via {response.model}."
+            f"Designed {n} screen(s) for {fw_label} via {response.model}."
             if n
             else f"{response.model} returned no parseable screens; nothing written."
         )
         return AgentResult.completed(
             self.key,
-            output={"model": response.model, "screens_written": n},
+            output={
+                "model": response.model,
+                "screens_written": n,
+                "frontend_stack": framework.id if framework else None,
+            },
             messages=[message],
             model=response.model,
             usage_tokens=response.usage.total_tokens,

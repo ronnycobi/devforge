@@ -121,6 +121,18 @@ class DatabaseFlowTests(TestCase):
         self.assertTrue(task.output["verified"])
         self.assertIn("backend/apps/core/models.py", files)
 
+    def test_non_django_backend_records_schema_only(self):
+        # A backend DevForge can't generate yet -> design recorded, no code, honest.
+        self.project.technology = {"backend": "fastapi", "database": "postgresql"}
+        self.project.save(update_fields=["technology"])
+        with mock.patch("apps.model_router.router.gateway_complete", side_effect=_fake(SCHEMA_JSON)):
+            task = self._run()
+        self.assertEqual(task.status, "completed")
+        self.assertEqual(task.output["models_written"], 2)  # schema still designed
+        self.assertFalse(task.output["code_generated"])  # no Django code generated
+        self.assertEqual(task.output["files_generated"], 0)
+        self.assertEqual(task.output["backend_stack"], "fastapi")
+
     def test_fails_without_upstream(self):
         bare = Project.objects.create(organization=self.org, name="Empty")
         orch = Orchestrator()

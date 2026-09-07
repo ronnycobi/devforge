@@ -82,10 +82,10 @@ class BaseAgentContractTests(SimpleTestCase):
 
 
 class RegistryTests(SimpleTestCase):
-    def test_catalog_has_the_ten_initial_agents(self):
-        self.assertEqual(len(registry), 10)
-        self.assertIn("lead", registry)
-        self.assertIn("code_review", registry)
+    def test_catalog_has_the_expected_agents(self):
+        self.assertEqual(len(registry), 11)
+        for key in ("lead", "code_review", "backend", "devops", "mobile"):
+            self.assertIn(key, registry)
 
     def test_get_returns_definition(self):
         backend = registry.get("backend")
@@ -138,9 +138,10 @@ class AgentCatalogAPITests(TestCase):
         resp = self.client.get(reverse("agents:list"))
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
-        self.assertEqual(len(body), 10)
+        self.assertEqual(len(body), 11)
         keys = {a["key"] for a in body}
         self.assertIn("architect", keys)
+        self.assertIn("mobile", keys)
         lead = next(a for a in body if a["key"] == "lead")
         self.assertIn("orchestrate", lead["capabilities"])
 

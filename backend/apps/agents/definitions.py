@@ -104,3 +104,10 @@ DEVOPS = _reg(
     "Builds and deploys to dev and staging. Production deploys need approval.",
     {C.READ_INFRASTRUCTURE, C.DEPLOY_DEV, C.DEPLOY_STAGING},
 )
+
+MOBILE = _reg(
+    "mobile",
+    "Mobile Agent",
+    "Designs the mobile app for the project's chosen mobile framework.",
+    {C.READ_ARCHITECTURE, C.READ_FRONTEND, C.WRITE_FRONTEND, C.RUN_TESTS},
+)

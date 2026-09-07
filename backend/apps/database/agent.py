@@ -22,6 +22,7 @@ from apps.model_router.router import ModelRouter, RoutingRequest, TaskComplexity
 from apps.project_context.models import ContextKind
 from apps.project_context.services import ProjectContext
 from apps.projects.models import Project
+from apps.technology.registry import technology_for_role
 
 
 class DatabaseAgent(BaseAgent):
@@ -80,8 +81,14 @@ class DatabaseAgent(BaseAgent):
                 source=source,
             )
 
-        # Generate model source -> repo, then compile-check it.
-        files = parse_files(response.text)
+        # Model source is generated only for a backend DevForge can build and
+        # verify today (Django). For other backends the schema design is recorded
+        # but code generation is honestly deferred, not faked.
+        backend_tech = technology_for_role(project, "backend")
+        db_tech = technology_for_role(project, "database")
+        can_generate = backend_tech is None or backend_tech.id == "django"
+
+        files = parse_files(response.text) if can_generate else []
         commit_sha = None
         verified, verify_log = None, ""
         if files:
@@ -93,13 +100,19 @@ class DatabaseAgent(BaseAgent):
             verified, verify_log = verify_python(files)
 
         n = len(models)
+        db_label = db_tech.name if db_tech else "the chosen database"
         messages = [
-            f"Designed {n} data model(s) and generated {len(files)} file(s) "
-            f"via {response.model}."
+            f"Designed {n} data model(s) for {db_label} and generated "
+            f"{len(files)} file(s) via {response.model}."
         ]
         if files:
             messages.append(
                 f"Compile check: {'passed' if verified else 'FAILED'} — {verify_log}"
+            )
+        elif not can_generate:
+            messages.append(
+                f"Code generation for a {backend_tech.name} backend is planned; "
+                "recorded the schema design only."
             )
         elif not n:
             messages = [f"{response.model} returned no parseable schema; nothing written."]
@@ -110,6 +123,9 @@ class DatabaseAgent(BaseAgent):
                 "model": response.model,
                 "models_written": n,
                 "files_generated": len(files),
+                "backend_stack": backend_tech.id if backend_tech else None,
+                "database_stack": db_tech.id if db_tech else None,
+                "code_generated": bool(files),
                 "commit": commit_sha,
                 "verified": verified,
                 "compile_log": verify_log,

@@ -63,6 +63,8 @@ INSTALLED_APPS = [
     "apps.database",
     "apps.testing",
     "apps.code_review",
+    "apps.mobile",
+    "apps.devops",
     "apps.build_sandbox",
     "apps.repositories",
     "apps.codegen",
