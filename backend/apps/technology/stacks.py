@@ -11,9 +11,9 @@ Only stacks that genuinely work are registered. The broader ecosystem DevForge
 """
 from __future__ import annotations
 
+import importlib.util
 import shutil
-import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Optional
 
 from apps.codegen.django_scaffold import scaffold_django_project
@@ -33,6 +33,16 @@ _DJANGO_HINT = (
     "the models through the ORM so they run against a real test database."
 )
 
+_FASTAPI_HINT = (
+    "Generate a COMPLETE, runnable FastAPI project using ONLY FastAPI and the "
+    "standard library (both are installed; do NOT use a database or other "
+    "third-party packages — keep state in memory). Flat layout at the repository "
+    "root: put the app in main.py as `app = FastAPI()`, and put tests in "
+    "test_*.py using `from fastapi.testclient import TestClient` and "
+    "`from main import app` — the TestClient makes in-process HTTP calls, so no "
+    "server or network is needed. It must pass `python -m unittest discover`."
+)
+
 
 @dataclass(frozen=True)
 class Stack:
@@ -44,12 +54,17 @@ class Stack:
     prompt_hint: str
     # (app_label, app_files) -> full {path: content} project map. None => use files as-is.
     scaffolder: Optional[Callable] = None
-    toolchain: str = "python"  # host executable required to run the stack's tests
+    # Host executable required to run the stack's tests (python = this interpreter).
+    toolchain: str = "python"
+    # Python modules that must be importable for the stack to run.
+    requires_import: tuple = ()
 
     def is_runnable(self) -> bool:
-        if self.toolchain == "python":
-            return True  # this interpreter
-        return shutil.which(self.toolchain) is not None
+        if self.toolchain != "python" and shutil.which(self.toolchain) is None:
+            return False
+        return all(
+            importlib.util.find_spec(mod) is not None for mod in self.requires_import
+        )
 
     def build_project(self, app_label: str, files: list[dict]) -> list[dict]:
         """Turn generated files into the full project file list."""
@@ -67,6 +82,10 @@ _STACKS = {
     "django": Stack(
         "django", "python", "django", "backend", True, _DJANGO_HINT,
         scaffolder=scaffold_django_project,
+    ),
+    "fastapi": Stack(
+        "fastapi", "python", "fastapi", "backend", False, _FASTAPI_HINT,
+        requires_import=("fastapi",),
     ),
 }
 

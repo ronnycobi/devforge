@@ -122,6 +122,32 @@ class BackendCodegenFlowTests(TestCase):
         self.assertIn("devforge.json", files)
         self.assertIn("shop/models.py", files)
 
+    def test_fastapi_mode_generates_flat_project(self):
+        fastapi_json = json.dumps(
+            {
+                "endpoints": [{"method": "GET", "path": "/health", "purpose": "health", "module": "app"}],
+                "files": [
+                    {"path": "main.py", "content": "from fastapi import FastAPI\napp = FastAPI()\n"},
+                    {
+                        "path": "test_main.py",
+                        "content": (
+                            "import unittest\nfrom fastapi.testclient import TestClient\n"
+                            "from main import app\n"
+                            "class T(unittest.TestCase):\n"
+                            "    def test_app(self):\n        self.assertTrue(TestClient(app))\n"
+                        ),
+                    },
+                ],
+            }
+        )
+        task, files = self._run(fastapi_json, task_input={"stack": "fastapi"})
+        self.assertEqual(task.status, "completed")
+        self.assertEqual(task.output["stack"], "fastapi")
+        self.assertIsNone(task.output["app_label"])  # flat, no scaffold
+        self.assertTrue(task.output["verified"])
+        self.assertIn("main.py", files)
+        self.assertIn("test_main.py", files)
+
     def test_stack_comes_from_project_technology_profile(self):
         # No input stack; the project's chosen backend stack drives generation.
         self.project.technology = {"backend": "django"}

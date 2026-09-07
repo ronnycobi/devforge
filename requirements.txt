@@ -5,6 +5,11 @@
 Django==6.0.2
 djangorestframework==3.17.1
 
+# Supported generation target: the FastAPI stack. Must be importable wherever the
+# build sandbox runs generated FastAPI projects (tests use fastapi.testclient,
+# in-process, no network).
+fastapi==0.141.1
+
 # --- Added in later phases (kept here as commented targets) ------------------
 # psycopg[binary]        # Phase 1+: PostgreSQL driver
 # redis                  # Phase 4+: cache / queue

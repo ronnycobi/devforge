@@ -145,6 +145,39 @@ class TestingFlowTests(TestCase):
         self.assertEqual(run["ran"], 1)
         self.assertEqual(run["failures"], 0)
 
+    def test_runs_fastapi_api_tests_for_real(self):
+        # A FastAPI project whose tests hit the app in-process via TestClient.
+        materialize_files = [
+            {
+                "path": "main.py",
+                "content": (
+                    "from fastapi import FastAPI\n\n"
+                    "app = FastAPI()\n\n"
+                    "@app.get('/ping')\n"
+                    "def ping():\n    return {'ok': True}\n"
+                ),
+            },
+            {
+                "path": "test_main.py",
+                "content": (
+                    "import unittest\nfrom fastapi.testclient import TestClient\n"
+                    "from main import app\n\n"
+                    "class ApiTests(unittest.TestCase):\n"
+                    "    def test_ping(self):\n"
+                    "        r = TestClient(app).get('/ping')\n"
+                    "        self.assertEqual(r.status_code, 200)\n"
+                    "        self.assertEqual(r.json(), {'ok': True})\n"
+                ),
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+                materialize(self.project, materialize_files, message="seed fastapi")
+                task = self._run()
+        run = task.output["test_run"]
+        self.assertTrue(run["passed"])  # real in-process API call succeeded
+        self.assertEqual(run["ran"], 1)
+
     def test_reports_failing_repo_tests_for_real(self):
         with tempfile.TemporaryDirectory() as tmp:
             with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
