@@ -2,6 +2,7 @@ import json
 import tempfile
 from unittest import mock
 
+from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase, override_settings
 
 from apps.repositories.service import repo_for_project
@@ -126,6 +127,101 @@ class SelectionTests(SimpleTestCase):
         rec = recommend_database("an application")
         self.assertEqual(rec["database"], "postgresql")
         self.assertFalse(rec["matched"])  # a stated default, not a requirement match
+
+
+class MigrationClassifyTests(SimpleTestCase):
+    def test_create_is_low_risk_no_approval(self):
+        from apps.database.migration_service import classify
+        from apps.database.models import MigrationOp, RiskLevel
+        risk, approval = classify("CREATE TABLE t (id INTEGER)", MigrationOp.CREATE)
+        self.assertEqual(risk, RiskLevel.LOW)
+        self.assertFalse(approval)
+
+    def test_destructive_sql_forces_approval(self):
+        from apps.database.migration_service import classify
+        from apps.database.models import MigrationOp, RiskLevel
+        for sql in ("DROP TABLE users", "ALTER TABLE t DROP COLUMN c",
+                    "DELETE FROM t", "TRUNCATE t"):
+            risk, approval = classify(sql, MigrationOp.ALTER)
+            self.assertEqual(risk, RiskLevel.HIGH, sql)
+            self.assertTrue(approval, sql)
+
+    def test_drop_operation_requires_approval(self):
+        from apps.database.migration_service import classify
+        _, approval = classify("DROP INDEX idx", "drop")
+        self.assertTrue(approval)
+
+
+class MigrationServiceTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Acme")
+        self.project = Project.objects.create(organization=self.org, name="App")
+        from apps.database.providers import get_provider
+        self.provider = get_provider("sqlite")  # one in-memory connection for the test
+
+    def _plan(self, **kw):
+        from apps.database.migration_service import plan_migration
+        defaults = dict(project=self.project, database_id="sqlite", operation="create")
+        defaults.update(kw)
+        return plan_migration(**defaults)
+
+    def test_plan_rejects_non_migration_database(self):
+        from apps.database.migration_service import MigrationError, plan_migration
+        with self.assertRaises(MigrationError):
+            plan_migration(project=self.project, database_id="redis", operation="create",
+                           description="x", up_sql="SET k v")
+
+    def test_apply_creates_table_for_real(self):
+        from apps.database.models import MigrationStatus
+        m = self._plan(
+            description="create task",
+            up_sql="CREATE TABLE task (id INTEGER PRIMARY KEY, title TEXT)",
+            down_sql="DROP TABLE task",
+        )
+        self.assertEqual(m.status, MigrationStatus.PLANNED)  # non-destructive
+        from apps.database.migration_service import apply
+        apply(m, self.provider)
+        m.refresh_from_db()
+        self.assertEqual(m.status, MigrationStatus.APPLIED)
+        self.assertIsNotNone(m.execution_ms)
+        self.assertIn("task", self.provider.inspect_schema()["tables"])
+
+    def test_destructive_blocked_until_approved(self):
+        from apps.database.migration_service import MigrationError, apply, approve
+        from apps.database.models import MigrationStatus
+        # seed a table to drop
+        self.provider.execute_query("CREATE TABLE old (id INTEGER)")
+        m = self._plan(operation="drop", description="drop old",
+                       up_sql="DROP TABLE old", down_sql="")
+        self.assertEqual(m.status, MigrationStatus.AWAITING_APPROVAL)
+        self.assertTrue(m.requires_approval)
+        with self.assertRaises(MigrationError):
+            apply(m, self.provider)                       # blocked: not approved
+        user = get_user_model().objects.create_user(email="a@b.com", password="x")
+        approve(m, user)
+        apply(m, self.provider)                           # now allowed
+        m.refresh_from_db()
+        self.assertEqual(m.status, MigrationStatus.APPLIED)
+        self.assertNotIn("old", self.provider.inspect_schema()["tables"])
+
+    def test_rollback_reverses_the_change(self):
+        from apps.database.migration_service import apply, rollback
+        from apps.database.models import MigrationStatus
+        m = self._plan(description="add widget",
+                       up_sql="CREATE TABLE widget (id INTEGER)",
+                       down_sql="DROP TABLE widget")
+        apply(m, self.provider)
+        self.assertIn("widget", self.provider.inspect_schema()["tables"])
+        rollback(m, self.provider)
+        m.refresh_from_db()
+        self.assertEqual(m.status, MigrationStatus.ROLLED_BACK)
+        self.assertNotIn("widget", self.provider.inspect_schema()["tables"])
+
+    def test_irreversible_migration_cannot_rollback(self):
+        from apps.database.migration_service import MigrationError, rollback
+        m = self._plan(description="no down", up_sql="CREATE TABLE t (id INTEGER)")
+        with self.assertRaises(MigrationError):
+            rollback(m, self.provider)
 
 
 class ParsingTests(SimpleTestCase):
