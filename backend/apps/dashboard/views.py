@@ -242,6 +242,59 @@ def project(request, pk):
 
 
 @login_required
+def preview(request, pk):
+    """Two-pane preview: chat (change requests) + a visual view of the app.
+
+    Honest scope: this shows the app's real design (its screens/structure from the
+    twin) and a sandboxed static render when the generated output is standalone
+    HTML. A preview of the *running* application requires a deployment (a preview
+    runner that executes the app in isolation) — surfaced as a Deploy link, not
+    faked here.
+    """
+    proj = get_object_or_404(
+        Project.objects.filter(organization__in=organizations_for(request.user)), pk=pk
+    )
+    can_manage = proj.organization_id in _manageable_ids(request.user)
+    if request.method == "POST" and can_manage:
+        desc = (request.POST.get("message") or "").strip()
+        if desc:
+            change = changes_service.create_change(proj, desc, request.user)
+            changes_service.build_plan(change)
+            if change.requires_approval:
+                messages.success(request, "Planned — this change needs your approval.")
+            else:
+                changes_service.implement(change)
+                messages.success(request, "Done — DevForge applied your change.")
+        return redirect("dashboard:preview", pk=pk)
+
+    ctx = ProjectContext(proj)
+    screens = [
+        {"name": e.title, "route": (e.data or {}).get("route", ""),
+         "components": (e.data or {}).get("components", []),
+         "platform": (e.data or {}).get("platform", "web")}
+        for e in ctx.by_kind(ContextKind.SCREEN)
+    ]
+    # A truly standalone HTML file can be shown as a static snapshot (sandboxed,
+    # scripts disabled). Skipped when it references external scripts/modules.
+    from apps.repositories.service import repo_for_project
+    preview_html = ""
+    repo = repo_for_project(proj)
+    if repo.is_initialized:
+        files = repo.list_files()
+        for cand in ("index.html", "public/index.html", "templates/index.html"):
+            if cand in files:
+                content = (repo.path / cand).read_text()
+                if "<script" not in content.lower():
+                    preview_html = content
+                break
+    return render(request, "dashboard/preview.html", {
+        "active": "projects", "project": proj, "can_manage": can_manage,
+        "screens": screens, "preview_html": preview_html,
+        "changes": proj.changes.all()[:8],
+    })
+
+
+@login_required
 def import_software(request):
     """Import an existing codebase (ZIP upload or Git connect) and analyze it."""
     from apps.ingest.analyzer import IngestError, extract_zip, import_codebase

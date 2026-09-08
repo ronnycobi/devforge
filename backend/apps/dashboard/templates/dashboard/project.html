@@ -3,7 +3,10 @@
 {% block title %}{{ project.name }} · DevForge{% endblock %}
 {% block crumb %}Build / Projects / {{ project.name }}{% endblock %}
 {% block content %}
-  <h1>{{ project.name }} <span class="badge b-{{ state|lower }}" style="font-size:12px;vertical-align:middle">{{ state }}</span></h1>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+    <h1>{{ project.name }} <span class="badge b-{{ state|lower }}" style="font-size:12px;vertical-align:middle">{{ state }}</span></h1>
+    <a class="btn ghost" href="{% url 'dashboard:preview' project.id %}">Open preview →</a>
+  </div>
   <p class="sub">{{ project.organization.name }} · {{ project.get_mode_display }}
     {% if project.description %}<br>{{ project.description }}{% endif %}</p>
 

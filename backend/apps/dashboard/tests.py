@@ -299,3 +299,35 @@ class FriendlyLabelTests(TestCase):
         self.assertEqual(friendly_step("database"), "Setting up your data")
         self.assertEqual(friendly_step("backend"), "Building the core features")
         self.assertEqual(friendly_step("weird-unknown"), "Working on your application")
+
+
+class PreviewTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(email="pv@x.com", password="pw12345!")
+        self.org = Organization.objects.create(name="Acme")
+        self.org.add_member(self.owner, role=Role.OWNER)
+        self.project = Project.objects.create(organization=self.org, name="App", created_by=self.owner)
+        self.client.force_login(self.owner)
+
+    def test_preview_renders_two_panes(self):
+        from apps.project_context.services import ProjectContext
+        from apps.project_context.models import ContextKind
+        ProjectContext(self.project).set(
+            ContextKind.SCREEN, "dashboard", title="Dashboard",
+            data={"route": "/", "components": ["Chart", "Table"], "platform": "web"},
+        )
+        r = self.client.get(reverse("dashboard:preview", args=[self.project.id]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Ask DevForge")     # chat control
+        self.assertContains(r, "Dashboard")         # screen wireframe from the twin
+        self.assertContains(r, "design preview")    # honest label, not a fake running app
+
+    def test_preview_chat_creates_change(self):
+        import tempfile
+        from django.test import override_settings
+        from apps.changes.models import ChangeRequest
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+                self.client.post(reverse("dashboard:preview", args=[self.project.id]),
+                                 {"message": "add customer search"}, follow=True)
+        self.assertTrue(ChangeRequest.objects.filter(project=self.project).exists())

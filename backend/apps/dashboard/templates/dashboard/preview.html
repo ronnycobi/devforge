@@ -1,0 +1,78 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}{{ project.name }} · Preview · DevForge{% endblock %}
+{% block crumb %}Projects / {{ project.name }} / Preview{% endblock %}
+{% block content %}
+  <style>
+    .pv{display:grid;grid-template-columns:340px 1fr;gap:16px}
+    @media(max-width:900px){.pv{grid-template-columns:1fr}}
+    .pv .chat{display:flex;flex-direction:column;gap:10px}
+    .pv .msgs{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto}
+    .pv .msg-you{align-self:flex-end;background:var(--grad);color:#fff;border-radius:12px 12px 2px 12px;padding:8px 12px;font-size:13px;max-width:90%}
+    .pv .msg-df{align-self:flex-start;background:var(--panel2);border:1px solid var(--line);border-radius:12px 12px 12px 2px;padding:8px 12px;font-size:13px;max-width:95%}
+    .wire{border:1px solid var(--line2);border-radius:12px;overflow:hidden;background:var(--panel2)}
+    .wire .bar{height:auto;background:var(--panel);border-bottom:1px solid var(--line);padding:7px 10px;font-weight:700;font-size:13px;display:flex;justify-content:space-between}
+    .wire .body{padding:12px;min-height:90px}
+    .wireframes{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+    .snap{width:100%;height:520px;border:1px solid var(--line2);border-radius:12px;background:#fff}
+  </style>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+    <h1 style="margin:0">{{ project.name }}</h1>
+    <div style="display:flex;gap:10px">
+      <a class="btn ghost" href="{% url 'dashboard:project' project.id %}">Project</a>
+      <a class="btn ghost" href="{% url 'dashboard:deployments' %}">Publish</a>
+    </div>
+  </div>
+  <p class="sub">Ask DevForge to change your app on the left; your app appears on the right.</p>
+
+  <div class="pv">
+    <!-- Chat: the control system -->
+    <div class="card chat">
+      <div style="font-weight:700">Ask DevForge</div>
+      <div class="msgs">
+        {% for c in changes %}
+          <div class="msg-you">{{ c.description|truncatechars:140 }}</div>
+          <div class="msg-df">
+            {% if c.status == 'done' %}Done — applied.{% elif c.status == 'awaiting_approval' %}Planned — <a href="{% url 'dashboard:change' c.id %}">needs your approval</a>.{% elif c.status == 'failed' %}Couldn't complete — <a href="{% url 'dashboard:change' c.id %}">see why</a>.{% else %}<a href="{% url 'dashboard:change' c.id %}">{{ c.get_status_display }}</a>{% endif %}
+          </div>
+        {% empty %}
+          <div class="msg-df">Tell me what to build or change — e.g. “add customer search” or “make the dashboard look more professional.”</div>
+        {% endfor %}
+      </div>
+      {% if can_manage %}
+      <form method="post" style="margin-top:auto">
+        {% csrf_token %}
+        <textarea name="message" rows="3" placeholder="Ask DevForge to change your app…" required style="font-size:13px"></textarea>
+        <button type="submit" style="margin-top:6px;width:100%">Send</button>
+      </form>
+      {% else %}<p class="muted" style="font-size:12px">You have view-only access to this project.</p>{% endif %}
+    </div>
+
+    <!-- Preview: the result -->
+    <div>
+      {% if preview_html %}
+        <iframe class="snap" sandbox srcdoc="{{ preview_html }}" title="Static preview"></iframe>
+        <p class="muted" style="font-size:12px;margin-top:8px">Static snapshot (scripts disabled). A live, interactive preview is available after you publish.</p>
+      {% elif screens %}
+        <div class="wireframes">
+          {% for s in screens %}
+          <div class="wire">
+            <div class="bar"><span>{{ s.name }}</span><span class="muted" style="font-weight:400;font-size:11px">{{ s.route }}</span></div>
+            <div class="body">
+              {% for comp in s.components %}<span class="chip">{{ comp }}</span>{% empty %}<span class="muted" style="font-size:12px">—</span>{% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="card" style="margin-top:12px">
+          <p class="muted" style="margin:0;font-size:12.5px">This is a <b>design preview</b> of your app's screens. A live, interactive preview of the running application is available once you <a href="{% url 'dashboard:deployments' %}">publish</a> it.</p>
+        </div>
+      {% else %}
+        <div class="card" style="text-align:center;padding:48px 24px">
+          <div style="font-weight:700">Nothing to preview yet</div>
+          <p class="muted" style="max-width:420px;margin:8px auto 0">Ask DevForge to build something on the left. As your app takes shape, its screens appear here — and a live preview once you publish.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
