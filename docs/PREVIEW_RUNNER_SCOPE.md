@@ -136,8 +136,13 @@ place.
   proxies, and reaps on TTL/stop. Proven offline: a real Node server runs and is
   reachable through the iframe proxy, with no leaked processes. *Single-tenant,
   dev-labelled; resource caps best-effort (real caps are P3).* Remaining within
-  P1: add the same `run` block + a server entrypoint to the Go and stdlib
-  scaffolds (FastAPI/Django need installs → P2).
+  P1: FastAPI/Django need installs → P2.
+  **Go** and **python-stdlib now also run:** Go gets a `cmd/server` entrypoint
+  serving `Handler()` (tests stay scoped to the root package so it never breaks
+  them); stdlib gets a wsgiref entrypoint **only when the app exposes a WSGI
+  `application`** (generic non-web stdlib projects are untouched). All proven with
+  real servers offline (Node, Go, WSGI), no leaked processes. P1 is complete for
+  every no-dependency stack.
 - **P2 — Dependency builds.** Install step with egress-allowlisted build env
   (enables FastAPI/Django/React). Needs the prod build pipeline.
 - **P3 — Containerized multi-tenant.** Per-preview container, network namespace,

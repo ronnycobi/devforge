@@ -110,3 +110,73 @@ class ServerPreviewTests(TestCase):
                 finally:
                     runner.stop(self.project.id)
                 self.assertIsNone(runner.get(self.project.id))
+
+
+class GoAndStdlibPreviewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="gs@x.com", password="pw12345!")
+        self.org = Organization.objects.create(name="Acme")
+        self.org.add_member(self.user, role=Role.OWNER)
+        self.project = Project.objects.create(organization=self.org, name="App", created_by=self.user)
+
+    def _seed(self, files):
+        repo = repo_for_project(self.project)
+        repo.init()
+        repo.write_files(files)
+        repo.commit("seed")
+
+    def test_go_scaffold_declares_run_and_entrypoint(self):
+        import json
+        from apps.codegen.go_scaffold import scaffold_go_project
+        out = scaffold_go_project("app", {"app.go": "package app\n"})
+        self.assertIn("cmd/server/main.go", out)
+        self.assertEqual(json.loads(out["devforge.json"])["run"]["command"], ["go", "run", "./cmd/server"])
+
+    def test_stdlib_scaffold_only_serves_a_wsgi_app(self):
+        from apps.codegen.stdlib_scaffold import scaffold_stdlib_project
+        plain = scaffold_stdlib_project("app", {"calc.py": "def add(a,b): return a+b\n"})
+        self.assertNotIn("devforge.json", plain)          # non-web: untouched
+        web = scaffold_stdlib_project("app", {"app.py": "def application(environ, start_response):\n    pass\n"})
+        self.assertIn("server.py", web)
+        self.assertIn("devforge.json", web)
+
+    def test_runs_stdlib_wsgi_server(self):
+        import urllib.request
+        from apps.codegen.stdlib_scaffold import scaffold_stdlib_project
+        app_py = (
+            "def application(environ, start_response):\n"
+            "    start_response('200 OK', [('Content-Type', 'text/plain')])\n"
+            "    return [b'Hello from WSGI preview']\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+                self._seed(scaffold_stdlib_project("app", {"app.py": app_py}))
+                pv = runner.start(self.project)
+                try:
+                    body = urllib.request.urlopen(f"http://127.0.0.1:{pv.port}/", timeout=5).read()
+                    self.assertIn(b"Hello from WSGI preview", body)
+                finally:
+                    runner.stop(self.project.id)
+
+    def test_runs_go_server(self):
+        import shutil
+        import urllib.request
+        if shutil.which("go") is None:
+            self.skipTest("go not available")
+        from apps.codegen.go_scaffold import scaffold_go_project
+        app_go = (
+            "package app\n\nimport \"net/http\"\n\n"
+            "func Handler() http.Handler {\n"
+            "\tmux := http.NewServeMux()\n"
+            "\tmux.HandleFunc(\"/\", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(\"Hello from Go preview\")) })\n"
+            "\treturn mux\n}\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+                self._seed(scaffold_go_project("app", {"app.go": app_go}))
+                pv = runner.start(self.project)
+                try:
+                    body = urllib.request.urlopen(f"http://127.0.0.1:{pv.port}/", timeout=8).read()
+                    self.assertIn(b"Hello from Go preview", body)
+                finally:
+                    runner.stop(self.project.id)

@@ -20,6 +20,7 @@ from apps.codegen.django_scaffold import scaffold_django_project
 from apps.codegen.go_scaffold import scaffold_go_project
 from apps.codegen.node_scaffold import scaffold_node_project
 from apps.codegen.react_scaffold import scaffold_react_project
+from apps.codegen.stdlib_scaffold import scaffold_stdlib_project
 
 _STDLIB_HINT = (
     "Generate a COMPLETE, self-contained, standard-library-only Python project. "
@@ -60,8 +61,10 @@ _GO_HINT = (
     "Generate a COMPLETE, runnable Go module using ONLY the Go standard library "
     "(net/http, net/http/httptest, testing) — NO third-party modules, because the "
     "sandbox has no network. Use package name `app`. Put the app in app.go and "
-    "tests in *_test.go using the testing package and net/http/httptest. DevForge "
-    "supplies go.mod. It must pass `go test ./...`."
+    "tests in *_test.go using the testing package and net/http/httptest. Expose "
+    "`func Handler() http.Handler` returning your router/mux (tests and the "
+    "preview server both use it). DevForge supplies go.mod and the server "
+    "entrypoint. It must pass `go test .`."
 )
 
 _REACT_HINT = (
@@ -117,7 +120,8 @@ class Stack:
 
 _STACKS = {
     "python-stdlib": Stack(
-        "python-stdlib", "python", None, "backend", False, _STDLIB_HINT
+        "python-stdlib", "python", None, "backend", False, _STDLIB_HINT,
+        scaffolder=scaffold_stdlib_project,
     ),
     "django": Stack(
         "django", "python", "django", "backend", True, _DJANGO_HINT,
