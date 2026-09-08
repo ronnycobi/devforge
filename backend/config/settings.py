@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     "apps.mobile",
     "apps.devops",
     "apps.build_sandbox",
+    "apps.preview_runner",
     "apps.repositories",
     "apps.codegen",
     "apps.exporter",

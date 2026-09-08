@@ -18,9 +18,15 @@
 
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
     <h1 style="margin:0">{{ project.name }}</h1>
-    <div style="display:flex;gap:10px">
+    <div style="display:flex;gap:10px;align-items:center">
+      {% if can_manage %}
+        {% if live %}
+        <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="stop_preview"><button class="ghost" type="submit">■ Stop live preview</button></form>
+        {% else %}
+        <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="start_preview"><button type="submit">▶ Run live preview</button></form>
+        {% endif %}
+      {% endif %}
       <a class="btn ghost" href="{% url 'dashboard:project' project.id %}">Project</a>
-      <a class="btn ghost" href="{% url 'dashboard:deployments' %}">Publish</a>
     </div>
   </div>
   <p class="sub">Ask DevForge to change your app on the left; your app appears on the right.</p>
@@ -50,7 +56,10 @@
 
     <!-- Preview: the result -->
     <div>
-      {% if preview_html %}
+      {% if live %}
+        <iframe class="snap" src="{% url 'dashboard:preview_live' project.id %}" title="Live preview"></iframe>
+        <p class="muted" style="font-size:12px;margin-top:8px">Live preview — serving your project's files. (Static server; running the app's backend needs a full deploy.)</p>
+      {% elif preview_html %}
         <iframe class="snap" sandbox srcdoc="{{ preview_html }}" title="Static preview"></iframe>
         <p class="muted" style="font-size:12px;margin-top:8px">Static snapshot (scripts disabled). A live, interactive preview is available after you publish.</p>
       {% elif screens %}

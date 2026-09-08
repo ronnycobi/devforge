@@ -256,6 +256,19 @@ def preview(request, pk):
     )
     can_manage = proj.organization_id in _manageable_ids(request.user)
     if request.method == "POST" and can_manage:
+        from apps.preview_runner.runner import PreviewError, runner
+        action = request.POST.get("action")
+        if action == "start_preview":
+            try:
+                runner.start_static(proj)
+                messages.success(request, "Live preview started.")
+            except PreviewError as exc:
+                messages.error(request, str(exc))
+            return redirect("dashboard:preview", pk=pk)
+        if action == "stop_preview":
+            runner.stop(proj.id)
+            messages.success(request, "Live preview stopped.")
+            return redirect("dashboard:preview", pk=pk)
         desc = (request.POST.get("message") or "").strip()
         if desc:
             change = changes_service.create_change(proj, desc, request.user)
@@ -287,11 +300,39 @@ def preview(request, pk):
                 if "<script" not in content.lower():
                     preview_html = content
                 break
+    from apps.preview_runner.runner import runner
     return render(request, "dashboard/preview.html", {
         "active": "projects", "project": proj, "can_manage": can_manage,
         "screens": screens, "preview_html": preview_html,
         "changes": proj.changes.all()[:8],
+        "live": runner.get(proj.id) is not None,
     })
+
+
+@login_required
+def preview_live(request, pk, path=""):
+    """Proxy the project's running static preview into the dashboard iframe."""
+    import urllib.error
+    import urllib.request
+
+    proj = get_object_or_404(
+        Project.objects.filter(organization__in=organizations_for(request.user)), pk=pk
+    )
+    from apps.preview_runner.runner import runner
+    pv = runner.get(proj.id)
+    if pv is None:
+        raise Http404("No running preview for this project.")
+    url = f"http://127.0.0.1:{pv.port}/{path}"
+    if request.META.get("QUERY_STRING"):
+        url += "?" + request.META["QUERY_STRING"]
+    try:
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            body = resp.read()
+            ctype = resp.headers.get_content_type() or "application/octet-stream"
+    except urllib.error.URLError:
+        raise Http404("The preview is not responding.")
+    from django.http import HttpResponse
+    return HttpResponse(body, content_type=ctype)
 
 
 @login_required
