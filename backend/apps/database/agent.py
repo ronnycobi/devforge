@@ -16,8 +16,10 @@ from apps.agents.runners import register_runner
 from apps.ai_providers.base import Message
 from apps.codegen.parsing import parse_files
 from apps.codegen.repair import verify_and_repair
+from apps.database.capabilities import get_database
 from apps.database.parsing import parse_schema
 from apps.database.prompts import SYSTEM_PROMPT, build_user_prompt
+from apps.database.selection import recommend_database
 from apps.model_router.router import ModelRouter, RoutingRequest, TaskComplexity
 from apps.project_context.models import ContextKind
 from apps.project_context.services import ProjectContext
@@ -71,6 +73,28 @@ class DatabaseAgent(BaseAgent):
         backend_tech = technology_for_role(project, "backend")
         db_tech = technology_for_role(project, "database")
         can_generate = backend_tech is None or backend_tech.id == "django"
+
+        # Database is technology-agnostic: reason from the chosen engine's real
+        # capabilities, and if none is chosen, recommend one from the requirements
+        # (never auto-PostgreSQL) and record the decision in the twin.
+        db_profile = get_database(db_tech.id) if db_tech else None
+        recommendation = None
+        if db_tech is None:
+            recommendation = recommend_database(f"{requirements} {architecture} {brief}")
+            db_profile = get_database(recommendation["database"])
+            rec_name = db_profile.name if db_profile else recommendation["database"]
+            ctx.set(
+                ContextKind.TECH_DECISION, "database-recommendation",
+                title=f"Recommended database: {rec_name}",
+                content=recommendation["reason"],
+                data={
+                    "database": recommendation["database"],
+                    "category": db_profile.category.value if db_profile else None,
+                    "reason": recommendation["reason"],
+                    "requirement_matched": recommendation["matched"],
+                },
+                source=f"agent:{self.key}#task:{tid}",
+            )
 
         # Generate + compile-repair the model source through the shared loop.
         # Tests aren't run: a lone models module has no runnable project around it
@@ -127,6 +151,15 @@ class DatabaseAgent(BaseAgent):
         elif not n:
             messages = [f"{model} returned no parseable schema; nothing written."]
 
+        if recommendation:
+            rec_name = db_profile.name if db_profile else recommendation["database"]
+            messages.append(f"No database chosen — recommended {rec_name}: {recommendation['reason']}.")
+        if db_profile and not db_profile.supports("migrations"):
+            messages.append(
+                f"{db_profile.name} is a {db_profile.category.value} store; "
+                "relational migrations do not apply — it is modelled on its own terms."
+            )
+
         return AgentResult.completed(
             self.key,
             output={
@@ -135,6 +168,10 @@ class DatabaseAgent(BaseAgent):
                 "files_generated": len(files),
                 "backend_stack": backend_tech.id if backend_tech else None,
                 "database_stack": db_tech.id if db_tech else None,
+                "database": db_tech.id if db_tech else (recommendation["database"] if recommendation else None),
+                "database_category": db_profile.category.value if db_profile else None,
+                "database_capabilities": db_profile.as_dict() if db_profile else None,
+                "database_recommended": recommendation is not None,
                 "code_generated": bool(files),
                 "commit": commit_sha,
                 "verified": verified,

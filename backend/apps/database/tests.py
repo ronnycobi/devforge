@@ -52,6 +52,82 @@ def _sequence(*texts, model="claude-opus-5"):
     return _inner
 
 
+class CapabilityRegistryTests(SimpleTestCase):
+    def test_relational_capabilities(self):
+        from apps.database.capabilities import Category, get_database
+        pg = get_database("postgresql")
+        self.assertEqual(pg.category, Category.RELATIONAL)
+        for cap in ("sql", "transactions", "foreign_keys", "joins", "migrations", "json"):
+            self.assertTrue(pg.supports(cap), cap)
+
+    def test_key_value_has_no_relational_capabilities(self):
+        from apps.database.capabilities import Category, get_database
+        redis = get_database("redis")
+        self.assertEqual(redis.category, Category.KEY_VALUE)
+        for cap in ("sql", "foreign_keys", "joins", "migrations", "fixed_schema"):
+            self.assertFalse(redis.supports(cap), cap)
+
+    def test_document_store_shape(self):
+        from apps.database.capabilities import Category, get_database
+        mongo = get_database("mongodb")
+        self.assertEqual(mongo.category, Category.DOCUMENT)
+        self.assertFalse(mongo.supports("sql"))
+        self.assertFalse(mongo.supports("foreign_keys"))
+        self.assertTrue(mongo.supports("json"))
+
+    def test_registry_is_extensible_across_categories(self):
+        from apps.database.capabilities import Category, databases_by_category
+        self.assertTrue(databases_by_category(Category.SEARCH))   # elasticsearch
+        self.assertTrue(databases_by_category(Category.GRAPH))    # neo4j
+        self.assertTrue(databases_by_category(Category.DISTRIBUTED_SQL))
+
+    def test_unknown_capability_raises(self):
+        from apps.database.capabilities import get_database
+        with self.assertRaises(ValueError):
+            get_database("sqlite").supports("time_travel")
+
+
+class ProviderTests(SimpleTestCase):
+    def test_sqlite_provider_is_real(self):
+        from apps.database.providers import get_provider
+        p = get_provider("sqlite")  # in-memory
+        self.assertTrue(p.health_check()["ok"])
+        p.execute_query("CREATE TABLE task (id INTEGER PRIMARY KEY, title TEXT NOT NULL)")
+        schema = p.inspect_schema()
+        self.assertIn("task", schema["tables"])
+        cols = {c["name"] for c in schema["tables"]["task"]["columns"]}
+        self.assertEqual(cols, {"id", "title"})
+        self.assertEqual(schema["tables"]["task"]["primary_key"], ["id"])
+        p.disconnect()
+
+    def test_unimplemented_provider_fails_honestly(self):
+        from apps.database.providers import ProviderUnavailable, get_provider
+        with self.assertRaises(ProviderUnavailable):
+            get_provider("postgresql")   # capabilities known, adapter not built yet
+        with self.assertRaises(ProviderUnavailable):
+            get_provider("does-not-exist")
+
+
+class SelectionTests(SimpleTestCase):
+    def test_requirement_driven_not_always_postgres(self):
+        from apps.database.selection import recommend_database
+        cases = {
+            "invoicing, payments and financial reporting": "postgresql",
+            "a simple local prototype": "sqlite",
+            "high-volume session cache and rate limiting": "redis",
+            "store unstructured documents with a flexible schema": "mongodb",
+            "search-heavy full-text product catalogue": "elasticsearch",
+        }
+        for text, expected in cases.items():
+            self.assertEqual(recommend_database(text)["database"], expected, text)
+
+    def test_generic_default_is_flagged_unmatched(self):
+        from apps.database.selection import recommend_database
+        rec = recommend_database("an application")
+        self.assertEqual(rec["database"], "postgresql")
+        self.assertFalse(rec["matched"])  # a stated default, not a requirement match
+
+
 class ParsingTests(SimpleTestCase):
     def test_parses_models_and_fields(self):
         models = parse_schema(SCHEMA_JSON)["models"]
@@ -156,6 +232,36 @@ class DatabaseFlowTests(TestCase):
         self.assertTrue(task.output["verified"])          # compiled after repair
         self.assertEqual(task.output["repair_rounds"], 1)  # one compile-repair round
         self.assertEqual(task.output["files_generated"], 1)
+
+    def test_recommends_database_when_none_chosen(self):
+        # No database in the technology profile → recommend one + record it.
+        task = self._run()  # offline; setUp requirement is generic ("CRUD tasks")
+        self.assertTrue(task.output["database_recommended"])
+        self.assertEqual(task.output["database"], "postgresql")
+        self.assertEqual(task.output["database_category"], "relational")
+        decision = ProjectContext(self.project).get(
+            ContextKind.TECH_DECISION, "database-recommendation"
+        )
+        self.assertIsNotNone(decision)
+        self.assertEqual(decision.data["database"], "postgresql")
+
+    def test_non_relational_recommendation_notes_capabilities(self):
+        ProjectContext(self.project).set(
+            ContextKind.REQUIREMENT, "cache", title="Cache",
+            content="high-volume session cache and rate limiting",
+        )
+        task = self._run()
+        self.assertEqual(task.output["database"], "redis")
+        self.assertEqual(task.output["database_category"], "key_value")
+        self.assertFalse(task.output["database_capabilities"]["migrations"])
+        self.assertTrue(any("migrations do not apply" in m for m in task.messages))
+
+    def test_chosen_database_is_not_overridden(self):
+        self.project.technology = {"database": "mysql"}
+        self.project.save(update_fields=["technology"])
+        task = self._run()
+        self.assertEqual(task.output["database"], "mysql")
+        self.assertFalse(task.output["database_recommended"])  # respected the choice
 
     def test_non_django_backend_records_schema_only(self):
         # A backend DevForge can't generate yet -> design recorded, no code, honest.
