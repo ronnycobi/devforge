@@ -13,6 +13,34 @@
     {% endfor %}
   </div>
 
+  <h2>Invoices &amp; statements</h2>
+  <div class="card">
+    {% if manageable_orgs %}
+    <form method="post" class="inline" style="margin-bottom:12px">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="generate_invoice">
+      <div style="flex:2"><label>Generate this month's statement</label>
+        <select name="organization">{% for o in manageable_orgs %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select></div>
+      <div><button type="submit">Generate</button></div>
+    </form>
+    {% endif %}
+    {% if invoices %}
+    <table>
+      <tr><th>Period</th><th>Organization</th><th>Credits</th><th>Amount</th><th>Status</th></tr>
+      {% for inv in invoices %}
+      <tr>
+        <td class="strong">{{ inv.period_start|date:"M Y" }}</td>
+        <td class="muted">{{ inv.organization.name }}</td>
+        <td>{{ inv.credits_used|floatformat:0 }}</td>
+        <td>${{ inv.subtotal_usd|floatformat:2 }} {{ inv.currency }}</td>
+        <td><span class="badge b-{% if inv.status == 'issued' %}completed{% else %}queued{% endif %}">{{ inv.get_status_display }}</span></td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p class="muted" style="font-size:12px;margin:8px 0 0">A statement of AI usage owed. Payment collection is set up separately.</p>
+    {% else %}<p class="empty">No statements yet — generate one from a month's usage above.</p>{% endif %}
+  </div>
+
   <h2>Usage ledger</h2>
   <div class="card">
     {% if records %}

@@ -22,7 +22,7 @@ from django.urls import reverse
 from apps.agents.definitions import registry as agent_registry
 from apps.changes import service as changes_service
 from apps.changes.models import ChangeRequest
-from apps.credits.models import CreditAccount, UsageRecord
+from apps.credits.models import CreditAccount, Invoice, UsageRecord
 from apps.credits.services import plans
 from apps.deployments.models import Deployment, DeploymentStatus
 from apps.organizations.access import (
@@ -619,6 +619,22 @@ def deployments(request):
 @login_required
 def usage(request):
     orgs = list(organizations_for(request.user))
+    manageable = _manageable_ids(request.user)
+
+    if request.method == "POST" and request.POST.get("action") == "generate_invoice":
+        org = get_object_or_404(Organization, pk=request.POST.get("organization", 0))
+        if org.id in manageable:
+            from apps.credits.services import generate_invoice
+            inv = generate_invoice(org)
+            messages.success(
+                request,
+                f"Statement for {inv.period_start:%B %Y}: ${inv.subtotal_usd:.2f} "
+                f"({inv.credits_used:.0f} credits).",
+            )
+        else:
+            messages.error(request, "Owner or admin rights required.")
+        return redirect("dashboard:usage")
+
     records = (
         UsageRecord.objects.filter(organization__in=orgs)
         .select_related("project").order_by("-created_at")[:100]
@@ -626,9 +642,11 @@ def usage(request):
     spend = sum((r.cost_usd for r in records), Decimal("0"))
     credits = sum((r.credits_charged for r in records), Decimal("0"))
     accounts = CreditAccount.objects.filter(organization__in=orgs)
+    invoices = Invoice.objects.filter(organization__in=orgs).select_related("organization")
     return render(request, "dashboard/usage.html", {
         "active": "usage", "records": records, "spend": spend,
-        "credits": credits, "accounts": accounts,
+        "credits": credits, "accounts": accounts, "invoices": invoices,
+        "manageable_orgs": [o for o in orgs if o.id in manageable],
     })
 
 

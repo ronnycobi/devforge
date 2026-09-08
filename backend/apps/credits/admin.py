@@ -24,3 +24,14 @@ class UsageRecordAdmin(admin.ModelAdmin):
     list_filter = ["provider", "model", "agent_key"]
     search_fields = ["organization__name", "model"]
     readonly_fields = [f.name for f in UsageRecord._meta.fields]
+
+
+from apps.credits.models import Invoice  # noqa: E402
+
+
+@admin.register(Invoice)
+class InvoiceAdmin(admin.ModelAdmin):
+    list_display = ["organization", "period_start", "subtotal_usd", "credits_used", "status"]
+    list_filter = ["status"]
+    search_fields = ["organization__name"]
+    readonly_fields = ["created_at", "updated_at"]

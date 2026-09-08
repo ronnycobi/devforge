@@ -213,3 +213,59 @@ class CreditsAPITests(TestCase):
         self.client.force_login(other)
         resp = self.client.get(reverse("credits:balance", args=[self.org.id]))
         self.assertEqual(resp.status_code, 404)
+
+
+class InvoiceTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Acme")
+        self.project = Project.objects.create(organization=self.org, name="App")
+
+    def _usage(self, model, tokens, cost, credits):
+        UsageRecord.objects.create(
+            organization=self.org, project=self.project, agent_key="backend",
+            provider="anthropic", model=model, total_tokens=tokens,
+            cost_usd=Decimal(str(cost)), credits_charged=Decimal(str(credits)),
+        )
+
+    def test_generate_invoice_aggregates_month_usage(self):
+        from apps.credits.services import generate_invoice
+        self._usage("claude-opus-5", 1000, "0.5000", "50")
+        self._usage("claude-sonnet-5", 2000, "0.2000", "20")
+        inv = generate_invoice(self.org)
+        self.assertEqual(inv.subtotal_usd, Decimal("0.7000"))
+        self.assertEqual(inv.credits_used, Decimal("70"))
+        self.assertEqual(len(inv.lines), 2)  # per-model breakdown
+
+    def test_generate_invoice_is_idempotent(self):
+        from apps.credits.models import Invoice
+        from apps.credits.services import generate_invoice
+        self._usage("claude-opus-5", 1000, "0.50", "50")
+        generate_invoice(self.org)
+        self._usage("claude-opus-5", 1000, "0.50", "50")
+        generate_invoice(self.org)  # re-run same month
+        self.assertEqual(Invoice.objects.filter(organization=self.org).count(), 1)
+        inv = Invoice.objects.get(organization=self.org)
+        self.assertEqual(inv.subtotal_usd, Decimal("1.00"))  # recomputed, not doubled rows
+
+
+class InvoiceUITests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(email="io@x.com", password="pw12345!")
+        self.member = User.objects.create_user(email="im@x.com", password="pw12345!")
+        self.org = Organization.objects.create(name="Acme")
+        self.org.add_member(self.owner, role="owner")
+        self.org.add_member(self.member, role="member")
+
+    def test_owner_generates_statement(self):
+        from apps.credits.models import Invoice
+        self.client.force_login(self.owner)
+        self.client.post(reverse("dashboard:usage"),
+                         {"action": "generate_invoice", "organization": self.org.id})
+        self.assertTrue(Invoice.objects.filter(organization=self.org).exists())
+
+    def test_member_cannot_generate(self):
+        from apps.credits.models import Invoice
+        self.client.force_login(self.member)
+        self.client.post(reverse("dashboard:usage"),
+                         {"action": "generate_invoice", "organization": self.org.id})
+        self.assertFalse(Invoice.objects.filter(organization=self.org).exists())

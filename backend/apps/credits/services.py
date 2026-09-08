@@ -135,3 +135,49 @@ def record_task_usage(task) -> UsageRecord | None:
     if account and charged:
         account.debit(charged)
     return record
+
+
+def generate_invoice(organization, *, year: int | None = None, month: int | None = None):
+    """Build (or refresh) the usage statement for an org's month from UsageRecords.
+
+    Idempotent per (org, month): re-running recomputes totals. Records only what is
+    owed — it does not collect payment.
+    """
+    import calendar
+    from datetime import date
+
+    from django.db.models import Sum
+
+    from apps.credits.models import Invoice, UsageRecord
+
+    today = timezone.localdate()
+    year = year or today.year
+    month = month or today.month
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+
+    records = UsageRecord.objects.filter(
+        organization=organization, created_at__date__gte=start, created_at__date__lte=end
+    )
+    lines = [
+        {
+            "model": r["model"] or "unknown",
+            "tokens": r["tokens"] or 0,
+            "cost_usd": float(r["cost"] or 0),
+            "credits": float(r["credits"] or 0),
+        }
+        for r in records.values("model").annotate(
+            tokens=Sum("total_tokens"), cost=Sum("cost_usd"), credits=Sum("credits_charged")
+        ).order_by("-cost")
+    ]
+    totals = records.aggregate(cost=Sum("cost_usd"), credits=Sum("credits_charged"))
+    invoice, _ = Invoice.objects.update_or_create(
+        organization=organization, period_start=start,
+        defaults={
+            "period_end": end,
+            "subtotal_usd": totals["cost"] or Decimal("0"),
+            "credits_used": totals["credits"] or Decimal("0"),
+            "lines": lines,
+        },
+    )
+    return invoice

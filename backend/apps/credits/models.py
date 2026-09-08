@@ -80,3 +80,40 @@ class UsageRecord(models.Model):
 
     def __str__(self):
         return f"{self.agent_key} {self.model} {self.credits_charged}cr"
+
+
+class Invoice(models.Model):
+    """A usage statement for an organization over a billing period.
+
+    Generated from real UsageRecords — the amount owed for AI work. Payment
+    COLLECTION (a gateway like Stripe/PayFast) is a separate integration and is
+    intentionally not modelled here; an invoice records what is owed, not a charge.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        ISSUED = "issued", "Issued"
+
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.CASCADE, related_name="invoices"
+    )
+    period_start = models.DateField()
+    period_end = models.DateField()
+    currency = models.CharField(max_length=8, default="USD")
+    subtotal_usd = models.DecimalField(max_digits=14, decimal_places=6, default=0)
+    credits_used = models.DecimalField(max_digits=14, decimal_places=4, default=0)
+    lines = models.JSONField(default=list, blank=True)  # [{model, tokens, cost_usd, credits}]
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.DRAFT)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-period_start"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "period_start"], name="uniq_invoice_period_per_org"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.organization} {self.period_start:%Y-%m} — {self.subtotal_usd} {self.currency}"
