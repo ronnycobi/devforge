@@ -260,7 +260,7 @@ def preview(request, pk):
         action = request.POST.get("action")
         if action == "start_preview":
             try:
-                runner.start_static(proj)
+                runner.start(proj)  # runs the app's server if declared, else serves files
                 messages.success(request, "Live preview started.")
             except PreviewError as exc:
                 messages.error(request, str(exc))

@@ -129,10 +129,15 @@ place.
 ## 11. Phased plan
 
 - **P0 — Static preview.** ✅ Shipped (`preview_runner`).
-- **P1 — No-dependency server preview (offline-real).** Add the `run` manifest
-  block; give the Node/Go/stdlib generators a real server entrypoint binding
-  `$PORT`; runner starts it under rlimits + reaper; proxy forwards. Fully
-  testable offline for these stacks. *No containers, single-tenant, dev-labelled.*
+- **P1 — No-dependency server preview (offline-real).** ✅ Shipped for Node.
+  `devforge.json` gained a `run` block; the Node scaffold emits a DevForge-owned
+  `server.js` that boots the app on `$PORT`; `PreviewRunner.start()` dispatches to
+  `start_server()` (declared run) or `start_static()` (files), health-checks,
+  proxies, and reaps on TTL/stop. Proven offline: a real Node server runs and is
+  reachable through the iframe proxy, with no leaked processes. *Single-tenant,
+  dev-labelled; resource caps best-effort (real caps are P3).* Remaining within
+  P1: add the same `run` block + a server entrypoint to the Go and stdlib
+  scaffolds (FastAPI/Django need installs → P2).
 - **P2 — Dependency builds.** Install step with egress-allowlisted build env
   (enables FastAPI/Django/React). Needs the prod build pipeline.
 - **P3 — Containerized multi-tenant.** Per-preview container, network namespace,
