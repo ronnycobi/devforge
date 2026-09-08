@@ -17,7 +17,26 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from apps.ai_providers.base import Message
-from apps.codegen.service import materialize, run_repo_tests, verify_python
+
+
+def _verify(toolbelt, files) -> tuple[bool | None, str]:
+    """Compile-check via the sandbox tool (governed by USE_SANDBOX)."""
+    res = toolbelt.invoke("sandbox.exec", "verify_python", files=files)
+    data = res.data or {}
+    return data.get("ok"), data.get("log", "")
+
+
+def _materialize(toolbelt, files, message) -> str | None:
+    """Write + commit via the repo.write tool (governed by WRITE_REPOSITORY)."""
+    toolbelt.invoke("repo.write", "write_files",
+                    files={f["path"]: f["content"] for f in files})
+    res = toolbelt.invoke("repo.write", "commit", message=message)
+    return (res.data or {}).get("commit")
+
+
+def _run_tests(toolbelt) -> dict:
+    """Run the suite via the tests.run tool (governed by RUN_TESTS)."""
+    return toolbelt.invoke("tests.run", "run").data or {}
 
 
 @dataclass
@@ -56,8 +75,8 @@ def default_test_prompt(output: str) -> str:
 
 def verify_and_repair(
     *,
+    toolbelt,               # the agent's Toolbelt — governs write/sandbox/tests access
     complete,               # callable(list[Message]) -> CompletionResponse
-    project,
     initial_response,       # the first CompletionResponse (caller already made it)
     user_prompt: str,       # the original user turn, replayed into repair context
     build_files,            # callable(text: str) -> list[dict]
@@ -79,8 +98,8 @@ def verify_and_repair(
             Message("user", instruction),
         ])
 
-    # Phase 1: compile (in-memory — cheap, before we materialize anything).
-    compiled, compile_log = (verify_python(files) if files else (None, ""))
+    # Phase 1: compile via the sandbox tool (cheap, before we materialize anything).
+    compiled, compile_log = (_verify(toolbelt, files) if files else (None, ""))
     while files and compiled is False and rounds < max_repairs:
         rounds += 1
         fix = _repair(compile_prompt(compile_log))
@@ -89,16 +108,16 @@ def verify_and_repair(
         if not repaired:
             break  # nothing usable came back; keep the prior attempt
         files, final = repaired, fix
-        compiled, compile_log = verify_python(files)
+        compiled, compile_log = _verify(toolbelt, files)
 
     commit_sha = None
     if files:
-        _, commit_sha = materialize(project, files, message=materialize_message)
+        commit_sha = _materialize(toolbelt, files, materialize_message)
 
-    # Phase 2: real tests (only if it compiles and the caller wants them).
+    # Phase 2: real tests via the test tool (only if it compiles and the caller wants them).
     tests_passed, test_log, tests_ran = None, "", 0
     if files and compiled and run_tests:
-        result = run_repo_tests(project)
+        result = _run_tests(toolbelt)
         tests_passed = result.get("passed")
         tests_ran = result.get("ran", 0)
         test_log = (result.get("output") or result.get("note") or "").strip()
@@ -110,11 +129,11 @@ def verify_and_repair(
             if not repaired:
                 break
             files, final = repaired, fix
-            compiled, compile_log = verify_python(files)
-            _, commit_sha = materialize(project, files, message=materialize_message)
+            compiled, compile_log = _verify(toolbelt, files)
+            commit_sha = _materialize(toolbelt, files, materialize_message)
             if not compiled:
                 break  # the fix broke compilation; reported honestly by the caller
-            result = run_repo_tests(project)
+            result = _run_tests(toolbelt)
             tests_passed = result.get("passed")
             tests_ran = result.get("ran", 0)
             test_log = (result.get("output") or result.get("note") or "").strip()

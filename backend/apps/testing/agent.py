@@ -14,7 +14,7 @@ from apps.agents.capabilities import Capability
 from apps.agents.definitions import TESTING
 from apps.agents.runners import register_runner
 from apps.ai_providers.base import Message
-from apps.codegen.service import run_repo_tests
+from apps.tools.registry import Toolbelt
 from apps.model_router.router import ModelRouter, RoutingRequest, TaskComplexity
 from apps.project_context.models import ContextKind
 from apps.project_context.services import ProjectContext
@@ -83,8 +83,9 @@ class TestingAgent(BaseAgent):
             else f"{response.model} returned no parseable tests."
         ]
 
-        # Actually run the generated project's test suite in the sandbox.
-        test_run = run_repo_tests(project)
+        # Run the generated project's test suite via the tests.run tool, so it is
+        # governed by this agent's RUN_TESTS capability like any other tool use.
+        test_run = Toolbelt(project, self.capabilities).invoke("tests.run", "run").data or {}
         if test_run.get("passed") is None:
             messages.append(f"No runnable tests in repo ({test_run.get('note')}).")
         else:

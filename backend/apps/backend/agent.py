@@ -24,6 +24,7 @@ from apps.backend.parsing import parse_backend
 from apps.backend.prompts import build_user_prompt, system_prompt
 from apps.codegen.parsing import parse_files
 from apps.codegen.repair import verify_and_repair
+from apps.tools.registry import Toolbelt
 from apps.core.jsonx import extract_json
 from apps.model_router.router import ModelRouter, RoutingRequest, TaskComplexity
 from apps.project_context.models import ContextKind
@@ -104,8 +105,8 @@ class BackendAgent(BaseAgent):
         app_label = self._extract_app_label(stack, response.text)
 
         outcome = verify_and_repair(
+            toolbelt=Toolbelt(project, self.capabilities),
             complete=lambda messages: self._complete(system, messages),
-            project=project,
             initial_response=response,
             user_prompt=user_prompt,
             build_files=lambda text: self._build_files(stack, text, app_label),

@@ -20,6 +20,7 @@ from apps.database.capabilities import get_database
 from apps.database.parsing import parse_schema
 from apps.database.prompts import SYSTEM_PROMPT, build_user_prompt
 from apps.database.selection import recommend_database
+from apps.tools.registry import Toolbelt
 from apps.model_router.router import ModelRouter, RoutingRequest, TaskComplexity
 from apps.project_context.models import ContextKind
 from apps.project_context.services import ProjectContext
@@ -105,8 +106,8 @@ class DatabaseAgent(BaseAgent):
         final_text = response.text
         if can_generate:
             outcome = verify_and_repair(
+                toolbelt=Toolbelt(project, self.capabilities),
                 complete=lambda messages: self._complete(system, messages),
-                project=project,
                 initial_response=response,
                 user_prompt=user_prompt,
                 build_files=lambda text: parse_files(text),

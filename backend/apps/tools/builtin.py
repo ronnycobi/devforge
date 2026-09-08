@@ -14,7 +14,7 @@ from apps.agents.capabilities import Capability as C
 from apps.build_sandbox.base import SandboxLimits
 from apps.build_sandbox.service import get_sandbox
 from apps.codegen.service import run_repo_tests, verify_python
-from apps.repositories.service import repo_for_project
+from apps.repositories.service import GitError, repo_for_project
 from apps.tools.base import Tool, ToolResult
 from apps.tools.registry import registry
 
@@ -105,7 +105,10 @@ class RepoWriteTool(Tool):
             repo.write_files(files)
             return ToolResult.success({"written": len(files)})
         if action == "commit":
-            sha = repo.commit(kwargs.get("message", "DevForge change"))
+            try:
+                sha = repo.commit(kwargs.get("message", "DevForge change"))
+            except GitError:
+                sha = None  # nothing actually changed — not an error
             return ToolResult.success({"commit": sha})
         if action == "create_branch":
             name = kwargs.get("name", "")

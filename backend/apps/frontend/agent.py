@@ -21,6 +21,7 @@ from apps.agents.runners import register_runner
 from apps.ai_providers.base import Message
 from apps.codegen.parsing import parse_files
 from apps.codegen.repair import verify_and_repair
+from apps.tools.registry import Toolbelt
 from apps.frontend.parsing import parse_frontend
 from apps.frontend.prompts import build_user_prompt, system_prompt
 from apps.model_router.router import ModelRouter, RoutingRequest, TaskComplexity
@@ -87,8 +88,8 @@ class FrontendAgent(BaseAgent):
         outcome = None
         if stack is not None:
             outcome = verify_and_repair(
+                toolbelt=Toolbelt(project, self.capabilities),
                 complete=lambda messages: self._complete(system, messages),
-                project=project,
                 initial_response=response,
                 user_prompt=user_prompt,
                 build_files=lambda text: self._build_files(stack, text),
