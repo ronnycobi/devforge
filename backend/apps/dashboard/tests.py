@@ -61,7 +61,7 @@ class DashboardUITests(TestCase):
         resp = self.client.get(reverse("dashboard:project", args=[self.project.id]))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Technology stack")
-        self.assertContains(resp, "Agent tasks")
+        self.assertContains(resp, "Build activity")
 
     def test_owner_queues_task_via_ui(self):
         self.client.force_login(self.owner)
@@ -254,3 +254,48 @@ class MachineryLeakGuardTests(TestCase):
         self.assertNotIn('name="agent_key"', body)  # no roster dropdown
         for term in ["write_backend", "use_sandbox", "least-privilege"]:
             self.assertNotIn(term, body, term)
+
+
+class BuilderHomeTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="b@x.com", password="pw12345!")
+        self.org = Organization.objects.create(name="Acme")
+        self.org.add_member(self.user, role=Role.OWNER)
+        self.client.force_login(self.user)
+
+    def test_home_is_the_builder(self):
+        r = self.client.get(reverse("dashboard:home"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "What do you want to build?")
+        self.assertContains(r, "Start with an example")
+        # No internal machinery on the customer's landing page.
+        for term in ["write_backend", "least-privilege", "orchestrat", "model router", "code_review"]:
+            self.assertNotContains(r, term)
+
+    def test_build_creates_project_and_starts_work(self):
+        import tempfile
+        from django.test import override_settings
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+                r = self.client.post(reverse("dashboard:home"),
+                                     {"action": "build",
+                                      "brief": "Build a CRM for my sales team with leads and deals."},
+                                     follow=True)
+        self.assertEqual(r.status_code, 200)
+        p = Project.objects.filter(organization=self.org).order_by("-id").first()
+        self.assertIsNotNone(p)
+        self.assertTrue(p.name)                       # a name derived from the brief
+        self.assertTrue(AgentTask.objects.filter(project=p).exists())  # build kicked off
+
+    def test_empty_brief_rejected(self):
+        r = self.client.post(reverse("dashboard:home"), {"action": "build", "brief": "  "}, follow=True)
+        self.assertContains(r, "Tell DevForge what you want to build")
+
+
+class FriendlyLabelTests(TestCase):
+    def test_maps_internal_keys_to_outcomes(self):
+        from apps.dashboard.labels import friendly_step
+        self.assertEqual(friendly_step("code_review"), "Quality review")
+        self.assertEqual(friendly_step("database"), "Setting up your data")
+        self.assertEqual(friendly_step("backend"), "Building the core features")
+        self.assertEqual(friendly_step("weird-unknown"), "Working on your application")

@@ -41,6 +41,7 @@ from apps.organizations.models import (
 from apps.orchestrator.models import TERMINAL_STATUSES, AgentTask
 from apps.orchestrator.service import Orchestrator
 from apps.project_context.models import ContextEntry, ContextKind
+from apps.project_context.services import ProjectContext
 from apps.projects.models import Project
 from apps.workspaces.models import Workspace
 from apps.technology.registry import ROLES
@@ -83,54 +84,88 @@ def _project_state(project) -> str:
     return project.get_status_display()
 
 
-# --- overview ---------------------------------------------------------------
+# --- Home: the builder ("What do you want to build?") -----------------------
+
+_STARTERS = [
+    ("CRM", "Build a CRM with contacts, companies, leads, deals, activities and a sales dashboard."),
+    ("Website", "Build a professional website for my business with home, services, about and contact pages."),
+    ("SaaS", "Build a SaaS platform where teams sign up, manage members and pay a monthly subscription."),
+    ("E-commerce", "Build an online store with a product catalog, cart, checkout and orders."),
+    ("Customer Portal", "Build a customer portal where clients log in, submit requests and track their status."),
+    ("Internal Tool", "Build an internal tool for my team to manage tasks, approvals and reports."),
+    ("Mobile App", "Build a mobile-friendly app for booking appointments with reminders."),
+    ("API", "Build a REST API for managing customers, orders and invoices."),
+]
+_PLACEHOLDERS = [
+    "Build a CRM for my sales team with customers, leads, deals, tasks and a dashboard…",
+    "Build an e-commerce website for my clothing business…",
+    "Create a booking system for my salon…",
+    "Build a construction project management app…",
+    "Create a website for my engineering company…",
+    "Build a mobile-friendly invoicing system…",
+    "Create a SaaS platform for managing employees and leave…",
+]
+_BUILD_PIPELINE = ["requirements", "architect", "database", "backend",
+                   "frontend", "testing", "code_review", "security"]
+
+
+def _name_from_brief(brief: str) -> str:
+    import re
+    text = re.sub(r"^\s*(please\s+)?(build|create|make|develop|design)\s+(me\s+)?(a|an|the)?\s*",
+                  "", brief.strip(), flags=re.I)
+    words = text.split()
+    name = " ".join(words[:6]).rstrip(".,").strip()
+    return (name[:60] or "New project").title()
+
+
+def _start_build(project, brief, user):
+    orch = Orchestrator()
+    previous = None
+    for key in _BUILD_PIPELINE:
+        t = orch.create_task(project=project, agent_key=key,
+                             input={"brief": brief}, created_by=user)
+        if previous is not None:
+            t.depends_on.set([previous])
+        previous = t
+    orch.run_ready(project)
+
 
 @login_required
 def overview(request):
     user = request.user
     orgs = list(organizations_for(user))
-    projects = list(
-        Project.objects.filter(organization__in=orgs).select_related("organization")
-    )
-    tasks = AgentTask.objects.filter(project__in=projects)
+    manageable = _manageable_ids(user)
 
-    running = sum(1 for p in projects if p.agent_tasks.filter(status__in=_NON_TERMINAL).exists())
-    deployments = Deployment.objects.filter(
-        project__in=projects, status=DeploymentStatus.SUCCEEDED
-    ).count()
+    if request.method == "POST" and request.POST.get("action") == "build":
+        brief = (request.POST.get("brief") or "").strip()
+        if not brief:
+            messages.error(request, "Tell DevForge what you want to build.")
+            return redirect("dashboard:home")
+        org = next((o for o in orgs if o.id in manageable), None)
+        if org is None:
+            org = Organization.objects.create(
+                name=f"{user.short_name}'s workspace", created_by=user)
+            org.add_member(user, role=Role.OWNER)
+        project = Project.objects.create(
+            organization=org, name=_name_from_brief(brief),
+            created_by=user, description=brief[:500])
+        project.ensure_default_workspace()
+        ProjectContext(project).set(
+            ContextKind.REQUIREMENT, "brief", title="What to build",
+            content=brief, source="builder")
+        _start_build(project, brief, user)
+        messages.success(request, "DevForge is building your project.")
+        return redirect("dashboard:project", pk=project.id)
 
-    month_start = date.today().replace(day=1)
-    usage = UsageRecord.objects.filter(organization__in=orgs, created_at__date__gte=month_start)
-    spend = sum((u.cost_usd for u in usage), Decimal("0"))
-    credits_used = sum((u.credits_charged for u in usage), Decimal("0"))
-    accounts = CreditAccount.objects.filter(organization__in=orgs)
-    allowance = sum(Decimal(plans().get(a.plan, 0)) for a in accounts)
-    usage_pct = int(min(credits_used / allowance * 100, 100)) if allowance else None
-
-    active = sorted(projects, key=lambda p: p.updated_at, reverse=True)[:6]
-    active_rows = [
+    projects = Project.objects.filter(
+        organization__in=orgs).select_related("organization").order_by("-updated_at")
+    cards = [
         {"project": p, "state": _project_state(p), "progress": _project_progress(p)}
-        for p in active
+        for p in projects[:12]
     ]
-    activity = [
-        {
-            "agent": agent_registry.get(t.agent_key).name if t.agent_key in agent_registry else t.agent_key,
-            "action": (t.messages[-1] if t.messages else t.get_status_display()),
-            "when": t.started_at or t.created_at,
-            "status": t.status,
-            "project": t.project,
-        }
-        for t in tasks.select_related("project").order_by("-created_at")[:8]
-    ]
-    return render(request, "dashboard/overview.html", {
-        "active": "overview",
-        "greeting_name": (user.short_name or user.email.split("@")[0]),
-        "stats": {
-            "projects": len(projects), "running": running,
-            "deployments": deployments, "incidents": 0,
-        },
-        "usage_pct": usage_pct, "spend": spend,
-        "active_rows": active_rows, "activity": activity,
+    return render(request, "dashboard/home.html", {
+        "active": "overview", "cards": cards,
+        "starters": _STARTERS, "placeholders": _PLACEHOLDERS,
     })
 
 

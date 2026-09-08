@@ -1,4 +1,5 @@
 {% extends "dashboard/base_dash.html" %}
+{% load devforge %}
 {% block title %}Change · DevForge{% endblock %}
 {% block crumb %}Build / {{ change.project.name }} / Change{% endblock %}
 {% block content %}
@@ -58,7 +59,7 @@
           <div class="v grad" style="font-size:24px">{{ change.estimate.credits.0 }}–{{ change.estimate.credits.1 }}</div></div>
         <div class="stat" style="margin-top:10px"><div class="k">Est. cost</div>
           <div class="v" style="font-size:22px">${{ change.estimate.cost_usd.0 }}–${{ change.estimate.cost_usd.1 }}</div></div>
-        <div class="muted" style="font-size:12px;margin-top:8px">Agents: {% for a in change.estimate.agents %}<span class="chip">{{ a }}</span>{% endfor %}</div>
+        <div class="muted" style="font-size:12px;margin-top:8px">Steps: {% for a in change.estimate.agents %}<span class="chip">{{ a|friendly }}</span>{% endfor %}</div>
       {% else %}
         <p class="empty">Estimate available once the plan identifies work.</p>
       {% endif %}
@@ -93,7 +94,7 @@
   {% if change.result.total %}
   <div class="card" style="margin-top:16px;border-color:{% if change.result.ok %}rgba(52,211,153,.4){% else %}rgba(248,113,113,.4){% endif %}">
     <b>{% if change.result.ok %}✓ Implemented{% else %}✗ Implementation failed{% endif %}</b>
-    <span class="muted"> — {{ change.result.completed }}/{{ change.result.total }} agents completed{% if change.result.failed %}; failed: {% for a in change.result.failed %}<span class="chip">{{ a }}</span>{% endfor %}{% endif %}.</span>
+    <span class="muted"> — {{ change.result.completed }}/{{ change.result.total }} steps completed{% if change.result.failed %}; needs attention: {% for a in change.result.failed %}<span class="chip">{{ a|friendly }}</span>{% endfor %}{% endif %}.</span>
   </div>
   {% endif %}
 
@@ -101,9 +102,9 @@
   <h2>Implementation</h2>
   <div class="card">
     <table>
-      <tr><th>#</th><th>Agent</th><th>Status</th><th>Detail</th></tr>
+      <tr><th>Step</th><th>Status</th><th>Detail</th></tr>
       {% for t in tasks %}
-      <tr><td>{{ t.id }}</td><td>{{ t.agent_key }}</td>
+      <tr><td class="strong">{{ t.agent_key|friendly }}</td>
         <td><span class="badge b-{{ t.status }}">{{ t.get_status_display }}</span></td>
         <td class="muted">{% if t.messages %}{{ t.messages|last|truncatechars:60 }}{% elif t.error %}{{ t.error|truncatechars:60 }}{% else %}—{% endif %}</td></tr>
       {% endfor %}

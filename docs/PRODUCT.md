@@ -256,3 +256,28 @@ that can *evolve* into it.
 ONE USER → ONE LEAD AGENT → MANY SPECIALIZED AGENTS → CONTROLLED TOOLS
 → REAL SOFTWARE → TESTED → DEPLOYED → OPERATED.
 ```
+
+---
+
+## Client Transparency Boundary
+
+DevForge's customer experience is conversation-first: **"Tell DevForge what you
+want to build."** The customer describes an outcome; DevForge plans, builds, tests,
+secures and reports it. The customer sees **what DevForge accomplished — never how
+its proprietary engine accomplished it.**
+
+**Customer-facing UI MAY show:** project status, build progress (as plain-language
+steps), the generated application and its code where appropriate, tests/results,
+deployment status, errors, costs, usage, changes, approvals, and activity relevant
+to their own project.
+
+**Customer-facing UI MUST NOT show:** internal agent topology or names, proprietary
+prompts or system instructions, model-routing algorithms, internal scoring,
+orchestration architecture, agent-to-agent communication, internal decision logic,
+internal infrastructure topology, secret provider configuration, or DevForge's own
+source. Internal work is translated to outcomes via `apps/dashboard/labels.py`
+(e.g. the "code_review" step renders as "Quality review"). Leak-guard tests in
+`apps/dashboard/tests.py` and `apps/marketing/tests.py` enforce this.
+
+Advanced (technical) users may see technical artifacts — repository, database,
+APIs, tests, logs — but still never the proprietary engine internals above.

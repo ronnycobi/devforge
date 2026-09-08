@@ -1,0 +1,77 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Build · DevForge{% endblock %}
+{% block crumb %}Home{% endblock %}
+{% block content %}
+  <style>
+    .builder{max-width:760px;margin:24px auto 8px;text-align:center}
+    .builder h1{font-size:30px;letter-spacing:-.02em}
+    .builder .sub{margin:6px 0 22px}
+    .promptbox{position:relative;text-align:left}
+    .promptbox textarea{width:100%;min-height:120px;resize:vertical;font-size:15px;line-height:1.6;
+      padding:16px 16px 56px;border-radius:16px;border:1px solid var(--line2);background:var(--panel2);color:var(--ink)}
+    .promptbox .go{position:absolute;right:12px;bottom:12px;width:auto;padding:10px 20px;font-size:14px}
+    .starters{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0 4px}
+    .starters button{background:var(--panel2);border:1px solid var(--line2);color:var(--ink2);
+      border-radius:99px;padding:7px 15px;font-size:13px;font-weight:600;width:auto;cursor:pointer}
+    .starters button:hover{color:#fff;border-color:var(--brand)}
+    .starters .lbl{width:100%;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
+    .pcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+  </style>
+
+  <div class="builder">
+    <h1>What do you want to build?</h1>
+    <p class="sub">Describe it in your own words. DevForge turns your idea into working software.</p>
+
+    <form method="post" id="buildform">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="build">
+      <div class="promptbox">
+        <textarea name="brief" id="brief" required></textarea>
+        <button type="submit" class="go">Build →</button>
+      </div>
+    </form>
+
+    <div class="starters">
+      <div class="lbl">Start with an example</div>
+      {% for label, prompt in starters %}
+        <button type="button" data-prompt="{{ prompt }}">{{ label }}</button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <h2>Your projects</h2>
+  {% if cards %}
+  <div class="pcards">
+    {% for c in cards %}
+    <a href="{% url 'dashboard:project' c.project.id %}" class="card" style="display:block;color:inherit">
+      <div style="font-weight:700">{{ c.project.name }}</div>
+      <div class="muted" style="font-size:12px;margin:2px 0 10px">{{ c.project.organization.name }}</div>
+      <span class="badge b-{{ c.state|lower }}">{{ c.state }}</span>
+      <div class="bar" style="margin-top:10px"><i style="width:{{ c.progress }}%"></i></div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card"><p class="empty">No projects yet — describe one above and DevForge will build it.</p></div>
+  {% endif %}
+
+  {{ placeholders|json_script:"phs" }}
+  <script>
+    (function(){
+      var ta = document.getElementById('brief');
+      // Rotating placeholder examples.
+      try {
+        var phs = JSON.parse(document.getElementById('phs').textContent);
+        var i = 0;
+        if (ta && phs.length) {
+          ta.setAttribute('placeholder', phs[0]);
+          setInterval(function(){ if(!ta.value){ i=(i+1)%phs.length; ta.setAttribute('placeholder', phs[i]); } }, 3200);
+        }
+      } catch(e){}
+      // Starter chips insert a prompt to edit.
+      document.querySelectorAll('.starters button').forEach(function(b){
+        b.addEventListener('click', function(){ ta.value = b.dataset.prompt; ta.focus(); });
+      });
+    })();
+  </script>
+{% endblock %}

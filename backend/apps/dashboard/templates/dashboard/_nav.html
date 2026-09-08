@@ -1,67 +1,36 @@
-{% comment %}Sidebar nav. `active` names the current item.{% endcomment %}
+{% comment %}Sidebar nav. Simple-first; technical pages live under Advanced.{% endcomment %}
 <div class="navgroup">
   <div class="nav">
-    <a href="{% url 'dashboard:home' %}" class="{% if active == 'overview' %}on{% endif %}">Overview</a>
-    <a href="{% url 'dashboard:people' %}" class="{% if active == 'people' %}on{% endif %}">Team</a>
-  </div>
-</div>
-
-<div class="navgroup">
-  <div class="lbl">Build</div>
-  <div class="nav">
+    <a href="{% url 'dashboard:home' %}" class="{% if active == 'overview' %}on{% endif %}">Home</a>
     <a href="{% url 'dashboard:projects' %}" class="{% if active == 'projects' %}on{% endif %}">Projects</a>
-    <a href="{% url 'dashboard:templates' %}" class="{% if active == 'templates' %}on{% endif %}">Templates</a>
+    <a href="{% url 'dashboard:import' %}" class="{% if active == 'analyze-software' %}on{% endif %}">Improve</a>
+    <a href="{% url 'dashboard:deployments' %}" class="{% if active == 'deployments' %}on{% endif %}">Deploy</a>
+    <a href="{% url 'dashboard:tasks' %}" class="{% if active == 'tasks' or active == 'activity' %}on{% endif %}">Activity</a>
+    <a href="{% url 'dashboard:people' %}" class="{% if active == 'people' %}on{% endif %}">Team</a>
+    <a href="{% url 'dashboard:settings' %}" class="{% if active == 'settings' %}on{% endif %}">Settings</a>
   </div>
 </div>
 
-<div class="navgroup">
-  <div class="lbl">Engineering</div>
+<details class="navgroup" style="margin-top:14px">
+  <summary style="cursor:pointer;font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);padding:0 8px 6px;font-weight:700;list-style:none">Advanced ▾</summary>
   <div class="nav">
-    <a href="{% url 'dashboard:agents' %}" class="{% if active == 'agents' %}on{% endif %}">AI Agents</a>
-    <a href="{% url 'dashboard:tasks' %}" class="{% if active == 'tasks' %}on{% endif %}">Tasks</a>
+    <a href="{% url 'dashboard:agents' %}" class="{% if active == 'agents' %}on{% endif %}">AI Engineering</a>
+    <a href="{% url 'dashboard:templates' %}" class="{% if active == 'templates' %}on{% endif %}">Templates</a>
     <a href="{% url 'dashboard:repository' %}" class="{% if active == 'repository' %}on{% endif %}">Repository</a>
     <a href="{% url 'dashboard:section' 'database' %}" class="{% if active == 'database' %}on{% endif %}">Database</a>
     <a href="{% url 'dashboard:section' 'apis' %}" class="{% if active == 'apis' %}on{% endif %}">APIs</a>
     <a href="{% url 'dashboard:section' 'tests' %}" class="{% if active == 'tests' %}on{% endif %}">Tests</a>
-  </div>
-</div>
-
-<div class="navgroup">
-  <div class="lbl">Improve</div>
-  <div class="nav">
-    <a href="{% url 'dashboard:import' %}" class="{% if active == 'analyze-software' %}on{% endif %}">Analyze Software</a>
     <a href="{% url 'dashboard:section' 'code-issues' %}" class="{% if active == 'code-issues' %}on{% endif %}">Code Issues</a>
     <a href="{% url 'dashboard:security' %}" class="{% if active == 'security' %}on{% endif %}">Security</a>
-    <a href="{% url 'dashboard:ops' 'performance' %}" class="{% if active == 'performance' %}on{% endif %}">Performance</a>
-    <a href="{% url 'dashboard:ops' 'modernization' %}" class="{% if active == 'modernization' %}on{% endif %}">Modernization</a>
-  </div>
-</div>
-
-<div class="navgroup">
-  <div class="lbl">Deploy</div>
-  <div class="nav">
     <a href="{% url 'dashboard:ops' 'environments' %}" class="{% if active == 'environments' %}on{% endif %}">Environments</a>
-    <a href="{% url 'dashboard:deployments' %}" class="{% if active == 'deployments' %}on{% endif %}">Deployments</a>
     <a href="{% url 'dashboard:ops' 'cloud' %}" class="{% if active == 'cloud' %}on{% endif %}">Cloud</a>
     <a href="{% url 'dashboard:ops' 'infrastructure' %}" class="{% if active == 'infrastructure' %}on{% endif %}">Infrastructure</a>
-  </div>
-</div>
-
-<div class="navgroup">
-  <div class="lbl">Operate</div>
-  <div class="nav">
     <a href="{% url 'dashboard:ops' 'monitoring' %}" class="{% if active == 'monitoring' %}on{% endif %}">Monitoring</a>
     <a href="{% url 'dashboard:ops' 'logs' %}" class="{% if active == 'logs' %}on{% endif %}">Logs</a>
     <a href="{% url 'dashboard:ops' 'incidents' %}" class="{% if active == 'incidents' %}on{% endif %}">Incidents</a>
     <a href="{% url 'dashboard:ops' 'scaling' %}" class="{% if active == 'scaling' %}on{% endif %}">Scaling</a>
-  </div>
-</div>
-
-<div class="navgroup">
-  <div class="lbl">Project</div>
-  <div class="nav">
+    <a href="{% url 'dashboard:ops' 'performance' %}" class="{% if active == 'performance' %}on{% endif %}">Performance</a>
+    <a href="{% url 'dashboard:ops' 'modernization' %}" class="{% if active == 'modernization' %}on{% endif %}">Modernization</a>
     <a href="{% url 'dashboard:usage' %}" class="{% if active == 'usage' %}on{% endif %}">Costs &amp; AI Usage</a>
-    <a href="{% url 'dashboard:tasks' %}" class="{% if active == 'activity' %}on{% endif %}">Activity</a>
-    <a href="{% url 'dashboard:settings' %}" class="{% if active == 'settings' %}on{% endif %}">Settings</a>
   </div>
-</div>
+</details>

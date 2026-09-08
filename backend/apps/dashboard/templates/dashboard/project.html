@@ -1,4 +1,5 @@
 {% extends "dashboard/base_dash.html" %}
+{% load devforge %}
 {% block title %}{{ project.name }} · DevForge{% endblock %}
 {% block crumb %}Build / Projects / {{ project.name }}{% endblock %}
 {% block content %}
@@ -29,12 +30,12 @@
     </div>
 
     <div class="card">
-      <h2 style="margin-top:0">Agent tasks</h2>
+      <h2 style="margin-top:0">Build activity</h2>
       {% if tasks %}
       <table>
-        <tr><th>#</th><th>Agent</th><th>Status</th><th>Detail</th></tr>
+        <tr><th>Step</th><th>Status</th><th>Detail</th></tr>
         {% for t in tasks %}
-        <tr><td>{{ t.id }}</td><td>{{ t.agent_key }}</td>
+        <tr><td class="strong">{{ t.agent_key|friendly }}</td>
           <td><span class="badge b-{{ t.status }}">{{ t.get_status_display }}</span></td>
           <td class="muted">{% if t.messages %}{{ t.messages|last|truncatechars:60 }}{% elif t.error %}{{ t.error|truncatechars:60 }}{% else %}—{% endif %}</td></tr>
         {% endfor %}
