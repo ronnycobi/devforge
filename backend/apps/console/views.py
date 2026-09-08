@@ -45,27 +45,39 @@ def _usage_totals(qs=None):
 def overview(request):
     active_statuses = [s for s in TaskStatus.values if s not in TERMINAL_STATUSES]
     totals = _usage_totals()
+
+    completed = AgentTask.objects.filter(status=TaskStatus.COMPLETED).count()
+    failed = AgentTask.objects.filter(status=TaskStatus.FAILED).count()
+    finished = completed + failed
+    success_rate = round(completed / finished * 100) if finished else None
+
     stats = {
         "orgs": Organization.objects.count(),
         "users": User.objects.count(),
         "projects": Project.objects.count(),
+        "builds": AgentTask.objects.count(),
         "active_tasks": AgentTask.objects.filter(status__in=active_statuses).count(),
+        "success_rate": success_rate,
         "deployments": Deployment.objects.count(),
         "cost_usd": totals["cost"],
         "credits_charged": totals["credits"],
         "open_leads": ContactMessage.objects.count(),
     }
-    recent_tasks = (
-        AgentTask.objects.select_related("project", "project__organization")
-        .order_by("-created_at")[:12]
+
+    from apps.console.health import all_ok, system_health
+    health = system_health()
+
+    # Live activity: the real audit trail, newest first.
+    from apps.audit.models import AuditEvent
+    activity = (
+        AuditEvent.objects.select_related("actor", "organization").order_by("-created_at")[:12]
     )
     recent_orgs = Organization.objects.order_by("-created_at")[:6]
-    awaiting = AgentTask.objects.filter(
-        status=TaskStatus.WAITING_FOR_APPROVAL
-    ).select_related("project").count()
+    awaiting = AgentTask.objects.filter(status=TaskStatus.WAITING_FOR_APPROVAL).count()
     return render(request, "console/overview.html", {
         "active": "overview", "stats": stats,
-        "recent_tasks": recent_tasks, "recent_orgs": recent_orgs, "awaiting": awaiting,
+        "health": health, "health_ok": all_ok(health),
+        "activity": activity, "recent_orgs": recent_orgs, "awaiting": awaiting,
     })
 
 

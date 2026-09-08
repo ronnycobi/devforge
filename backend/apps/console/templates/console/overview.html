@@ -1,51 +1,69 @@
 {% extends "console/base_console.html" %}
-{% block title %}Overview · Staff Console{% endblock %}
-{% block crumb %}Operations / Overview{% endblock %}
+{% block title %}Control Center · DevForge{% endblock %}
+{% block crumb %}Overview{% endblock %}
 {% block content %}
-  <h1>Platform overview</h1>
-  <p class="sub">Live, cross-tenant state of everything DevForge is running right now.</p>
+  <h1>Control Center</h1>
+  <p class="sub">Is DevForge healthy? The whole platform, across every tenant, at a glance.</p>
 
   <div class="cards">
     <div class="card stat"><div class="k">Organizations</div><div class="v grad">{{ stats.orgs }}</div></div>
     <div class="card stat"><div class="k">Users</div><div class="v">{{ stats.users }}</div></div>
     <div class="card stat"><div class="k">Projects</div><div class="v">{{ stats.projects }}</div></div>
-    <div class="card stat"><div class="k">Active tasks</div><div class="v">{{ stats.active_tasks }}</div>
+    <div class="card stat"><div class="k">Builds</div><div class="v">{{ stats.builds }}</div>
       {% if awaiting %}<div class="sm">{{ awaiting }} awaiting approval</div>{% endif %}</div>
-    <div class="card stat"><div class="k">Deployments</div><div class="v">{{ stats.deployments }}</div></div>
-    <div class="card stat"><div class="k">AI spend</div><div class="v">${{ stats.cost_usd|floatformat:2 }}</div>
+    <div class="card stat"><div class="k">Success rate</div><div class="v">{% if stats.success_rate is not None %}{{ stats.success_rate }}%{% else %}—{% endif %}</div></div>
+    <div class="card stat"><div class="k">AI cost</div><div class="v">${{ stats.cost_usd|floatformat:2 }}</div>
       <div class="sm">{{ stats.credits_charged|floatformat:0 }} credits charged</div></div>
-    <div class="card stat"><div class="k">Open leads</div><div class="v">{{ stats.open_leads }}</div></div>
+    <div class="card stat"><div class="k">Deployments</div><div class="v">{{ stats.deployments }}</div></div>
+    <div class="card stat"><div class="k">Leads</div><div class="v">{{ stats.open_leads }}</div></div>
   </div>
 
   <div class="row" style="margin-top:22px">
     <div class="card">
-      <h2 style="margin-top:0">Recent agent tasks</h2>
-      {% if recent_tasks %}
+      <h2 style="margin-top:0">Live activity</h2>
+      {% if activity %}
       <table>
-        <tr><th>Task</th><th>Tenant</th><th>Status</th><th class="num">Cost</th><th>When</th></tr>
-        {% for t in recent_tasks %}
+        <tr><th>When</th><th>Event</th><th>Actor</th><th>Tenant</th></tr>
+        {% for e in activity %}
         <tr>
-          <td><a class="strong" href="{% url 'console:tasks' %}?status={{ t.status }}">{{ t.agent_key }}</a>
-            <span class="muted">· {{ t.project.name }}</span></td>
-          <td class="muted">{{ t.project.organization.name }}</td>
-          <td><span class="badge b-{{ t.status }}">{{ t.get_status_display }}</span></td>
-          <td class="num">${{ t.cost|floatformat:4 }}</td>
-          <td class="muted">{{ t.created_at|timesince }} ago</td>
+          <td class="muted">{{ e.created_at|date:"M j, H:i" }}</td>
+          <td class="strong">{{ e.action }}</td>
+          <td class="muted">{{ e.actor.email|default:"system" }}</td>
+          <td class="muted">{% if e.organization %}<a href="{% url 'console:org' e.organization.id %}">{{ e.organization.name }}</a>{% else %}—{% endif %}</td>
         </tr>
         {% endfor %}
       </table>
-      {% else %}<p class="empty">No agent tasks yet.</p>{% endif %}
+      <p class="muted" style="font-size:12px;margin:8px 0 0"><a href="{% url 'console:audit' %}">Full audit log →</a></p>
+      {% else %}<p class="empty">No recorded activity yet.</p>{% endif %}
     </div>
+
     <div class="card">
-      <h2 style="margin-top:0">Newest tenants</h2>
-      {% if recent_orgs %}
+      <h2 style="margin-top:0">System health {% if health_ok %}<span class="badge b-completed">all clear</span>{% else %}<span class="badge b-failed">attention</span>{% endif %}</h2>
       <table>
-        {% for o in recent_orgs %}
-        <tr><td><a class="strong" href="{% url 'console:org' o.id %}">{{ o.name }}</a></td>
-          <td class="muted">{{ o.created_at|date:"M j" }}</td></tr>
+        {% for c in health %}
+        <tr>
+          <td>{{ c.name }}</td>
+          <td style="text-align:right">
+            {% if c.status == 'ok' %}<span class="ok">● Healthy</span>
+            {% elif c.status == 'down' %}<span class="fail">● Down</span>
+            {% else %}<span class="muted">○ Not monitored</span>{% endif %}
+          </td>
+        </tr>
+        <tr><td colspan="2" class="muted" style="font-size:11px;padding-top:0">{{ c.detail }}</td></tr>
         {% endfor %}
       </table>
-      {% else %}<p class="empty">No organizations yet.</p>{% endif %}
     </div>
+  </div>
+
+  <h2>Newest tenants</h2>
+  <div class="card">
+    {% if recent_orgs %}
+    <table>
+      {% for o in recent_orgs %}
+      <tr><td><a class="strong" href="{% url 'console:org' o.id %}">{{ o.name }}</a></td>
+        <td class="muted">{{ o.created_at|date:"M j, Y" }}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No organizations yet.</p>{% endif %}
   </div>
 {% endblock %}

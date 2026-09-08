@@ -125,7 +125,7 @@
       <div class="crumb">{% block crumb %}{% endblock %}</div>
       <div class="who">
         <span>{{ request.user.email }}</span>
-        {% if request.user.is_staff %}<a href="/staff/" class="muted">Staff Console</a>
+        {% if request.user.is_staff %}<a href="/staff/" class="muted">Control Center</a>
         <a href="/admin/" class="muted">Admin</a>{% endif %}
         <form action="{% url 'dashboard:logout' %}" method="post" style="display:inline">
           {% csrf_token %}<button class="ghost" style="padding:5px 11px;font-size:12px">Log out</button>

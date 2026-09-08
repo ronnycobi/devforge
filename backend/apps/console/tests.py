@@ -85,3 +85,24 @@ class ConsoleDataTests(TestCase):
 
     def test_leads_lists_contact_messages(self):
         self.assertContains(self.client.get(reverse("console:leads")), "jo@lead.com")
+
+
+class ControlCenterTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(email="cc@devforge.local", password="x", is_staff=True)
+
+    def test_overview_shows_health_and_kpis(self):
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse("console:overview"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Control Center")
+        self.assertContains(r, "System health")
+        self.assertContains(r, "Success rate")
+        self.assertContains(r, "Live activity")
+
+    def test_health_probes_are_honest(self):
+        from apps.console.health import system_health
+        checks = {c["name"]: c for c in system_health()}
+        self.assertEqual(checks["Database"]["status"], "ok")       # a real SELECT 1
+        self.assertEqual(checks["Storage"]["status"], "ok")        # workspaces writable
+        self.assertEqual(checks["Deployment"]["status"], "unknown")  # no live target — honest

@@ -1,20 +1,22 @@
 <nav class="nav">
   <div class="navgroup">
-    <div class="lbl">Operations</div>
     <a href="{% url 'console:overview' %}" class="{% if active == 'overview' %}on{% endif %}">Overview</a>
-    <a href="{% url 'console:tasks' %}" class="{% if active == 'tasks' %}on{% endif %}">Agent Tasks</a>
-    <a href="{% url 'console:deployments' %}" class="{% if active == 'deployments' %}on{% endif %}">Deployments</a>
-  </div>
-  <div class="navgroup">
-    <div class="lbl">Tenants</div>
-    <a href="{% url 'console:orgs' %}" class="{% if active == 'orgs' %}on{% endif %}">Organizations</a>
-    <a href="{% url 'console:users' %}" class="{% if active == 'users' %}on{% endif %}">Users</a>
-    <a href="{% url 'console:projects' %}" class="{% if active == 'projects' %}on{% endif %}">Projects</a>
   </div>
   <div class="navgroup">
     <div class="lbl">Business</div>
-    <a href="{% url 'console:economics' %}" class="{% if active == 'economics' %}on{% endif %}">Economics</a>
+    <a href="{% url 'console:orgs' %}" class="{% if active == 'orgs' %}on{% endif %}">Organizations</a>
+    <a href="{% url 'console:users' %}" class="{% if active == 'users' %}on{% endif %}">Users</a>
+    <a href="{% url 'console:economics' %}" class="{% if active == 'economics' %}on{% endif %}">Revenue &amp; AI cost</a>
     <a href="{% url 'console:leads' %}" class="{% if active == 'leads' %}on{% endif %}">Leads</a>
+  </div>
+  <div class="navgroup">
+    <div class="lbl">Platform</div>
+    <a href="{% url 'console:projects' %}" class="{% if active == 'projects' %}on{% endif %}">Projects</a>
+    <a href="{% url 'console:tasks' %}" class="{% if active == 'tasks' %}on{% endif %}">Builds</a>
+    <a href="{% url 'console:deployments' %}" class="{% if active == 'deployments' %}on{% endif %}">Deployments</a>
+  </div>
+  <div class="navgroup">
+    <div class="lbl">Security</div>
     <a href="{% url 'console:audit' %}" class="{% if active == 'audit' %}on{% endif %}">Audit Log</a>
   </div>
 </nav>
