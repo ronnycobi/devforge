@@ -99,9 +99,12 @@ def organization_detail(request, pk):
     account = CreditAccount.objects.filter(organization=org).first()
     totals = _usage_totals(UsageRecord.objects.filter(organization=org))
     recent = UsageRecord.objects.filter(organization=org).order_by("-created_at")[:15]
+    from apps.credits.services import daily_usd_cap, spent_today
+    cap = daily_usd_cap(account) if account else None
     return render(request, "console/organization_detail.html", {
         "active": "orgs", "org": org, "members": members, "projects": projects,
         "account": account, "totals": totals, "recent_usage": recent,
+        "spent_today": spent_today(org), "daily_cap": cap,
     })
 
 

@@ -194,6 +194,10 @@ DEVFORGE_WORKSPACES_ROOT = env(
 # hard-coded into billing logic — tune freely.
 DEVFORGE_CREDITS_PER_USD = env("DEVFORGE_CREDITS_PER_USD", "100")
 DEVFORGE_PLANS = {"free": 1000, "pro": 5000, "business": 25000}
+# Platform-wide hard cap on AI spend per org per day (USD). Blank/unset = no
+# global cap (each org may still set its own on its CreditAccount). This is the
+# safety rail that lets you hand out access without risking a runaway bill.
+DEVFORGE_ORG_DAILY_USD_CAP = env("DEVFORGE_ORG_DAILY_USD_CAP", "") or None
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

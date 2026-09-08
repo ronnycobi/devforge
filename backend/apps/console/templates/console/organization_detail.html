@@ -10,6 +10,9 @@
     <div class="card stat"><div class="k">Balance</div><div class="v">{% if account %}{{ account.balance|floatformat:0 }}{% else %}—{% endif %}</div><div class="sm">credits</div></div>
     <div class="card stat"><div class="k">AI spend</div><div class="v">${{ totals.cost|floatformat:2 }}</div><div class="sm">{{ totals.tokens }} tokens</div></div>
     <div class="card stat"><div class="k">Credits charged</div><div class="v">{{ totals.credits|floatformat:0 }}</div></div>
+    <div class="card stat"><div class="k">Today's spend</div>
+      <div class="v" style="font-size:24px{% if daily_cap and spent_today >= daily_cap %};color:var(--fail){% endif %}">${{ spent_today|floatformat:2 }}</div>
+      <div class="sm">{% if daily_cap %}of ${{ daily_cap|floatformat:2 }} daily cap{% else %}no daily cap{% endif %}</div></div>
   </div>
 
   <h2>Members</h2>

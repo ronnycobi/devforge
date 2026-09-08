@@ -1,18 +1,22 @@
+from datetime import timedelta
 from decimal import Decimal
 from unittest import mock
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.ai_providers.base import CompletionResponse, Usage
 from apps.credits.models import CreditAccount, UsageRecord
 from apps.credits.services import (
     cost_usd_for,
     credits_for,
+    daily_usd_cap,
     ensure_account,
     guard_can_run,
     record_task_usage,
+    spent_today,
 )
 from apps.organizations.models import Organization
 from apps.orchestrator.service import Orchestrator
@@ -117,6 +121,71 @@ class BudgetProtectionTests(TestCase):
         task.refresh_from_db()
         self.assertEqual(task.status, "failed")
         self.assertIn("Insufficient credits", task.error)
+        self.assertEqual(task.attempts, 0)  # never started
+
+
+class DailyCapTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Acme")
+        self.project = Project.objects.create(organization=self.org, name="App")
+        self.account = ensure_account(self.org, plan="business")  # 25000 credits
+
+    def _spend(self, usd, *, days_ago=0):
+        rec = UsageRecord.objects.create(
+            organization=self.org, project=self.project, agent_key="backend",
+            provider="anthropic", model="claude-opus-5", total_tokens=1000,
+            cost_usd=Decimal(str(usd)),
+        )
+        if days_ago:
+            past = timezone.now() - timedelta(days=days_ago)
+            UsageRecord.objects.filter(pk=rec.pk).update(created_at=past)
+        return rec
+
+    def test_no_cap_by_default(self):
+        self.assertIsNone(daily_usd_cap(self.account))
+        self.assertTrue(guard_can_run(self.org))
+
+    def test_per_org_cap_blocks_when_reached(self):
+        self.account.daily_usd_cap = Decimal("5.00")
+        self.account.save()
+        self._spend("5.00")
+        guard = guard_can_run(self.org)
+        self.assertFalse(guard)
+        self.assertIn("cap", guard.reason.lower())
+
+    def test_under_cap_allows(self):
+        self.account.daily_usd_cap = Decimal("5.00")
+        self.account.save()
+        self._spend("2.50")
+        self.assertTrue(guard_can_run(self.org))
+
+    def test_spent_today_ignores_prior_days(self):
+        self._spend("9.99", days_ago=1)  # yesterday
+        self.assertEqual(spent_today(self.org), Decimal("0"))
+
+    @override_settings(DEVFORGE_ORG_DAILY_USD_CAP="1.00")
+    def test_platform_default_cap_applies(self):
+        self.assertEqual(daily_usd_cap(self.account), Decimal("1.00"))
+        self._spend("1.50")
+        self.assertFalse(guard_can_run(self.org))
+
+    @override_settings(DEVFORGE_ORG_DAILY_USD_CAP="1.00")
+    def test_per_org_cap_overrides_platform_default(self):
+        self.account.daily_usd_cap = Decimal("50.00")  # generous per-org override
+        self.account.save()
+        self._spend("1.50")  # over platform default, under org cap
+        self.assertTrue(guard_can_run(self.org))
+
+    def test_orchestrator_blocks_task_at_cap(self):
+        self.account.daily_usd_cap = Decimal("5.00")
+        self.account.save()
+        self._spend("5.00")
+        orch = Orchestrator()
+        task = orch.create_task(project=self.project, agent_key="requirements", input={"brief": "x"})
+        orch.run_task(task)
+        task.refresh_from_db()
+        self.assertEqual(task.status, "failed")
+        self.assertIn("cap", task.error.lower())
         self.assertEqual(task.attempts, 0)  # never started
 
 

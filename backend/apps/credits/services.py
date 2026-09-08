@@ -11,12 +11,30 @@ accounting model.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.conf import settings
+from django.db.models import Sum
+from django.utils import timezone
 
 from apps.credits.models import CreditAccount, UsageRecord
 from apps.model_router.catalog import profile_by_model
+
+
+@dataclass(frozen=True)
+class GuardResult:
+    """Whether agent work may run, with a human-readable reason when it may not.
+
+    Truthy/falsy so existing `if not guard_can_run(org)` and boolean asserts keep
+    working, while callers that want to explain the block read `.reason`.
+    """
+
+    ok: bool
+    reason: str = ""
+
+    def __bool__(self) -> bool:
+        return self.ok
 
 _DEFAULT_PLANS = {"free": 1000, "pro": 5000, "business": 25000}
 
@@ -56,12 +74,42 @@ def ensure_account(organization, plan: str = "free", grant: bool = True) -> Cred
     return account
 
 
-def guard_can_run(organization) -> bool:
-    """True if agent work may run. An org with no account is unlimited (dev)."""
+def daily_usd_cap(account: CreditAccount) -> Decimal | None:
+    """The effective per-day USD cap for an account: its own, else the platform
+    default (settings.DEVFORGE_ORG_DAILY_USD_CAP), else None = unlimited."""
+    if account.daily_usd_cap is not None:
+        return account.daily_usd_cap
+    default = getattr(settings, "DEVFORGE_ORG_DAILY_USD_CAP", None)
+    return Decimal(str(default)) if default is not None else None
+
+
+def spent_today(organization) -> Decimal:
+    """Total model spend (USD) attributed to this org since local midnight."""
+    start = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+    agg = UsageRecord.objects.filter(
+        organization=organization, created_at__gte=start
+    ).aggregate(s=Sum("cost_usd"))
+    return agg["s"] or Decimal("0")
+
+
+def guard_can_run(organization) -> GuardResult:
+    """Whether agent work may run. An org with no account is unlimited (dev).
+
+    Two independent protections: the credit balance (a total ceiling per plan)
+    and a hard daily USD cap (a velocity ceiling that stops a runaway loop from
+    draining the whole balance in one session)."""
     account = get_account(organization)
     if account is None:
-        return True
-    return account.balance > 0
+        return GuardResult(True)
+    if account.balance <= 0:
+        return GuardResult(False, "Insufficient credits — top up to run agent work.")
+    cap = daily_usd_cap(account)
+    if cap is not None and spent_today(organization) >= cap:
+        return GuardResult(
+            False,
+            f"Daily budget cap of ${cap} reached for today — resets at midnight.",
+        )
+    return GuardResult(True)
 
 
 def record_task_usage(task) -> UsageRecord | None:

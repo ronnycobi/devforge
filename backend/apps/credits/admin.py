@@ -5,7 +5,8 @@ from apps.credits.models import CreditAccount, UsageRecord
 
 @admin.register(CreditAccount)
 class CreditAccountAdmin(admin.ModelAdmin):
-    list_display = ["organization", "plan", "balance", "updated_at"]
+    list_display = ["organization", "plan", "balance", "daily_usd_cap", "updated_at"]
+    list_editable = ["daily_usd_cap"]
     search_fields = ["organization__name"]
     autocomplete_fields = ["organization"]
 

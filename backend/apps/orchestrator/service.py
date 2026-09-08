@@ -118,11 +118,13 @@ class Orchestrator:
         if task.status not in (TaskStatus.QUEUED, TaskStatus.BLOCKED):
             return task
 
-        # Budget protection: stop before spending if the org is out of credits.
+        # Budget protection: stop before spending if the org is out of credits
+        # or has hit its hard daily spend cap.
         from apps.credits.services import guard_can_run
 
-        if not guard_can_run(task.project.organization):
-            task.fail("Insufficient credits — top up to run agent work.")
+        guard = guard_can_run(task.project.organization)
+        if not guard:
+            task.fail(guard.reason)
             return task
 
         task.start()
