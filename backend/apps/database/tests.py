@@ -41,6 +41,17 @@ def _fake(text, model="claude-opus-5"):
     return _inner
 
 
+def _sequence(*texts, model="claude-opus-5"):
+    calls = {"n": 0}
+
+    def _inner(request, provider=None):
+        i = min(calls["n"], len(texts) - 1)
+        calls["n"] += 1
+        return CompletionResponse(text=texts[i], model=model, provider="anthropic", usage=Usage(50, 110))
+
+    return _inner
+
+
 class ParsingTests(SimpleTestCase):
     def test_parses_models_and_fields(self):
         models = parse_schema(SCHEMA_JSON)["models"]
@@ -120,6 +131,31 @@ class DatabaseFlowTests(TestCase):
         self.assertEqual(task.output["files_generated"], 1)
         self.assertTrue(task.output["verified"])
         self.assertIn("backend/apps/core/models.py", files)
+
+    def test_compile_repair_fixes_broken_model_code(self):
+        # First attempt's model file has a syntax error; the repair round fixes it.
+        broken = json.dumps({
+            "models": [{"name": "Task", "fields": [{"name": "title", "type": "text"}]}],
+            "files": [{"path": "backend/apps/core/models.py", "content": "class Task(:\n  pass\n"}],
+        })
+        fixed = json.dumps({
+            "models": [{"name": "Task", "fields": [{"name": "title", "type": "text"}]}],
+            "files": [{"path": "backend/apps/core/models.py", "content": "class Task:\n    title = ''\n"}],
+        })
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+                with mock.patch(
+                    "apps.model_router.router.gateway_complete",
+                    side_effect=_sequence(broken, fixed),
+                ):
+                    orch = Orchestrator()
+                    task = orch.create_task(project=self.project, agent_key="database", input={})
+                    orch.run_task(task)
+                    task.refresh_from_db()
+        self.assertEqual(task.status, "completed")
+        self.assertTrue(task.output["verified"])          # compiled after repair
+        self.assertEqual(task.output["repair_rounds"], 1)  # one compile-repair round
+        self.assertEqual(task.output["files_generated"], 1)
 
     def test_non_django_backend_records_schema_only(self):
         # A backend DevForge can't generate yet -> design recorded, no code, honest.

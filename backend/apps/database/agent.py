@@ -15,7 +15,7 @@ from apps.agents.definitions import DATABASE
 from apps.agents.runners import register_runner
 from apps.ai_providers.base import Message
 from apps.codegen.parsing import parse_files
-from apps.codegen.service import materialize, verify_python
+from apps.codegen.repair import verify_and_repair
 from apps.database.parsing import parse_schema
 from apps.database.prompts import SYSTEM_PROMPT, build_user_prompt
 from apps.model_router.router import ModelRouter, RoutingRequest, TaskComplexity
@@ -60,26 +60,10 @@ class DatabaseAgent(BaseAgent):
         api = ctx.digest(kinds=[ContextKind.API], max_chars=1500)
         existing = ctx.digest(kinds=[ContextKind.SCHEMA], max_chars=1500)
 
-        response = self.router.complete(
-            RoutingRequest(complexity=TaskComplexity.HIGH, task_type="schema"),
-            messages=[
-                Message("user", build_user_prompt(architecture, requirements, api, existing, brief))
-            ],
-            system=SYSTEM_PROMPT,
-            max_tokens=3000,
-        )
-
-        models = parse_schema(response.text)["models"]
-        source = f"agent:{self.key}#task:{context.metadata.get('task_id', '')}"
-        for model in models:
-            ctx.set(
-                ContextKind.SCHEMA,
-                slugify(model["name"])[:255] or "model",
-                title=model["name"],
-                content=model["description"],
-                data={"fields": model["fields"], "relations": model["relations"]},
-                source=source,
-            )
+        system = SYSTEM_PROMPT
+        user_prompt = build_user_prompt(architecture, requirements, api, existing, brief)
+        tid = context.metadata.get("task_id", "")
+        response = self._complete(system, [Message("user", user_prompt)])
 
         # Model source is generated only for a backend DevForge can build and
         # verify today (Django). For other backends the schema design is recorded
@@ -88,39 +72,65 @@ class DatabaseAgent(BaseAgent):
         db_tech = technology_for_role(project, "database")
         can_generate = backend_tech is None or backend_tech.id == "django"
 
-        files = parse_files(response.text) if can_generate else []
-        commit_sha = None
-        verified, verify_log = None, ""
-        if files:
-            _, commit_sha = materialize(
-                project,
-                files,
-                message=f"Data models by {self.key} (task {context.metadata.get('task_id', '')})",
+        # Generate + compile-repair the model source through the shared loop.
+        # Tests aren't run: a lone models module has no runnable project around it
+        # (the backend agent scaffolds that), so compile is the honest check here.
+        files, commit_sha, verified, verify_log, rounds, model, tokens = (
+            [], None, None, "", 0, response.model, response.usage.total_tokens
+        )
+        final_text = response.text
+        if can_generate:
+            outcome = verify_and_repair(
+                complete=lambda messages: self._complete(system, messages),
+                project=project,
+                initial_response=response,
+                user_prompt=user_prompt,
+                build_files=lambda text: parse_files(text),
+                materialize_message=f"Data models by {self.key} (task {tid})",
+                max_repairs=int(context.input.get("max_repairs", 2)),
+                run_tests=False,
             )
-            verified, verify_log = verify_python(files)
+            files, commit_sha = outcome.files, outcome.commit_sha
+            verified, verify_log, rounds = outcome.compiled, outcome.compile_log, outcome.repair_rounds
+            model, tokens, final_text = outcome.model, outcome.total_tokens, outcome.final_text
+
+        # Persist the schema design from the final (possibly repaired) response.
+        models = parse_schema(final_text)["models"]
+        source = f"agent:{self.key}#task:{tid}"
+        for m in models:
+            ctx.set(
+                ContextKind.SCHEMA,
+                slugify(m["name"])[:255] or "model",
+                title=m["name"],
+                content=m["description"],
+                data={"fields": m["fields"], "relations": m["relations"]},
+                source=source,
+            )
 
         n = len(models)
         db_label = db_tech.name if db_tech else "the chosen database"
         messages = [
             f"Designed {n} data model(s) for {db_label} and generated "
-            f"{len(files)} file(s) via {response.model}."
+            f"{len(files)} file(s) via {model}."
         ]
         if files:
-            messages.append(
-                f"Compile check: {'passed' if verified else 'FAILED'} — {verify_log}"
-            )
+            check = "passed" if verified else "FAILED"
+            note = f"Compile check: {check} — {verify_log}"
+            if rounds:
+                note += f" (self-repair rounds: {rounds})"
+            messages.append(note)
         elif not can_generate:
             messages.append(
                 f"Code generation for a {backend_tech.name} backend is planned; "
                 "recorded the schema design only."
             )
         elif not n:
-            messages = [f"{response.model} returned no parseable schema; nothing written."]
+            messages = [f"{model} returned no parseable schema; nothing written."]
 
         return AgentResult.completed(
             self.key,
             output={
-                "model": response.model,
+                "model": model,
                 "models_written": n,
                 "files_generated": len(files),
                 "backend_stack": backend_tech.id if backend_tech else None,
@@ -128,11 +138,20 @@ class DatabaseAgent(BaseAgent):
                 "code_generated": bool(files),
                 "commit": commit_sha,
                 "verified": verified,
+                "repair_rounds": rounds,
                 "compile_log": verify_log,
             },
             messages=messages,
-            model=response.model,
-            usage_tokens=response.usage.total_tokens,
+            model=model,
+            usage_tokens=tokens,
+        )
+
+    def _complete(self, system, messages):
+        return self.router.complete(
+            RoutingRequest(complexity=TaskComplexity.HIGH, task_type="schema"),
+            messages=messages,
+            system=system,
+            max_tokens=3000,
         )
 
 
