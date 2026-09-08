@@ -81,6 +81,13 @@
     </div>
   </div>
 
+  {% if change.result.total %}
+  <div class="card" style="margin-top:16px;border-color:{% if change.result.ok %}rgba(52,211,153,.4){% else %}rgba(248,113,113,.4){% endif %}">
+    <b>{% if change.result.ok %}✓ Implemented{% else %}✗ Implementation failed{% endif %}</b>
+    <span class="muted"> — {{ change.result.completed }}/{{ change.result.total }} agents completed{% if change.result.failed %}; failed: {% for a in change.result.failed %}<span class="chip">{{ a }}</span>{% endfor %}{% endif %}.</span>
+  </div>
+  {% endif %}
+
   {% if tasks %}
   <h2>Implementation</h2>
   <div class="card">

@@ -64,6 +64,50 @@ DROP_MIGRATION_JSON = json.dumps({
 })
 
 
+class OutcomeTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Acme")
+        self.user = User.objects.create_user(email="o@a.com", password="x")
+        self.project = Project.objects.create(organization=self.org, name="Store")
+
+    def test_summary_reports_failure_faithfully(self):
+        from apps.changes.service import _summarize_tasks
+        from apps.orchestrator.models import TaskStatus
+        from apps.orchestrator.service import Orchestrator
+        orch = Orchestrator()
+        t1 = orch.create_task(project=self.project, agent_key="backend", input={})
+        t2 = orch.create_task(project=self.project, agent_key="testing", input={})
+        t1.status = TaskStatus.COMPLETED
+        t1.output = {"files_generated": 2, "verified": True}
+        t1.save(update_fields=["status", "output"])
+        t2.status = TaskStatus.FAILED
+        t2.error = "boom"
+        t2.save(update_fields=["status", "error"])
+
+        res = _summarize_tasks([t1.id, t2.id])
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["failed"], ["testing"])
+        self.assertEqual(res["completed"], 1)
+        self.assertEqual(res["total"], 2)
+
+    def test_implement_records_done_outcome(self):
+        # A project with some design context so code_review has something to review.
+        ProjectContext(self.project).set(
+            ContextKind.REQUIREMENT, "widget", title="Widget", content="Show a widget"
+        )
+        change = svc.create_change(self.project, "Add a widget", self.user)
+        change.plan = {"affected_areas": {"backend": ["widget"]}, "risk": "low"}
+        change.requires_approval = False
+        change.save()
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+                svc.implement(change)  # offline: backend + code_review complete
+        change.refresh_from_db()
+        self.assertEqual(change.status, ChangeStatus.DONE)
+        self.assertTrue(change.result["ok"])
+        self.assertEqual(change.result["total"], 2)  # backend + code_review
+
+
 class MigrationWiringTests(TestCase):
     def setUp(self):
         self.org = Organization.objects.create(name="Acme")

@@ -40,6 +40,7 @@ class ChangeRequest(models.Model):
         related_name="approved_changes",
     )
     task_ids = models.JSONField(default=list, blank=True)  # AgentTask ids created to implement it
+    result = models.JSONField(default=dict, blank=True)    # implementation outcome summary
     # First-class DB migration this change plans (when it touches the schema).
     migration = models.ForeignKey(
         "database_agent.DatabaseMigration", on_delete=models.SET_NULL,

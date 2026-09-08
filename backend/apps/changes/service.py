@@ -11,6 +11,7 @@ from apps.changes.planner import plan_change
 from apps.costs.estimator import estimate_project
 from apps.database import migration_service
 from apps.database.migration_planner import plan_migration_sql
+from apps.orchestrator.models import AgentTask, TaskStatus
 from apps.orchestrator.service import Orchestrator
 from apps.project_context.models import ContextKind
 from apps.project_context.services import ProjectContext
@@ -156,6 +157,34 @@ def implement(change: ChangeRequest) -> ChangeRequest:
 
     orch.run_ready(change.project)
 
-    change.status = ChangeStatus.DONE
-    change.save(update_fields=["status", "updated_at"])
+    # Report the real outcome: DONE only if every task actually completed;
+    # FAILED (with which agents failed) otherwise. Never claim success blindly.
+    change.result = _summarize_tasks(ids)
+    change.status = ChangeStatus.DONE if change.result["ok"] else ChangeStatus.FAILED
+    change.save(update_fields=["result", "status", "updated_at"])
     return change
+
+
+def _summarize_tasks(task_ids: list[int]) -> dict:
+    tasks = {t.id: t for t in AgentTask.objects.filter(id__in=task_ids)}
+    ordered = [tasks[i] for i in task_ids if i in tasks]
+    agents = [
+        {
+            "agent": t.agent_key,
+            "status": t.status,
+            "ok": t.status == TaskStatus.COMPLETED,
+            "files": (t.output or {}).get("files_generated", 0),
+            "verified": (t.output or {}).get("verified"),
+            "tests_passed": (t.output or {}).get("tests_passed"),
+            "error": t.error or "",
+        }
+        for t in ordered
+    ]
+    failed = [a["agent"] for a in agents if not a["ok"]]
+    return {
+        "ok": not failed and bool(agents),
+        "agents": agents,
+        "failed": failed,
+        "completed": sum(1 for a in agents if a["ok"]),
+        "total": len(agents),
+    }
