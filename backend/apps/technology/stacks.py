@@ -19,6 +19,7 @@ from typing import Callable, Optional
 from apps.codegen.django_scaffold import scaffold_django_project
 from apps.codegen.go_scaffold import scaffold_go_project
 from apps.codegen.node_scaffold import scaffold_node_project
+from apps.codegen.react_scaffold import scaffold_react_project
 
 _STDLIB_HINT = (
     "Generate a COMPLETE, self-contained, standard-library-only Python project. "
@@ -61,6 +62,25 @@ _GO_HINT = (
     "sandbox has no network. Use package name `app`. Put the app in app.go and "
     "tests in *_test.go using the testing package and net/http/httptest. DevForge "
     "supplies go.mod. It must pass `go test ./...`."
+)
+
+_REACT_HINT = (
+    "Generate a runnable React app (built with Vite) AND a framework-free logic "
+    "layer that is unit-tested without a browser. Use ES modules (import/export) "
+    "with explicit .js/.jsx extensions in relative imports. Layout at the repo "
+    "root:\n"
+    "- React components in src/ as .jsx files; put the root component in "
+    "src/App.jsx.\n"
+    "- ALL non-UI logic (state, validation, formatting, data-shaping, building API "
+    "requests) in src/logic/ as plain .js modules with NO react/react-dom/DOM "
+    "imports.\n"
+    "- Tests as *.test.js files under src/logic/, using Node's built-in runner "
+    "(import { test } from 'node:test'; import assert from 'node:assert';) and "
+    "importing ONLY from the logic modules — never the .jsx components — so they "
+    "pass `node --test` with no npm packages and no browser.\n"
+    "The .jsx components import and use the logic. DevForge supplies package.json, "
+    "index.html and the Vite config — do NOT generate those. Keep it small and "
+    "coherent."
 )
 
 
@@ -115,6 +135,10 @@ _STACKS = {
         "go", "go", None, "backend", False, _GO_HINT,
         scaffolder=scaffold_go_project, toolchain="go",
     ),
+    "react": Stack(
+        "react", "javascript", "react", "frontend", False, _REACT_HINT,
+        scaffolder=scaffold_react_project, toolchain="node",
+    ),
 }
 
 
@@ -128,3 +152,7 @@ def all_stacks() -> list[Stack]:
 
 def backend_stacks() -> list[Stack]:
     return [s for s in _STACKS.values() if s.kind == "backend"]
+
+
+def frontend_stacks() -> list[Stack]:
+    return [s for s in _STACKS.values() if s.kind == "frontend"]

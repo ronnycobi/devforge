@@ -158,4 +158,4 @@ class TechnologyAPITests(TestCase):
         self.client.force_login(self.user)
         resp = self.client.get(reverse("technology:stacks"))
         ids = {s["id"] for s in resp.json()}
-        self.assertEqual(ids, {"python-stdlib", "django", "fastapi", "node", "go"})
+        self.assertEqual(ids, {"python-stdlib", "django", "fastapi", "node", "go", "react"})
