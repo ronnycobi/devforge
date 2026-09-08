@@ -10,10 +10,13 @@ from __future__ import annotations
 import zipfile
 from pathlib import PurePosixPath
 
-from apps.ingest.detect import detect_dependencies, detect_stack
+from apps.database.capabilities import Category, get_database
+from apps.ingest.detect import detect_databases, detect_dependencies, detect_stack
 from apps.project_context.models import ContextKind
 from apps.project_context.services import ProjectContext
 from apps.repositories.service import repo_for_project
+
+_SYSTEM_OF_RECORD = (Category.RELATIONAL, Category.DISTRIBUTED_SQL, Category.DOCUMENT)
 
 MAX_FILES = 600
 MAX_FILE_BYTES = 500_000
@@ -100,9 +103,21 @@ def import_codebase(project, files: dict, created_by=None) -> dict:
     stack = detect_stack(files)
     deps = detect_dependencies(files)
     components = _components(files)
+    databases = detect_databases(files)
 
+    # The primary datastore is the first system-of-record (relational/document);
+    # caches/search engines coexist but aren't the app's technology["database"].
+    primary_db = next(
+        (d for d in databases
+         if (p := get_database(d)) and p.category in _SYSTEM_OF_RECORD),
+        databases[0] if databases else None,
+    )
+
+    tech = dict(stack)
+    if primary_db:
+        tech.setdefault("database", primary_db)
     project.mode = "import"
-    project.technology = {**(project.technology or {}), **stack}
+    project.technology = {**(project.technology or {}), **tech}
     project.save(update_fields=["mode", "technology", "updated_at"])
 
     ctx = ProjectContext(project)
@@ -122,5 +137,24 @@ def import_codebase(project, files: dict, created_by=None) -> dict:
     if deps:
         ctx.set(ContextKind.DEPENDENCY, "dependencies", title="Dependencies",
                 content=", ".join(deps[:40]), data={"dependencies": deps}, source=source)
+    if databases:
+        profiles = {d: get_database(d) for d in databases}
+        ctx.set(
+            ContextKind.TECH_DECISION, "detected-databases",
+            title="Detected databases",
+            content=", ".join(
+                f"{p.name} ({p.category.value})" if p else d
+                for d, p in profiles.items()
+            ),
+            data={
+                "databases": databases,
+                "primary": primary_db,
+                "capabilities": {d: (p.as_dict() if p else None) for d, p in profiles.items()},
+            },
+            source=source,
+        )
 
-    return {"files": len(files), "stack": stack, "dependencies": deps, "components": components}
+    return {
+        "files": len(files), "stack": stack, "dependencies": deps,
+        "components": components, "databases": databases, "primary_database": primary_db,
+    }

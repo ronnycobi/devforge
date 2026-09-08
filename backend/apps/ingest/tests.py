@@ -9,7 +9,7 @@ from django.urls import reverse
 
 from apps.accounts.models import User
 from apps.ingest import analyzer
-from apps.ingest.detect import detect_dependencies, detect_stack
+from apps.ingest.detect import detect_databases, detect_dependencies, detect_stack
 from apps.organizations.models import Membership, Organization, Role
 from apps.project_context.models import ContextEntry, ContextKind
 from apps.projects.models import Mode, Project
@@ -47,6 +47,23 @@ class DetectTests(TestCase):
         self.assertIn("Django", deps)
         self.assertIn("requests", deps)
         self.assertNotIn("# note", deps)
+
+    def test_detect_databases_django_postgres_and_redis(self):
+        files = {
+            "config/settings.py": "DATABASES = {'default': {'ENGINE': 'django.db.backends.postgresql'}}\n",
+            "requirements.txt": "Django\npsycopg2-binary\nredis\n",
+            "docker-compose.yml": "services:\n  cache:\n    image: redis:7\n",
+        }
+        dbs = detect_databases(files)
+        self.assertIn("postgresql", dbs)
+        self.assertIn("redis", dbs)
+
+    def test_detect_databases_node_mongo(self):
+        pkg = '{"dependencies": {"mongoose": "8", "express": "4"}}'
+        self.assertEqual(detect_databases({"package.json": pkg}), ["mongodb"])
+
+    def test_detect_databases_none(self):
+        self.assertEqual(detect_databases({"main.py": "print(1)\n"}), [])
 
 
 class ExtractZipTests(TestCase):
@@ -107,6 +124,29 @@ class ImportCodebaseTests(TestCase):
         self.assertTrue(kinds.filter(kind=ContextKind.DEPENDENCY, key="dependencies").exists())
         # top-level dirs recorded as components
         self.assertIn("billing", summary["components"])
+
+    def test_import_detects_database_into_twin(self):
+        project = Project.objects.create(
+            organization=self.org, name="Legacy", mode=Mode.BUILD, created_by=self.user
+        )
+        files = {
+            "manage.py": "import django\n",
+            "config/settings.py": "DATABASES={'default':{'ENGINE':'django.db.backends.postgresql'}}\n",
+            "requirements.txt": "Django\npsycopg2\nredis\n",
+            "billing/models.py": "x = 1\n",
+        }
+        summary = analyzer.import_codebase(project, files, created_by=self.user)
+
+        project.refresh_from_db()
+        self.assertEqual(project.technology.get("database"), "postgresql")  # system of record
+        self.assertIn("postgresql", summary["databases"])
+        self.assertIn("redis", summary["databases"])          # cache detected too
+        self.assertEqual(summary["primary_database"], "postgresql")
+
+        decision = ContextEntry.objects.get(project=project, key="detected-databases")
+        self.assertEqual(decision.kind, ContextKind.TECH_DECISION)
+        self.assertEqual(decision.data["primary"], "postgresql")
+        self.assertFalse(decision.data["capabilities"]["redis"]["foreign_keys"])
 
 
 class GitImportViewTests(TestCase):

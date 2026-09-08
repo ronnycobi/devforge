@@ -95,3 +95,43 @@ def detect_dependencies(files: dict) -> list[str]:
     if gomod:
         return re.findall(r"\t([\w./-]+) v", gomod)[:40]
     return []
+
+
+# Database signals, checked only against config/manifest files (not all source)
+# to keep the signal clean. Ids match the database capability registry.
+_DB_SIGNALS = [
+    ("postgresql", ("postgres", "psycopg", "asyncpg")),
+    ("mysql", ("mysql", "pymysql")),
+    ("mariadb", ("mariadb",)),
+    ("sqlite", ("sqlite",)),
+    ("mongodb", ("mongo",)),
+    ("redis", ("redis",)),
+    ("elasticsearch", ("elasticsearch", "opensearch")),
+]
+
+_DB_CONFIG_NAMES = {
+    "settings.py", "requirements.txt", "pyproject.toml", "package.json",
+    "composer.json", "docker-compose.yml", "docker-compose.yaml", "compose.yml",
+    "compose.yaml", "gemfile", "database.yml", "go.mod",
+}
+
+
+def _config_text(files: dict) -> str:
+    """Lowercased text of just the config/manifest files that name a database."""
+    parts = []
+    for path, content in files.items():
+        name = PurePosixPath(path).name.lower()
+        if (name in _DB_CONFIG_NAMES or name.endswith("settings.py")
+                or name.endswith(".prisma") or name.startswith(".env")):
+            parts.append((content or "").lower())
+    return "\n".join(parts)
+
+
+def detect_databases(files: dict) -> list[str]:
+    """Best-effort list of database ids an existing codebase uses (may be empty)."""
+    text = _config_text(files)
+    found: list[str] = []
+    for db_id, signals in _DB_SIGNALS:
+        if any(s in text for s in signals):
+            found.append(db_id)
+    return found
