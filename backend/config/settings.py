@@ -79,6 +79,7 @@ INSTALLED_APPS = [
     "apps.dashboard",
     "apps.console",
     "apps.marketing",
+    "apps.notifications",
 ]
 
 # --- Auth redirects (server-rendered dashboard UI) --------------------------
@@ -205,6 +206,19 @@ DEVFORGE_ORG_DAILY_USD_CAP = env("DEVFORGE_ORG_DAILY_USD_CAP", "") or None
 # each task (best product); False = cheapest-sufficient. A task can still opt the
 # other way per request, or set a hard max_cost_per_mtok ceiling.
 DEVFORGE_PREFER_QUALITY = env("DEVFORGE_PREFER_QUALITY", "true").lower() in ("1", "true", "yes", "on")
+
+# Email. Real delivery when EMAIL_BACKEND points at SMTP and the host is set;
+# dev defaults to the console backend (prints emails) so nothing is faked and no
+# server is required. Tests capture via the locmem backend automatically.
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_HOST = env("EMAIL_HOST", "")
+EMAIL_PORT = int(env("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "DevForge <no-reply@devforge.local>")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

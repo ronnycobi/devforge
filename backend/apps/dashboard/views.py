@@ -293,7 +293,13 @@ def people(request):
                 link = request.build_absolute_uri(
                     reverse("dashboard:accept_invite", args=[inv.token])
                 )
-                messages.success(request, f"Invited {inv.email}. Share this link: {link}")
+                from apps.notifications.email import send_invitation_email
+                try:
+                    sent = send_invitation_email(inv, link)
+                except Exception:
+                    sent = 0  # delivery failed; the invite still stands, link below
+                note = "invitation email sent" if sent else "email not delivered"
+                messages.success(request, f"Invited {inv.email} ({note}). Link: {link}")
             elif action == "revoke":
                 inv = get_object_or_404(Invitation, pk=request.POST.get("invitation", 0), organization=org)
                 invites.revoke_invitation(inv)
