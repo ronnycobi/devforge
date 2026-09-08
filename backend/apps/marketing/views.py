@@ -106,18 +106,18 @@ def capabilities(request):
 
 def pricing(request):
     tiers = [
-        {"name": "Free", "price": "R0", "period": "", "credits": plans().get("free", 0),
+        {"name": "Free", "price": "$0", "credits": plans().get("free", 0),
          "blurb": "Explore DevForge.",
          "features": ["Build projects", "Limited AI usage", "Preview", "Export your code anytime"]},
-        {"name": "Builder", "price": "R299", "period": "/ month", "credits": plans().get("pro", 0),
+        {"name": "Builder", "price": "$29", "credits": plans().get("pro", 0),
          "blurb": "For serious builders.",
          "features": ["More AI credits", "More projects", "Deployment", "Git integration", "Custom domain"],
          "highlight": True},
-        {"name": "Pro", "price": "R999", "period": "/ month", "credits": plans().get("business", 0),
+        {"name": "Pro", "price": "$99", "credits": plans().get("business", 0),
          "blurb": "For businesses.",
          "features": ["Higher AI allowance", "Improve existing software", "Team collaboration",
                       "Monitoring", "More deployment capacity"]},
-        {"name": "Business", "price": "Custom", "period": "", "credits": None,
+        {"name": "Business", "price": "Custom", "credits": None,
          "blurb": "For growing teams.",
          "features": ["Team management", "Security & audit logs", "Private deployments",
                       "Advanced controls", "Priority support"]},
