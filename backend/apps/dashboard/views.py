@@ -260,7 +260,7 @@ def change_detail(request, pk):
     change = get_object_or_404(
         ChangeRequest.objects.filter(
             project__organization__in=organizations_for(request.user)
-        ).select_related("project"),
+        ).select_related("project", "migration"),
         pk=pk,
     )
     can_manage = change.project.organization_id in _manageable_ids(request.user)

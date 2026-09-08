@@ -38,6 +38,88 @@ def _fake(text, model="claude-opus-5"):
     return _inner
 
 
+def _sequence(*texts, model="claude-opus-5"):
+    from apps.ai_providers.base import CompletionResponse, Usage
+    calls = {"n": 0}
+
+    def _inner(request, provider=None):
+        i = min(calls["n"], len(texts) - 1)
+        calls["n"] += 1
+        return CompletionResponse(text=texts[i], model=model, provider="anthropic", usage=Usage(80, 200))
+    return _inner
+
+
+MIGRATION_JSON = json.dumps({
+    "operation": "create",
+    "description": "Add payments table",
+    "up_sql": "CREATE TABLE payments (id SERIAL PRIMARY KEY, amount NUMERIC)",
+    "down_sql": "DROP TABLE payments",
+})
+
+DROP_MIGRATION_JSON = json.dumps({
+    "operation": "drop",
+    "description": "Remove legacy table",
+    "up_sql": "DROP TABLE legacy",
+    "down_sql": "",
+})
+
+
+class MigrationWiringTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Acme")
+        self.user = User.objects.create_user(email="o@a.com", password="x")
+        self.project = Project.objects.create(
+            organization=self.org, name="Store", technology={"database": "postgresql"}
+        )
+
+    def _plan(self, *texts):
+        change = svc.create_change(self.project, "Add payments", self.user)
+        with mock.patch("apps.model_router.router.gateway_complete", side_effect=_sequence(*texts)):
+            return svc.build_plan(change)
+
+    def test_database_change_plans_a_migration(self):
+        change = self._plan(PLAN_JSON, MIGRATION_JSON)
+        self.assertIsNotNone(change.migration)
+        self.assertEqual(change.migration.operation, "create")
+        self.assertIn("CREATE TABLE payments", change.migration.up_sql)
+        self.assertEqual(change.migration.database_id, "postgresql")
+
+    def test_destructive_migration_forces_change_approval(self):
+        low_plan = json.dumps({
+            "summary": "drop legacy", "affected_areas": {"database": ["drop legacy table"]},
+            "steps": ["s"], "risk": "low", "requires_approval": False,
+        })
+        change = self._plan(low_plan, DROP_MIGRATION_JSON)
+        self.assertTrue(change.migration.requires_approval)     # DROP → HIGH risk
+        self.assertTrue(change.requires_approval)               # elevated the change gate
+        self.assertEqual(change.status, ChangeStatus.AWAITING_APPROVAL)
+
+    def test_offline_plans_no_migration(self):
+        change = svc.create_change(self.project, "Add payments", self.user)
+        svc.build_plan(change)  # stub → empty plan → no database area → no migration
+        self.assertIsNone(change.migration)
+
+    def test_non_database_change_has_no_migration(self):
+        fe_plan = json.dumps({
+            "summary": "button", "affected_areas": {"frontend": ["Pay button"]},
+            "steps": ["s"], "risk": "low", "requires_approval": False,
+        })
+        change = self._plan(fe_plan)
+        self.assertIsNone(change.migration)
+
+    def test_approving_change_approves_its_migration(self):
+        change = self._plan(PLAN_JSON, MIGRATION_JSON)
+        svc.approve(change, self.user)
+        change.migration.refresh_from_db()
+        self.assertTrue(change.migration.approved)
+
+    def test_non_migration_engine_plans_no_migration(self):
+        self.project.technology = {"database": "redis"}
+        self.project.save(update_fields=["technology"])
+        change = self._plan(PLAN_JSON, MIGRATION_JSON)
+        self.assertIsNone(change.migration)  # Redis has no schema migrations
+
+
 class PlannerTests(TestCase):
     def setUp(self):
         self.org = Organization.objects.create(name="Acme")

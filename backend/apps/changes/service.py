@@ -9,9 +9,12 @@ from __future__ import annotations
 from apps.changes.models import ChangeRequest, ChangeStatus
 from apps.changes.planner import plan_change
 from apps.costs.estimator import estimate_project
+from apps.database import migration_service
+from apps.database.migration_planner import plan_migration_sql
 from apps.orchestrator.service import Orchestrator
 from apps.project_context.models import ContextKind
 from apps.project_context.services import ProjectContext
+from apps.technology.registry import technology_for_role
 
 # Which specialist implements each affected area (api folds into backend).
 _AREA_AGENTS = {
@@ -37,17 +40,49 @@ def create_change(project, description, created_by):
 
 
 def build_plan(change: ChangeRequest, router=None) -> ChangeRequest:
-    """Analyze the twin, produce an impact plan + estimate, set the approval gate."""
+    """Analyze the twin, produce an impact plan + estimate, set the approval gate.
+
+    When the change touches the database, also plan a first-class DatabaseMigration
+    (risk-classified) — a destructive migration forces the whole change to require
+    approval, so schema risk surfaces at the change gate.
+    """
     twin = ProjectContext(change.project).digest(kinds=_TWIN_KINDS, max_chars=4000)
     plan = plan_change(change.description, twin, router=router)
     change.plan = plan
     change.requires_approval = plan.get("requires_approval", True)
     change.estimate = _estimate(plan)
+
+    _plan_migration(change, twin, router)  # may set change.migration + raise the gate
+
     change.status = (
         ChangeStatus.AWAITING_APPROVAL if change.requires_approval else ChangeStatus.PLANNED
     )
     change.save()
     return change
+
+
+def _plan_migration(change: ChangeRequest, twin_digest: str, router) -> None:
+    """If the plan touches the database, plan + record a migration for it."""
+    if not (change.plan.get("affected_areas", {}) or {}).get("database"):
+        return
+    db_tech = technology_for_role(change.project, "database")
+    if db_tech is None:
+        return  # unknown datastore → no SQL migration can be planned safely
+    spec = plan_migration_sql(change.description, twin_digest, db_tech.id, router=router)
+    if not spec:
+        return  # offline / non-migration engine → nothing planned (honest)
+    try:
+        mig = migration_service.plan_migration(
+            change.project, db_tech.id,
+            description=spec["description"] or change.description[:200],
+            operation=spec["operation"], up_sql=spec["up_sql"],
+            down_sql=spec["down_sql"], created_by=change.created_by,
+        )
+    except migration_service.MigrationError:
+        return  # engine can't do migrations → skip, don't fake
+    change.migration = mig
+    if mig.requires_approval:
+        change.requires_approval = True
 
 
 def _implementing_agents(plan: dict) -> list[str]:
@@ -84,6 +119,10 @@ def approve(change: ChangeRequest, user) -> ChangeRequest:
     if change.status == ChangeStatus.AWAITING_APPROVAL:
         change.status = ChangeStatus.PLANNED
     change.save(update_fields=["approved", "approved_by", "status", "updated_at"])
+    # Approving the change approves its migration too, so it's ready to apply at
+    # deploy (DevForge doesn't apply to a customer DB it has no connection to).
+    if change.migration_id and not change.migration.approved:
+        migration_service.approve(change.migration, user)
     return change
 
 

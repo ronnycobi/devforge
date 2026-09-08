@@ -31,6 +31,24 @@
       {% else %}
         <p class="empty">No plan was produced (the offline model can't analyze the app). With a real AI provider configured, DevForge produces a full impact plan here.</p>
       {% endif %}
+
+      {% if change.migration %}
+      <div style="margin-top:18px;border-top:1px solid var(--line);padding-top:14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-weight:700">Database migration</span>
+          <span class="chip" style="text-transform:capitalize">{{ change.migration.operation }}</span>
+          <span class="badge b-{% if change.migration.risk_level == 'high' %}failed{% elif change.migration.risk_level == 'medium' %}waiting_for_approval{% else %}completed{% endif %}">{{ change.migration.risk_level }} risk</span>
+          {% if change.migration.requires_approval %}<span class="badge b-waiting_for_approval">approval required</span>{% endif %}
+        </div>
+        <div class="muted" style="font-size:13px;margin-bottom:6px">{{ change.migration.description }} · {{ change.migration.database_id }} · <span class="badge b-{{ change.migration.status }}">{{ change.migration.get_status_display }}</span></div>
+        <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Up</div>
+        <pre style="overflow-x:auto;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:12px;margin:0 0 8px">{{ change.migration.up_sql }}</pre>
+        {% if change.migration.down_sql %}
+        <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Down (rollback)</div>
+        <pre style="overflow-x:auto;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:12px;margin:0">{{ change.migration.down_sql }}</pre>
+        {% else %}<p class="empty" style="margin:0">No rollback — this migration is irreversible.</p>{% endif %}
+      </div>
+      {% endif %}
     </div>
 
     <div class="card">
