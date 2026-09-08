@@ -14,6 +14,7 @@ DEFAULT_PIPELINE = [
     "database",
     "testing",
     "code_review",
+    "security",
 ]
 
 AGENT_COMPLEXITY = {
@@ -24,6 +25,7 @@ AGENT_COMPLEXITY = {
     "database": TaskComplexity.HIGH,
     "testing": TaskComplexity.MEDIUM,
     "code_review": TaskComplexity.HIGH,
+    "security": TaskComplexity.LOW,
 }
 
 # Approx total (input + output) tokens a single run of each agent consumes.
@@ -35,4 +37,5 @@ AGENT_TOKEN_ESTIMATE = {
     "database": 5000,
     "testing": 4000,
     "code_review": 4000,
+    "security": 0,  # deterministic static scan — no model, no cost
 }

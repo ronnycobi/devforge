@@ -34,7 +34,7 @@ class EstimateTests(SimpleTestCase):
         self.assertLess(est["credits"][0], est["credits"][1])
         self.assertIn(est["risk"], {"low", "medium", "high"})
         self.assertIn(est["recommended_plan"], {"free", "pro", "business", "enterprise"})
-        self.assertEqual(len(est["per_agent"]), 7)
+        self.assertEqual(len(est["per_agent"]), 8)  # incl. deterministic security scan
 
     def test_estimate_is_nonzero_offline(self):
         # Uses catalog pricing directly, so it doesn't collapse to the free stub.

@@ -98,6 +98,13 @@ CODE_REVIEW = _reg(
     {C.READ_BACKEND, C.READ_FRONTEND, C.READ_TESTS, C.REVIEW_CODE},
 )
 
+SECURITY = _reg(
+    "security",
+    "Security Agent",
+    "Statically scans code for secrets, injection, and unsafe patterns.",
+    {C.READ_BACKEND, C.READ_FRONTEND, C.REVIEW_CODE},
+)
+
 DEVOPS = _reg(
     "devops",
     "DevOps Agent",

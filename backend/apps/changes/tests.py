@@ -105,7 +105,7 @@ class OutcomeTests(TestCase):
         change.refresh_from_db()
         self.assertEqual(change.status, ChangeStatus.DONE)
         self.assertTrue(change.result["ok"])
-        self.assertEqual(change.result["total"], 2)  # backend + code_review
+        self.assertEqual(change.result["total"], 3)  # backend + code_review + security
 
 
 class MigrationWiringTests(TestCase):

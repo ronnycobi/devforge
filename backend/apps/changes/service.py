@@ -100,6 +100,7 @@ def _implementing_agents(plan: dict) -> list[str]:
         agents.insert(0, "backend")
     if agents:
         agents.append("code_review")
+        agents.append("security")  # deterministic static scan, always last
     return agents
 
 
