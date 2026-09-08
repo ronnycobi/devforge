@@ -201,7 +201,7 @@ def project(request, pk):
         "active": "projects", "project": proj, "can_manage": can_manage,
         "state": _project_state(proj), "progress": _project_progress(proj),
         "pipeline": pipeline, "tasks": proj.agent_tasks.all(),
-        "agents": agent_registry.all(), "stack_roles": stack_roles,
+        "stack_roles": stack_roles,
         "twin": twin, "changes": proj.changes.all()[:8],
     })
 
@@ -446,10 +446,24 @@ def _handle_project_action(request, proj):
 
 # --- engineering / project lists (real data) --------------------------------
 
+# Customer-facing capabilities — outcomes only. The internal agent roster,
+# capability model and orchestration are proprietary and never exposed here.
+_CAPABILITIES = [
+    ("Build", "Turn a brief into working, tested software in the stack you choose."),
+    ("Understand", "Bring in an existing app and get a clear model of its architecture, APIs and data."),
+    ("Improve", "Modernize, refactor and fix — described in plain language, implemented and verified."),
+    ("Test", "Every change is compiled and its tests actually run before it's called done."),
+    ("Secure", "Code is scanned for secrets, injection and unsafe patterns as part of each change."),
+    ("Deploy", "Promote to dev and staging; production changes stay behind an approval gate."),
+    ("Operate", "Track cost and activity per project, with rollback on any change."),
+]
+
+
 @login_required
 def agents(request):
     return render(request, "dashboard/agents.html", {
-        "active": "agents", "agents": agent_registry.all(),
+        "active": "agents",
+        "capabilities": [{"title": t, "blurb": b} for t, b in _CAPABILITIES],
     })
 
 

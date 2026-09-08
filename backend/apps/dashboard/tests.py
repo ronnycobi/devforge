@@ -230,3 +230,27 @@ class RealPagesTests(TestCase):
     def test_unknown_section_404(self):
         self.assertEqual(self.client.get(reverse("dashboard:section", args=["nope"])).status_code, 404)
         self.assertEqual(self.client.get(reverse("dashboard:ops", args=["nope"])).status_code, 404)
+
+
+class MachineryLeakGuardTests(TestCase):
+    """The customer dashboard must not expose the internal agent machinery."""
+    def setUp(self):
+        self.user = User.objects.create_user(email="lg@x.com", password="pw12345!")
+        self.org = Organization.objects.create(name="Acme")
+        self.org.add_member(self.user, role=Role.OWNER)
+        self.project = Project.objects.create(organization=self.org, name="App", created_by=self.user)
+        self.client.force_login(self.user)
+
+    def test_ai_page_hides_capabilities_and_topology(self):
+        r = self.client.get(reverse("dashboard:agents"))
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode()
+        for term in ["write_backend", "use_sandbox", "review_code", "write_migrations",
+                     "use_repository", "least-privilege", "orchestrat", "capability"]:
+            self.assertNotIn(term, body, term)
+
+    def test_project_page_has_no_agent_roster_picker(self):
+        body = self.client.get(reverse("dashboard:project", args=[self.project.id])).content.decode()
+        self.assertNotIn('name="agent_key"', body)  # no roster dropdown
+        for term in ["write_backend", "use_sandbox", "least-privilege"]:
+            self.assertNotIn(term, body, term)

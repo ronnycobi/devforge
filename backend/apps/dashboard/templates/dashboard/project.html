@@ -43,14 +43,7 @@
 
       {% if can_manage %}
       <div class="inline" style="margin-top:14px">
-        <form method="post" class="inline" style="flex:3">
-          {% csrf_token %}<input type="hidden" name="action" value="create_task">
-          <div style="flex:1"><label>Run an agent</label>
-            <select name="agent_key">{% for a in agents %}<option value="{{ a.key }}">{{ a.name }}</option>{% endfor %}</select></div>
-          <div style="flex:2"><label>Brief</label><input name="brief" placeholder="What to build…"></div>
-          <div><button type="submit">Queue</button></div>
-        </form>
-        <form method="post"><label>&nbsp;</label>{% csrf_token %}<input type="hidden" name="action" value="run"><button class="ghost" type="submit">▶ Run pending</button></form>
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="run"><button class="ghost" type="submit">▶ Run pending work</button></form>
       </div>
       {% endif %}
     </div>
