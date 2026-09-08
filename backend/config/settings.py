@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "apps.workspaces",
     "apps.technology",
     "apps.agents",
+    "apps.tools",
     "apps.orchestrator",
     "apps.ai_providers",
     "apps.model_router",

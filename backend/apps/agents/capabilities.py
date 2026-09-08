@@ -42,6 +42,11 @@ class Capability(StrEnum):
     # Review
     REVIEW_CODE = "review_code"
 
+    # Tools — least-privilege access to the Tool Registry (apps.tools)
+    USE_REPOSITORY = "use_repository"      # read files / search / diff / log
+    WRITE_REPOSITORY = "write_repository"  # write files / commit / branch
+    USE_SANDBOX = "use_sandbox"            # execute code in the isolated sandbox
+
     # Infrastructure / deployment
     READ_INFRASTRUCTURE = "read_infrastructure"
     DEPLOY_DEV = "deploy_dev"

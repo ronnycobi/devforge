@@ -17,8 +17,8 @@ from apps.agents.runners import register_runner
 from apps.project_context.models import ContextKind
 from apps.project_context.services import ProjectContext
 from apps.projects.models import Project
-from apps.repositories.service import repo_for_project
 from apps.security.scanner import scan_files, summarize
+from apps.tools.registry import Toolbelt
 
 
 class SecurityAgent(BaseAgent):
@@ -34,14 +34,11 @@ class SecurityAgent(BaseAgent):
             return AgentResult.failed(self.key, "Security scan needs a project.")
 
         project = Project.objects.get(id=context.project_id)
-        repo = repo_for_project(project)
-        files: dict[str, str] = {}
-        if repo.is_initialized:
-            for rel in repo.list_files():
-                try:
-                    files[rel] = (repo.path / rel).read_text()
-                except (OSError, UnicodeDecodeError):
-                    continue
+        # Read the code through the Tool Registry — the Toolbelt enforces that this
+        # agent holds USE_REPOSITORY before the repo.read tool will run.
+        belt = Toolbelt(project, self.capabilities)
+        result = belt.invoke("repo.read", "read_all")
+        files: dict[str, str] = result.data if result.ok else {}
 
         findings = scan_files(files)
         summary = summarize(findings)

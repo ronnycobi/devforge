@@ -67,6 +67,9 @@ BACKEND = _reg(
         C.WRITE_BACKEND,
         C.READ_DATABASE,
         C.RUN_TESTS,
+        C.USE_REPOSITORY,
+        C.WRITE_REPOSITORY,
+        C.USE_SANDBOX,
     },
 )
 
@@ -74,35 +77,38 @@ FRONTEND = _reg(
     "frontend",
     "Frontend Agent",
     "Implements the frontend. Cannot modify backend, billing, or production.",
-    {C.READ_ARCHITECTURE, C.READ_FRONTEND, C.WRITE_FRONTEND, C.RUN_TESTS},
+    {C.READ_ARCHITECTURE, C.READ_FRONTEND, C.WRITE_FRONTEND, C.RUN_TESTS,
+     C.USE_REPOSITORY, C.WRITE_REPOSITORY, C.USE_SANDBOX},
 )
 
 DATABASE = _reg(
     "database",
     "Database Agent",
     "Owns schema and migrations; optimises queries. Cannot modify prod data.",
-    {C.READ_ARCHITECTURE, C.READ_DATABASE, C.WRITE_MIGRATIONS, C.RUN_TESTS},
+    {C.READ_ARCHITECTURE, C.READ_DATABASE, C.WRITE_MIGRATIONS, C.RUN_TESTS,
+     C.USE_REPOSITORY, C.WRITE_REPOSITORY, C.USE_SANDBOX},
 )
 
 TESTING = _reg(
     "testing",
     "Testing Agent",
     "Writes and runs tests across backend and frontend.",
-    {C.READ_BACKEND, C.READ_FRONTEND, C.READ_TESTS, C.WRITE_TESTS, C.RUN_TESTS},
+    {C.READ_BACKEND, C.READ_FRONTEND, C.READ_TESTS, C.WRITE_TESTS, C.RUN_TESTS,
+     C.USE_REPOSITORY, C.USE_SANDBOX},
 )
 
 CODE_REVIEW = _reg(
     "code_review",
     "Code Review Agent",
     "Reviews changes for correctness, security, and maintainability.",
-    {C.READ_BACKEND, C.READ_FRONTEND, C.READ_TESTS, C.REVIEW_CODE},
+    {C.READ_BACKEND, C.READ_FRONTEND, C.READ_TESTS, C.REVIEW_CODE, C.USE_REPOSITORY},
 )
 
 SECURITY = _reg(
     "security",
     "Security Agent",
     "Statically scans code for secrets, injection, and unsafe patterns.",
-    {C.READ_BACKEND, C.READ_FRONTEND, C.REVIEW_CODE},
+    {C.READ_BACKEND, C.READ_FRONTEND, C.REVIEW_CODE, C.USE_REPOSITORY},
 )
 
 DEVOPS = _reg(
