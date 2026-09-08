@@ -74,6 +74,18 @@ def _fake(text, model="claude-opus-5"):
     return _inner
 
 
+def _sequence(*texts, model="claude-opus-5"):
+    """Return each text on successive calls; repeat the last once exhausted."""
+    calls = {"n": 0}
+
+    def _inner(request, provider=None):
+        i = min(calls["n"], len(texts) - 1)
+        calls["n"] += 1
+        return CompletionResponse(text=texts[i], model=model, provider="anthropic", usage=Usage(80, 200))
+
+    return _inner
+
+
 class ParsingTests(SimpleTestCase):
     def test_endpoints_still_parse(self):
         self.assertEqual(len(parse_backend(GOOD_JSON)["endpoints"]), 2)
@@ -92,12 +104,13 @@ class BackendCodegenFlowTests(TestCase):
             ContextKind.ARCHITECTURE, "api", title="API", content="HTTP API"
         )
 
-    def _run(self, response_text, task_input=None):
+    def _run(self, response_text=None, task_input=None, side_effect=None):
+        effect = side_effect or _fake(response_text)
         with tempfile.TemporaryDirectory() as tmp:
             with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
                 with mock.patch(
                     "apps.model_router.router.gateway_complete",
-                    side_effect=_fake(response_text),
+                    side_effect=effect,
                 ):
                     orch = Orchestrator()
                     task = orch.create_task(
@@ -212,12 +225,41 @@ class BackendCodegenFlowTests(TestCase):
         self.assertEqual(ProjectContext(self.project).by_kind(ContextKind.API).count(), 2)
 
     def test_reports_compile_failure_honestly(self):
+        # Broken every round: after exhausting repairs it ships nothing hidden —
+        # the failure is reported, not disguised as success.
         task, files = self._run(BROKEN_JSON)
         self.assertEqual(task.status, "completed")
         self.assertEqual(task.output["files_generated"], 1)
         self.assertFalse(task.output["verified"])  # did NOT compile
+        self.assertEqual(task.output["repair_rounds"], 2)  # tried to fix, twice
         self.assertIn("bad.py", files)  # still written for inspection
         self.assertIn("FAILED", task.messages[-1])
+
+    def test_self_repair_fixes_broken_code(self):
+        # First attempt fails to compile; the repair round returns valid code.
+        fixed = json.dumps(
+            {"endpoints": [], "files": [{"path": "svc.py", "content": "def ok():\n    return 1\n"}]}
+        )
+        task, files = self._run(side_effect=_sequence(BROKEN_JSON, fixed))
+        self.assertEqual(task.status, "completed")
+        self.assertTrue(task.output["verified"])  # fixed and compiles
+        self.assertEqual(task.output["repair_rounds"], 1)
+        self.assertIn("svc.py", files)
+        self.assertNotIn("bad.py", files)  # the broken attempt was replaced
+        # Tokens are summed across the initial + repair calls (honest cost).
+        self.assertEqual(task.tokens, 560)  # two calls × 280 tokens
+
+    def test_repair_stops_when_a_round_fixes_it(self):
+        # Fixed on the first repair; no further calls even though budget remained.
+        fixed = json.dumps(
+            {"endpoints": [], "files": [{"path": "svc.py", "content": "x = 1\n"}]}
+        )
+        task, _ = self._run(
+            side_effect=_sequence(BROKEN_JSON, fixed, BROKEN_JSON),
+            task_input={"max_repairs": 2},
+        )
+        self.assertTrue(task.output["verified"])
+        self.assertEqual(task.output["repair_rounds"], 1)
 
     def test_offline_stub_generates_nothing(self):
         orch = Orchestrator()

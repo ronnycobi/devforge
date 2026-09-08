@@ -26,6 +26,19 @@ def system_prompt(stack) -> str:
     return "\n".join(base)
 
 
+def repair_prompt(stack, error_log: str) -> str:
+    """Ask the model to fix code that failed verification, in the same JSON shape."""
+    shape = "files, endpoints" + (", app_label" if stack.needs_app_label else "")
+    return (
+        "The code you just returned does NOT pass verification. Fix it.\n\n"
+        f"Verifier output:\n{error_log.strip() or '(no detail)'}\n\n"
+        "Correct the cause of the failure (imports, syntax, names, indentation, "
+        "or the specific error shown). Return the COMPLETE corrected JSON in the "
+        f"same shape ({shape}) — every file needed to run, not a diff. No prose "
+        "outside the JSON."
+    )
+
+
 def build_user_prompt(architecture_digest, requirements_digest, schema_digest,
                       existing_api="", brief=""):
     parts = []

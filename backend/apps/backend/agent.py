@@ -21,7 +21,7 @@ from apps.agents.definitions import BACKEND
 from apps.agents.runners import register_runner
 from apps.ai_providers.base import Message
 from apps.backend.parsing import parse_backend
-from apps.backend.prompts import build_user_prompt, system_prompt
+from apps.backend.prompts import build_user_prompt, repair_prompt, system_prompt
 from apps.codegen.parsing import parse_files
 from apps.codegen.service import materialize, verify_python
 from apps.core.jsonx import extract_json
@@ -90,62 +90,97 @@ class BackendAgent(BaseAgent):
         schema = ctx.digest(kinds=[ContextKind.SCHEMA], max_chars=2000)
         existing_api = ctx.digest(kinds=[ContextKind.API], max_chars=1000)
 
-        response = self.router.complete(
-            RoutingRequest(complexity=TaskComplexity.HIGH, task_type="backend"),
-            messages=[
-                Message(
-                    "user",
-                    build_user_prompt(architecture, requirements, schema, existing_api, brief),
-                )
-            ],
-            system=system_prompt(stack),
-            max_tokens=4000,
+        system = system_prompt(stack)
+        user_prompt = build_user_prompt(
+            architecture, requirements, schema, existing_api, brief
         )
 
+        # Generate, verify, and (on failure) repair before anything ships. We
+        # verify in-memory first and only materialize code that we've either
+        # confirmed compiles or exhausted repair attempts trying to fix.
+        response = self._complete(system, [Message("user", user_prompt)])
+        app_label = self._extract_app_label(stack, response.text)
+        files = self._build_files(stack, response.text, app_label)
+        verified, verify_log = (verify_python(files) if files else (None, ""))
+
+        max_repairs = int(context.input.get("max_repairs", 2))
+        total_tokens = response.usage.total_tokens
+        final_response = response
+        repair_rounds = 0
+
+        while files and verified is False and repair_rounds < max_repairs:
+            repair_rounds += 1
+            fix = self._complete(
+                system,
+                [
+                    Message("user", user_prompt),
+                    Message("assistant", final_response.text),
+                    Message("user", repair_prompt(stack, verify_log)),
+                ],
+            )
+            total_tokens += fix.usage.total_tokens
+            repaired = self._build_files(stack, fix.text, app_label)
+            if not repaired:
+                break  # model returned nothing usable; keep the prior attempt
+            files, final_response = repaired, fix
+            verified, verify_log = verify_python(files)
+
         source = f"agent:{self.key}#task:{context.metadata.get('task_id', '')}"
-        endpoints = parse_backend(response.text)["endpoints"]
+        endpoints = parse_backend(final_response.text)["endpoints"]
         self._persist_endpoints(ctx, endpoints, source)
 
-        generated = parse_files(response.text)
-        app_label = None
-        if stack.needs_app_label:
-            payload = extract_json(response.text) or {}
-            app_label = payload.get("app_label") if isinstance(payload, dict) else None
-        files = stack.build_project(app_label, generated) if generated else []
-
-        commit_sha, verified, verify_log = None, None, ""
+        commit_sha = None
         if files:
             _, commit_sha = materialize(
                 project,
                 files,
                 message=f"{stack.id} backend by {self.key} (task {context.metadata.get('task_id', '')})",
             )
-            verified, verify_log = verify_python(files)
 
-        messages = [f"[{stack.id}] generated {len(files)} file(s) via {response.model}."]
-        if files:
-            messages.append(
-                f"Compile check: {'passed' if verified else 'FAILED'} — {verify_log}"
-            )
+        if not files:
+            messages = [f"{final_response.model} returned no parseable code; nothing written."]
         else:
-            messages = [f"{response.model} returned no parseable code; nothing written."]
+            check = "passed" if verified else "FAILED"
+            note = f"[{stack.id}] generated {len(files)} file(s) via {final_response.model}."
+            if repair_rounds:
+                note += f" Self-repair rounds: {repair_rounds}."
+            messages = [note, f"Compile check: {check} — {verify_log}"]
 
         return AgentResult.completed(
             self.key,
             output={
-                "model": response.model,
+                "model": final_response.model,
                 "stack": stack.id,
                 "app_label": app_label,
                 "endpoints_written": len(endpoints),
                 "files_generated": len(files),
                 "commit": commit_sha,
                 "verified": verified,
+                "repair_rounds": repair_rounds,
                 "compile_log": verify_log,
             },
             messages=messages,
-            model=response.model,
-            usage_tokens=response.usage.total_tokens,
+            model=final_response.model,
+            usage_tokens=total_tokens,
         )
+
+    def _complete(self, system, messages):
+        return self.router.complete(
+            RoutingRequest(complexity=TaskComplexity.HIGH, task_type="backend"),
+            messages=messages,
+            system=system,
+            max_tokens=4000,
+        )
+
+    def _extract_app_label(self, stack, text):
+        if not stack.needs_app_label:
+            return None
+        payload = extract_json(text) or {}
+        return payload.get("app_label") if isinstance(payload, dict) else None
+
+    def _build_files(self, stack, text, app_label):
+        generated = parse_files(text)
+        return stack.build_project(app_label, generated) if generated else []
 
     def _persist_endpoints(self, ctx, endpoints, source):
         for ep in endpoints:
