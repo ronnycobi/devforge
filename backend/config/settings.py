@@ -199,6 +199,11 @@ DEVFORGE_PLANS = {"free": 1000, "pro": 5000, "business": 25000}
 # safety rail that lets you hand out access without risking a runaway bill.
 DEVFORGE_ORG_DAILY_USD_CAP = env("DEVFORGE_ORG_DAILY_USD_CAP", "") or None
 
+# Model-selection posture. True (default) = pick the most capable model that fits
+# each task (best product); False = cheapest-sufficient. A task can still opt the
+# other way per request, or set a hard max_cost_per_mtok ceiling.
+DEVFORGE_PREFER_QUALITY = env("DEVFORGE_PREFER_QUALITY", "true").lower() in ("1", "true", "yes", "on")
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",

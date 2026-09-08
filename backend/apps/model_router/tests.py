@@ -32,13 +32,24 @@ class RoutingPolicyTests(SimpleTestCase):
         self.router = ModelRouter()
 
     @anthropic_up
-    def test_medium_picks_cheapest_sufficient(self, _):
+    def test_default_is_quality_first(self, _):
+        # Platform default posture: best model that fits, not the cheapest.
         d = self.router.route(RoutingRequest(complexity=TaskComplexity.MEDIUM))
+        self.assertEqual(d.model, "claude-opus-5")
+        self.assertIn("quality preferred", d.reason)
+
+    @anthropic_up
+    def test_medium_economy_picks_cheapest_sufficient(self, _):
+        d = self.router.route(
+            RoutingRequest(complexity=TaskComplexity.MEDIUM, prefer_quality=False)
+        )
         self.assertEqual(d.model, "claude-sonnet-5")  # tier 2, cheaper than opus
 
     @anthropic_up
-    def test_low_prefers_real_model_over_free_stub(self, _):
-        d = self.router.route(RoutingRequest(complexity=TaskComplexity.LOW))
+    def test_low_economy_prefers_real_model_over_free_stub(self, _):
+        d = self.router.route(
+            RoutingRequest(complexity=TaskComplexity.LOW, prefer_quality=False)
+        )
         self.assertEqual(d.model, "claude-haiku-4-5")  # not the $0 stub
 
     @anthropic_up
@@ -74,10 +85,11 @@ class RoutingPolicyTests(SimpleTestCase):
 
     @anthropic_up
     def test_context_requirement_excludes_small_window(self, _):
-        # haiku is 200K; require 500K -> only sonnet/opus qualify; medium -> sonnet.
+        # haiku is 200K; require 500K -> only sonnet/opus qualify; economy medium -> sonnet.
         d = self.router.route(
             RoutingRequest(
-                complexity=TaskComplexity.MEDIUM, required_context_tokens=500_000
+                complexity=TaskComplexity.MEDIUM, required_context_tokens=500_000,
+                prefer_quality=False,
             )
         )
         self.assertEqual(d.model, "claude-sonnet-5")

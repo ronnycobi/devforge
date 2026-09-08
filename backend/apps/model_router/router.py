@@ -5,9 +5,10 @@ context size, budget, customer preference — subject to what's actually availab
 then executes with failover down an ordered candidate list (docs/PRODUCT.md §3).
 
 Two standing policies:
-- **Cheapest sufficient by default.** For a given complexity the router picks the
-  lowest-cost model whose tier meets it — never the most expensive by default.
-  `prefer_quality` flips this to "most capable".
+- **Quality-first by default.** DevForge optimizes for the best output, so for a
+  given complexity the router picks the *most capable* model whose tier meets it.
+  A task may opt into economy (`prefer_quality=False`) or a hard `max_cost_per_mtok`
+  ceiling. The default is configurable via settings.DEVFORGE_PREFER_QUALITY.
 - **Real models beat the stub.** The offline stub is chosen only when no real
   model is usable (e.g. no API key), so the platform still runs offline.
 """
@@ -31,12 +32,20 @@ class TaskComplexity(StrEnum):
 _REQUIRED_TIER = {TaskComplexity.LOW: 1, TaskComplexity.MEDIUM: 2, TaskComplexity.HIGH: 3}
 
 
+def _default_prefer_quality() -> bool:
+    # Platform posture: best model by default. Configurable, evaluated per request
+    # so tests and deployments can override it.
+    from django.conf import settings
+
+    return getattr(settings, "DEVFORGE_PREFER_QUALITY", True)
+
+
 @dataclass
 class RoutingRequest:
     complexity: TaskComplexity = TaskComplexity.MEDIUM
     required_context_tokens: int = 0
     max_cost_per_mtok: float | None = None  # budget ceiling on avg cost
-    prefer_quality: bool = False
+    prefer_quality: bool = field(default_factory=_default_prefer_quality)
     preferred_provider: str | None = None
     preferred_model: str | None = None
     allowed_providers: list[str] | None = None
