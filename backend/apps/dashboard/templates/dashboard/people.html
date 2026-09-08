@@ -1,0 +1,82 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Team · DevForge{% endblock %}
+{% block crumb %}Team{% endblock %}
+{% block content %}
+  <h1>Team</h1>
+  <p class="sub">Members, invitations, and teams across your organizations.</p>
+
+  {% for c in cards %}
+  <h2>{{ c.org.name }}</h2>
+
+  <div class="card">
+    <div style="font-weight:700;margin-bottom:8px">Members</div>
+    <table>
+      <tr><th>User</th><th>Role</th><th>Joined</th></tr>
+      {% for m in c.members %}
+      <tr><td class="strong">{{ m.user.email }}</td>
+        <td><span class="chip">{{ m.get_role_display }}</span></td>
+        <td class="muted">{{ m.created_at|date:"M j, Y" }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  {% if c.invites %}
+  <div class="card" style="margin-top:12px">
+    <div style="font-weight:700;margin-bottom:8px">Pending invitations</div>
+    <table>
+      <tr><th>Email</th><th>Role</th><th>Expires</th>{% if c.can_manage %}<th></th>{% endif %}</tr>
+      {% for i in c.invites %}
+      <tr><td>{{ i.email }}</td><td><span class="chip">{{ i.get_role_display }}</span></td>
+        <td class="muted">{{ i.expires_at|date:"M j, Y" }}</td>
+        {% if c.can_manage %}<td style="text-align:right">
+          <form method="post" style="display:inline">{% csrf_token %}
+            <input type="hidden" name="action" value="revoke">
+            <input type="hidden" name="organization" value="{{ c.org.id }}">
+            <input type="hidden" name="invitation" value="{{ i.id }}">
+            <button class="ghost" style="padding:4px 10px;font-size:12px">Revoke</button>
+          </form></td>{% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
+  {% if c.can_manage %}
+  <div class="card" style="margin-top:12px">
+    <div style="font-weight:700;margin-bottom:8px">Invite a member</div>
+    <form method="post" class="inline">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="invite">
+      <input type="hidden" name="organization" value="{{ c.org.id }}">
+      <div style="flex:2"><label>Email</label><input name="email" type="email" placeholder="person@company.com" required></div>
+      <div style="flex:1"><label>Role</label>
+        <select name="role">{% for v, l in c.roles %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></div>
+      {% if c.teams %}<div style="flex:1"><label>Team (optional)</label>
+        <select name="team"><option value="">—</option>{% for t in c.teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}</select></div>{% endif %}
+      <div><button type="submit">Send invite</button></div>
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="card" style="margin-top:12px">
+    <div style="font-weight:700;margin-bottom:8px">Teams</div>
+    {% for t in c.teams %}
+    <div style="margin-bottom:6px"><span class="chip">{{ t.name }}</span>
+      {% for u in t.members.all %}<span class="muted" style="font-size:12px">{{ u.email }}{% if not forloop.last %}, {% endif %}</span>{% empty %}<span class="muted" style="font-size:12px">no members yet</span>{% endfor %}
+    </div>
+    {% empty %}<p class="empty" style="margin:0 0 8px">No teams yet.</p>{% endfor %}
+    {% if c.can_manage %}
+    <form method="post" class="inline" style="margin-top:8px">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create_team">
+      <input type="hidden" name="organization" value="{{ c.org.id }}">
+      <div style="flex:2"><label>New team</label><input name="name" placeholder="e.g. Platform" required></div>
+      <div><button class="ghost" type="submit">Create team</button></div>
+    </form>
+    {% endif %}
+  </div>
+
+  {% empty %}
+  <div class="card"><p class="empty">You’re not in any organization yet.</p></div>
+  {% endfor %}
+{% endblock %}

@@ -135,3 +135,60 @@ class SecurityPageTests(TestCase):
             follow=True,
         )
         self.assertContains(resp, "Owner or admin")
+
+
+class PeopleUITests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(email="po@x.com", password="pw12345!")
+        self.member = User.objects.create_user(email="pm@x.com", password="pw12345!")
+        self.org = Organization.objects.create(name="Acme")
+        self.org.add_member(self.owner, role=Role.OWNER)
+        self.org.add_member(self.member, role=Role.MEMBER)
+
+    def test_page_lists_members(self):
+        self.client.force_login(self.member)
+        resp = self.client.get(reverse("dashboard:people"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "po@x.com")
+
+    def test_owner_invites_and_link_shown(self):
+        from apps.organizations.models import Invitation
+        self.client.force_login(self.owner)
+        resp = self.client.post(
+            reverse("dashboard:people"),
+            {"action": "invite", "organization": self.org.id,
+             "email": "new@x.com", "role": "admin"},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        inv = Invitation.objects.get(email="new@x.com", organization=self.org)
+        self.assertContains(resp, inv.token)  # accept link surfaced
+
+    def test_member_cannot_invite(self):
+        self.client.force_login(self.member)
+        resp = self.client.post(
+            reverse("dashboard:people"),
+            {"action": "invite", "organization": self.org.id, "email": "x@x.com"},
+            follow=True,
+        )
+        self.assertContains(resp, "Owner or admin")
+
+    def test_owner_creates_team(self):
+        from apps.organizations.models import Team
+        self.client.force_login(self.owner)
+        self.client.post(
+            reverse("dashboard:people"),
+            {"action": "create_team", "organization": self.org.id, "name": "Platform"},
+        )
+        self.assertTrue(Team.objects.filter(organization=self.org, name="Platform").exists())
+
+    def test_accept_invite_flow(self):
+        from apps.organizations import invitations
+        invite = invitations.create_invitation(self.org, "joiner@x.com", invited_by=self.owner)
+        joiner = User.objects.create_user(email="joiner@x.com", password="pw12345!")
+        self.client.force_login(joiner)
+        resp = self.client.get(reverse("dashboard:accept_invite", args=[invite.token]), follow=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(
+            self.org.memberships.filter(user=joiner).exists()  # membership created
+        )

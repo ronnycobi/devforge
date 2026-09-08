@@ -16,6 +16,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from apps.agents.definitions import registry as agent_registry
 from apps.changes import service as changes_service
@@ -27,7 +28,15 @@ from apps.organizations.access import (
     manageable_organizations_for,
     organizations_for,
 )
-from apps.organizations.models import Organization
+from apps.organizations import invitations as invites
+from apps.organizations.models import (
+    Invitation,
+    InvitationStatus,
+    Membership,
+    Organization,
+    Role,
+    Team,
+)
 from apps.orchestrator.models import TERMINAL_STATUSES, AgentTask
 from apps.orchestrator.service import Orchestrator
 from apps.project_context.models import ContextEntry, ContextKind
@@ -253,6 +262,79 @@ def import_software(request):
     return render(request, "dashboard/import.html", {
         "active": "analyze-software", "manageable_orgs": manageable,
     })
+
+
+@login_required
+def people(request):
+    """Members, invitations, and teams for the user's organizations."""
+    orgs = list(organizations_for(request.user))
+    manageable = _manageable_ids(request.user)
+
+    if request.method == "POST":
+        org = get_object_or_404(Organization, pk=request.POST.get("organization", 0))
+        if not Membership.objects.filter(organization=org, user=request.user).exists():
+            messages.error(request, "Not your organization.")
+            return redirect("dashboard:people")
+        can_manage = org.id in manageable
+        action = request.POST.get("action")
+        if not can_manage:
+            messages.error(request, "Owner or admin rights required.")
+            return redirect("dashboard:people")
+        try:
+            if action == "invite":
+                team = None
+                if request.POST.get("team"):
+                    team = Team.objects.filter(pk=request.POST["team"], organization=org).first()
+                inv = invites.create_invitation(
+                    org, request.POST.get("email", ""),
+                    role=request.POST.get("role") or Role.MEMBER,
+                    team=team, invited_by=request.user,
+                )
+                link = request.build_absolute_uri(
+                    reverse("dashboard:accept_invite", args=[inv.token])
+                )
+                messages.success(request, f"Invited {inv.email}. Share this link: {link}")
+            elif action == "revoke":
+                inv = get_object_or_404(Invitation, pk=request.POST.get("invitation", 0), organization=org)
+                invites.revoke_invitation(inv)
+                messages.success(request, f"Revoked the invite for {inv.email}.")
+            elif action == "create_team":
+                name = (request.POST.get("name") or "").strip()
+                if name:
+                    Team.objects.create(organization=org, name=name)
+                    messages.success(request, f"Team “{name}” created.")
+                else:
+                    messages.error(request, "Team name required.")
+        except invites.InvitationError as exc:
+            messages.error(request, str(exc))
+        except ValueError as exc:
+            messages.error(request, str(exc))
+        return redirect("dashboard:people")
+
+    cards = []
+    for o in orgs:
+        cards.append({
+            "org": o,
+            "can_manage": o.id in manageable,
+            "members": Membership.objects.filter(organization=o).select_related("user"),
+            "invites": Invitation.objects.filter(organization=o, status=InvitationStatus.PENDING),
+            "teams": Team.objects.filter(organization=o).prefetch_related("members"),
+            "roles": Role.choices,
+        })
+    return render(request, "dashboard/people.html", {"active": "people", "cards": cards})
+
+
+@login_required
+def accept_invite(request, token):
+    """Accept an organization invitation via its token (must be logged in)."""
+    try:
+        membership = invites.accept_invitation(token, request.user)
+        messages.success(
+            request, f"You’ve joined {membership.organization.name} as {membership.role}."
+        )
+    except invites.InvitationError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:people")
 
 
 @login_required
