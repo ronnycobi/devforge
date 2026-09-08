@@ -86,6 +86,22 @@
   </div>
 </div></section>
 
+<!-- Everything your software needs, built in -->
+<section style="padding-top:0"><div class="wrap">
+  <div class="eyebrow">The platform</div>
+  <h2>Everything your software needs. Built in.</h2>
+  <p class="lead">Don't spend weeks stitching services together. DevForge gives your app the
+    building blocks it needs — a check marks what's available today; the rest is on the way.</p>
+  <div class="grid g3" style="margin-top:20px">
+    {% for group, caps in capability_groups %}
+      <div class="card">
+        <h3 style="margin-top:0">{{ group }}</h3>
+        <div>{% for c in caps %}<span class="chip {% if c.is_available %}on{% endif %}" title="{{ c.description }}">{{ c.name }}{% if c.is_available %} <span class="dot">✓</span>{% endif %}</span> {% endfor %}</div>
+      </div>
+    {% endfor %}
+  </div>
+</div></section>
+
 <!-- Idea to production -->
 <section style="padding-top:0"><div class="wrap card" style="text-align:center;padding:40px 24px">
   <div class="eyebrow">From idea to production</div>

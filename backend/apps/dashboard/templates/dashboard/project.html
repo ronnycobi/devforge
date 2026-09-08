@@ -10,6 +10,18 @@
   <p class="sub">{{ project.organization.name }} · {{ project.get_mode_display }}
     {% if project.description %}<br>{{ project.description }}{% endif %}</p>
 
+  {% if capabilities %}
+  <div class="card" style="margin-bottom:4px">
+    <h2 style="margin-top:0">Built-in capabilities</h2>
+    <p class="muted" style="font-size:13px;margin:0 0 10px">What DevForge understands your app needs — you don't configure these individually.</p>
+    <div>
+      {% for c in capabilities %}
+        <span class="chip" title="{{ c.description }}">{{ c.name }}{% if not c.is_available %} <span class="muted" style="font-size:10px">soon</span>{% endif %}</span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <div class="row">
     <div class="card" style="grid-column:auto">
       <h2 style="margin-top:0">Technology stack</h2>

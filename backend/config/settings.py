@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "apps.projects",
     "apps.workspaces",
     "apps.technology",
+    "apps.capabilities",
     "apps.agents",
     "apps.tools",
     "apps.orchestrator",

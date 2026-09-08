@@ -233,11 +233,13 @@ def project(request, pk):
         "models": sum(1 for e in entries if e.kind == ContextKind.SCHEMA),
         "screens": sum(1 for e in entries if e.kind == ContextKind.SCREEN),
     }
+    from apps.capabilities.infer import infer_capabilities
     return render(request, "dashboard/project.html", {
         "active": "projects", "project": proj, "can_manage": can_manage,
         "state": _project_state(proj), "progress": _project_progress(proj),
         "pipeline": pipeline, "tasks": proj.agent_tasks.all(),
         "stack_roles": stack_roles,
+        "capabilities": infer_capabilities(proj.description or proj.name),
         "twin": twin, "changes": proj.changes.all()[:8],
     })
 

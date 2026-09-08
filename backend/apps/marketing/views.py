@@ -74,11 +74,13 @@ def _base_context():
 
 
 def home(request):
+    from apps.capabilities.registry import by_group
     ctx = _base_context()
     ctx.update({
         "build_categories": _BUILD_CATEGORIES,
         "examples": _EXAMPLES,
         "improve_examples": _IMPROVE_EXAMPLES,
+        "capability_groups": by_group(),
     })
     return render(request, "marketing/home.html", ctx)
 
