@@ -32,7 +32,7 @@
   <div class="nav">
     <a href="{% url 'dashboard:import' %}" class="{% if active == 'analyze-software' %}on{% endif %}">Analyze Software</a>
     <a href="{% url 'dashboard:soon' 'code-issues' %}" class="{% if active == 'code-issues' %}on{% endif %}">Code Issues <span class="soon">SOON</span></a>
-    <a href="{% url 'dashboard:soon' 'security' %}" class="{% if active == 'security' %}on{% endif %}">Security <span class="soon">SOON</span></a>
+    <a href="{% url 'dashboard:security' %}" class="{% if active == 'security' %}on{% endif %}">Security</a>
     <a href="{% url 'dashboard:soon' 'performance' %}" class="{% if active == 'performance' %}on{% endif %}">Performance <span class="soon">SOON</span></a>
     <a href="{% url 'dashboard:soon' 'modernization' %}" class="{% if active == 'modernization' %}on{% endif %}">Modernization <span class="soon">SOON</span></a>
   </div>

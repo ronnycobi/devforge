@@ -87,3 +87,51 @@ class DashboardUITests(TestCase):
         self.client.force_login(self.outsider)
         resp = self.client.get(reverse("dashboard:project", args=[self.project.id]))
         self.assertEqual(resp.status_code, 404)
+
+
+class SecurityPageTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(email="so@x.com", password="pw12345!")
+        self.member = User.objects.create_user(email="sm@x.com", password="pw12345!")
+        self.org = Organization.objects.create(name="Acme")
+        self.org.add_member(self.owner, role=Role.OWNER)
+        self.org.add_member(self.member, role=Role.MEMBER)
+        self.project = Project.objects.create(organization=self.org, name="App")
+
+    def test_page_lists_projects(self):
+        self.client.force_login(self.member)
+        resp = self.client.get(reverse("dashboard:security"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "App")
+
+    def test_owner_runs_scan_and_findings_appear(self):
+        import tempfile
+        from django.test import override_settings
+        from apps.repositories.service import repo_for_project
+        from apps.project_context.models import ContextEntry, ContextKind
+
+        self.client.force_login(self.owner)
+        with tempfile.TemporaryDirectory() as tmp:
+            with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+                repo = repo_for_project(self.project)
+                repo.init()
+                repo.write_files({"app.py": "API_KEY = 'sk-live-abc123456'\nx = eval(v)\n"})
+                repo.commit("seed")
+                resp = self.client.post(
+                    reverse("dashboard:security"),
+                    {"action": "run_scan", "project": self.project.id},
+                    follow=True,
+                )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(
+            ContextEntry.objects.filter(project=self.project, kind=ContextKind.SECURITY).exists()
+        )
+
+    def test_member_cannot_run_scan(self):
+        self.client.force_login(self.member)
+        resp = self.client.post(
+            reverse("dashboard:security"),
+            {"action": "run_scan", "project": self.project.id},
+            follow=True,
+        )
+        self.assertContains(resp, "Owner or admin")

@@ -256,6 +256,47 @@ def import_software(request):
 
 
 @login_required
+def security(request):
+    """Per-project security posture from the twin's SECURITY findings, plus an
+    on-demand scan (runs the deterministic Security Agent)."""
+    orgs = list(organizations_for(request.user))
+    manageable = _manageable_ids(request.user)
+
+    if request.method == "POST" and request.POST.get("action") == "run_scan":
+        proj = get_object_or_404(
+            Project, pk=request.POST.get("project", 0), organization__in=orgs
+        )
+        if proj.organization_id not in manageable:
+            messages.error(request, "Owner or admin rights required to run a scan.")
+        else:
+            orch = Orchestrator()
+            task = orch.create_task(
+                project=proj, agent_key="security", input={}, created_by=request.user
+            )
+            orch.run_task(task)
+            task.refresh_from_db()
+            note = task.messages[-1] if task.messages else "Scan complete."
+            messages.success(request, f"{proj.name}: {note}")
+        return redirect("dashboard:security")
+
+    rows = []
+    for p in Project.objects.filter(organization__in=orgs).select_related("organization"):
+        entries = list(
+            ContextEntry.objects.filter(project=p, kind=ContextKind.SECURITY)
+        )
+        counts = {"high": 0, "medium": 0, "low": 0}
+        for e in entries:
+            sev = (e.data or {}).get("severity", "low")
+            if sev in counts:
+                counts[sev] += 1
+        rows.append({
+            "project": p, "counts": counts, "total": len(entries),
+            "findings": entries[:25], "can_manage": p.organization_id in manageable,
+        })
+    return render(request, "dashboard/security.html", {"active": "security", "rows": rows})
+
+
+@login_required
 def change_detail(request, pk):
     change = get_object_or_404(
         ChangeRequest.objects.filter(

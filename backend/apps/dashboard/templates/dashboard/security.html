@@ -1,0 +1,51 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Security · DevForge{% endblock %}
+{% block crumb %}Improve / Security{% endblock %}
+{% block content %}
+  <h1>Security</h1>
+  <p class="sub">Static security findings across your projects. DevForge scans generated
+    and imported code for secrets, injection, and unsafe patterns — a safety net, not
+    a substitute for review.</p>
+
+  {% if rows %}
+  {% for r in rows %}
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <span style="font-weight:700;font-size:15px">{{ r.project.name }}</span>
+        <span class="muted" style="font-size:12px">· {{ r.project.organization.name }}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        {% if r.counts.high %}<span class="badge b-failed">{{ r.counts.high }} high</span>{% endif %}
+        {% if r.counts.medium %}<span class="badge b-waiting_for_approval">{{ r.counts.medium }} medium</span>{% endif %}
+        {% if r.counts.low %}<span class="badge b-queued">{{ r.counts.low }} low</span>{% endif %}
+        {% if not r.total %}<span class="badge b-completed">clean / not scanned</span>{% endif %}
+        {% if r.can_manage %}
+        <form method="post" style="display:inline">{% csrf_token %}
+          <input type="hidden" name="action" value="run_scan">
+          <input type="hidden" name="project" value="{{ r.project.id }}">
+          <button class="ghost" type="submit" style="padding:5px 11px;font-size:12px">Run scan</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if r.findings %}
+    <table style="margin-top:12px">
+      <tr><th style="width:80px">Severity</th><th>Finding</th><th>Location</th></tr>
+      {% for f in r.findings %}
+      <tr>
+        <td><span class="badge b-{% if f.data.severity == 'high' %}failed{% elif f.data.severity == 'medium' %}waiting_for_approval{% else %}queued{% endif %}">{{ f.data.severity }}</span></td>
+        <td>{{ f.title }}</td>
+        <td class="muted" style="font-size:12px">{{ f.data.path }}:{{ f.data.line }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% if r.total > r.findings|length %}<p class="muted" style="font-size:12px;margin:8px 0 0">Showing {{ r.findings|length }} of {{ r.total }}.</p>{% endif %}
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="card"><p class="empty">No projects yet.</p></div>
+  {% endif %}
+{% endblock %}
