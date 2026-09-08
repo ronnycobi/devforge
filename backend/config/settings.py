@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     "apps.costs",
     "apps.deployments",
     "apps.changes",
+    "apps.backups",
     "apps.ingest",
     "apps.dashboard",
     "apps.console",

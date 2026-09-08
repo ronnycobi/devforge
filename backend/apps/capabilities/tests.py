@@ -16,7 +16,7 @@ class RegistryTests(SimpleTestCase):
             self.assertEqual(get(cid).status, PLANNED, cid)
 
     def test_real_capabilities_are_available(self):
-        for cid in ("auth", "database", "email", "security", "audit", "export", "git"):
+        for cid in ("auth", "database", "email", "security", "audit", "export", "git", "backups"):
             self.assertEqual(get(cid).status, AVAILABLE, cid)
 
     def test_grouped(self):

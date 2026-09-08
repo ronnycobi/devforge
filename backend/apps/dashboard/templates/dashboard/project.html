@@ -102,6 +102,35 @@
     </div>
   </div>
 
+  <h2>Backups</h2>
+  <div class="card">
+    <p class="muted" style="font-size:13px;margin-top:0">Restore points for your project. Create one before a big change; restore anytime.</p>
+    {% if can_manage %}
+    <form method="post" class="inline" style="margin-bottom:10px">
+      {% csrf_token %}<input type="hidden" name="action" value="create_backup">
+      <div style="flex:2"><label>New backup</label><input name="label" placeholder="e.g. Before payments work"></div>
+      <div><button type="submit">Create backup</button></div>
+    </form>
+    {% endif %}
+    {% if backups %}
+    <table>
+      <tr><th>Label</th><th>Snapshot</th><th>Created</th>{% if can_manage %}<th></th>{% endif %}</tr>
+      {% for b in backups %}
+      <tr>
+        <td class="strong">{{ b.label }}</td>
+        <td class="muted"><code>{{ b.commit_sha }}</code></td>
+        <td class="muted">{{ b.created_at|date:"M j, H:i" }}</td>
+        {% if can_manage %}<td style="text-align:right">
+          <form method="post" onsubmit="return confirm('Restore “{{ b.label }}”? Current files are reset to this snapshot.')">
+            {% csrf_token %}<input type="hidden" name="action" value="restore_backup"><input type="hidden" name="backup" value="{{ b.id }}">
+            <button class="ghost" type="submit" style="padding:4px 10px;font-size:12px">Restore</button>
+          </form></td>{% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty" style="margin:0">No backups yet.</p>{% endif %}
+  </div>
+
   <h2>Project workspace</h2>
   {% for section in pipeline %}
     {% if section.entries %}

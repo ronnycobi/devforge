@@ -241,6 +241,7 @@ def project(request, pk):
         "stack_roles": stack_roles,
         "capabilities": infer_capabilities(proj.description or proj.name),
         "twin": twin, "changes": proj.changes.all()[:8],
+        "backups": proj.backups.all()[:10],
     })
 
 
@@ -574,6 +575,27 @@ def _handle_project_action(request, proj):
         proj.technology = {**(proj.technology or {}), **chosen}
         proj.save(update_fields=["technology", "updated_at"])
         messages.success(request, "Stack updated.")
+    elif action == "create_backup":
+        from apps.backups.service import BackupError, create_backup
+        try:
+            b = create_backup(proj, label=request.POST.get("label") or "Snapshot",
+                              created_by=request.user)
+            messages.success(request, f"Backup “{b.label}” created.")
+        except BackupError as exc:
+            messages.error(request, str(exc))
+    elif action == "restore_backup":
+        from apps.backups.models import ProjectBackup
+        from apps.backups.service import BackupError, restore_backup
+        backup = ProjectBackup.objects.filter(
+            pk=request.POST.get("backup", 0), project=proj).first()
+        if backup is None:
+            messages.error(request, "No such backup.")
+        else:
+            try:
+                restore_backup(backup, actor=request.user)
+                messages.success(request, f"Restored “{backup.label}”.")
+            except BackupError as exc:
+                messages.error(request, str(exc))
 
 
 # --- engineering / project lists (real data) --------------------------------

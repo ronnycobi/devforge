@@ -67,7 +67,7 @@ _CATALOG = [
     # Infrastructure
     Capability("hosting", "Hosting", "Infrastructure", AVAILABLE, "Preview and deploy your app."),
     Capability("domains", "Custom domains", "Infrastructure", PLANNED, "Your own domain + SSL."),
-    Capability("backups", "Backups", "Infrastructure", PLANNED, "Scheduled data backups."),
+    Capability("backups", "Backups", "Infrastructure", AVAILABLE, "Create restore points and roll back."),
     Capability("environments", "Environments", "Infrastructure", AVAILABLE, "Dev/staging workspaces."),
     Capability("monitoring", "Monitoring", "Infrastructure", PLANNED, "Health, errors and uptime."),
     # Cross-cutting
