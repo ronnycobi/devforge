@@ -15,6 +15,7 @@ from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
@@ -41,6 +42,7 @@ from apps.orchestrator.models import TERMINAL_STATUSES, AgentTask
 from apps.orchestrator.service import Orchestrator
 from apps.project_context.models import ContextEntry, ContextKind
 from apps.projects.models import Project
+from apps.workspaces.models import Workspace
 from apps.technology.registry import ROLES
 from apps.technology.registry import registry as tech_registry
 
@@ -494,3 +496,135 @@ def soon(request, slug):
     return render(request, "dashboard/soon.html", {
         "active": slug, "title": slug.replace("-", " ").title(),
     })
+
+
+# --- Real workspace pages (were SOON) ---------------------------------------
+
+_SECTION = {
+    "apis": ([ContextKind.API], "APIs", "HTTP endpoints DevForge has designed for your apps."),
+    "database": ([ContextKind.SCHEMA], "Database", "Data models, detected databases, and migrations."),
+    "tests": ([ContextKind.TESTING], "Tests", "Test cases DevForge has designed across your projects."),
+    "code-issues": ([ContextKind.REVIEW, ContextKind.SECURITY], "Code Issues",
+                    "Review findings and security scan results across your projects."),
+}
+
+
+@login_required
+def section(request, slug):
+    """A slice of the digital twin (APIs / schema / tests / issues) per project."""
+    meta = _SECTION.get(slug)
+    if meta is None:
+        raise Http404
+    kinds, title, sub = meta
+    from apps.database.models import DatabaseMigration
+    rows = []
+    for p in Project.objects.filter(
+        organization__in=organizations_for(request.user)
+    ).select_related("organization"):
+        entries = list(ContextEntry.objects.filter(project=p, kind__in=kinds))
+        extra = {}
+        if slug == "database":
+            extra = {"db": (p.technology or {}).get("database"),
+                     "migrations": DatabaseMigration.objects.filter(project=p).count()}
+        if entries or extra.get("db") or extra.get("migrations"):
+            rows.append({"project": p, "entries": entries[:60], "count": len(entries), **extra})
+    return render(request, "dashboard/section.html", {
+        "active": slug, "title": title, "sub": sub, "rows": rows, "slug": slug,
+    })
+
+
+@login_required
+def repository(request):
+    """Browse the generated source and git history of each project."""
+    from apps.repositories.service import repo_for_project
+    rows = []
+    for p in Project.objects.filter(
+        organization__in=organizations_for(request.user)
+    ).select_related("organization"):
+        repo = repo_for_project(p)
+        if not repo.is_initialized:
+            rows.append({"project": p, "files": [], "log": []})
+            continue
+        rows.append({"project": p, "files": repo.list_files()[:100], "log": repo.log(10)})
+    return render(request, "dashboard/repository.html", {"active": "repository", "rows": rows})
+
+
+@login_required
+def templates_page(request):
+    """Starter templates = the technology stacks DevForge can build and run."""
+    from apps.technology.stacks import all_stacks
+    stacks = [
+        {"id": s.id, "language": s.language, "framework": s.framework,
+         "kind": s.kind, "runnable": s.is_runnable()}
+        for s in all_stacks()
+    ]
+    return render(request, "dashboard/templates.html", {"active": "templates", "stacks": stacks})
+
+
+@login_required
+def settings_page(request):
+    """Project settings: rename / describe / delete (owner/admin)."""
+    orgs = list(organizations_for(request.user))
+    manageable = _manageable_ids(request.user)
+    if request.method == "POST":
+        proj = get_object_or_404(Project, pk=request.POST.get("project", 0), organization__in=orgs)
+        if proj.organization_id not in manageable:
+            messages.error(request, "Owner or admin rights required.")
+            return redirect("dashboard:settings")
+        action = request.POST.get("action")
+        if action == "rename":
+            name = (request.POST.get("name") or "").strip()
+            if name:
+                proj.name = name
+                proj.description = (request.POST.get("description") or "").strip()
+                proj.save(update_fields=["name", "description", "updated_at"])
+                messages.success(request, "Project updated.")
+        elif action == "delete":
+            proj.delete()
+            messages.success(request, "Project deleted.")
+        return redirect("dashboard:settings")
+    rows = [
+        {"project": p, "can_manage": p.organization_id in manageable}
+        for p in Project.objects.filter(organization__in=orgs).select_related("organization")
+    ]
+    return render(request, "dashboard/settings.html", {"active": "settings", "rows": rows})
+
+
+_OPS = {
+    "environments": "Environments", "cloud": "Cloud", "infrastructure": "Infrastructure",
+    "monitoring": "Monitoring", "logs": "Logs", "incidents": "Incidents",
+    "scaling": "Scaling", "performance": "Performance", "modernization": "Modernization",
+}
+# Areas that need a live connection before they can show real metrics.
+_OPS_NEEDS_CONNECTION = {
+    "monitoring": "a monitored, deployed environment",
+    "incidents": "monitoring connected to a live deployment",
+    "scaling": "live traffic and resource metrics from a deployment",
+    "performance": "profiling data from a running app",
+    "infrastructure": "a connected cloud/infrastructure provider",
+}
+
+
+@login_required
+def operations(request, area):
+    """Deploy/operate pages. Shows real adjacent state; never invents metrics."""
+    if area not in _OPS:
+        raise Http404
+    orgs = organizations_for(request.user)
+    ctx = {"active": area, "title": _OPS[area], "area": area,
+           "needs": _OPS_NEEDS_CONNECTION.get(area)}
+    if area == "environments":
+        ctx["workspaces"] = Workspace.objects.filter(
+            project__organization__in=orgs).select_related("project")
+        ctx["deployments"] = Deployment.objects.filter(
+            project__organization__in=orgs).select_related("project").order_by("-created_at")[:50]
+    elif area == "cloud":
+        from apps.deployments.providers import provider_status
+        ctx["providers"] = provider_status()
+    elif area == "logs":
+        ctx["tasks"] = AgentTask.objects.filter(
+            project__organization__in=orgs).select_related("project").order_by("-created_at")[:60]
+    elif area == "modernization":
+        ctx["imports"] = Project.objects.filter(
+            organization__in=orgs, mode="import").select_related("organization")
+    return render(request, "dashboard/operations.html", ctx)

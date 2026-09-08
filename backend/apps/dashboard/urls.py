@@ -18,6 +18,11 @@ urlpatterns = [
     path("tasks/", views.tasks, name="tasks"),
     path("deployments/", views.deployments, name="deployments"),
     path("usage/", views.usage, name="usage"),
+    path("section/<slug:slug>/", views.section, name="section"),
+    path("repository/", views.repository, name="repository"),
+    path("templates/", views.templates_page, name="templates"),
+    path("settings/", views.settings_page, name="settings"),
+    path("ops/<slug:area>/", views.operations, name="ops"),
     path("soon/<slug:slug>/", views.soon, name="soon"),
     path(
         "login/",

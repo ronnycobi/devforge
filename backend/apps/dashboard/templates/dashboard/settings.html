@@ -1,0 +1,34 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Settings · DevForge{% endblock %}
+{% block crumb %}Project / Settings{% endblock %}
+{% block content %}
+  <h1>Project settings</h1>
+  <p class="sub">Rename, describe, or delete your projects. Owner/admin only.</p>
+
+  {% for r in rows %}
+  <div class="card" style="margin-bottom:14px">
+    {% if r.can_manage %}
+    <form method="post" class="inline" style="align-items:flex-end">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="rename">
+      <input type="hidden" name="project" value="{{ r.project.id }}">
+      <div style="flex:2"><label>Name</label><input name="name" value="{{ r.project.name }}" required></div>
+      <div style="flex:3"><label>Description</label><input name="description" value="{{ r.project.description }}" placeholder="optional"></div>
+      <div><button type="submit">Save</button></div>
+    </form>
+    <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">
+      <span class="muted" style="font-size:12px">{{ r.project.organization.name }} · created {{ r.project.created_at|date:"M j, Y" }}</span>
+      <form method="post" onsubmit="return confirm('Delete “{{ r.project.name }}” and its workspace? This cannot be undone.')">
+        {% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="project" value="{{ r.project.id }}">
+        <button class="ghost" type="submit" style="color:var(--fail);border-color:rgba(248,113,113,.4)">Delete project</button>
+      </form>
+    </div>
+    {% else %}
+    <span style="font-weight:700">{{ r.project.name }}</span>
+    <span class="muted" style="font-size:12px"> · {{ r.project.organization.name }} · view only</span>
+    {% endif %}
+  </div>
+  {% empty %}
+  <div class="card"><p class="empty">No projects yet.</p></div>
+  {% endfor %}
+{% endblock %}

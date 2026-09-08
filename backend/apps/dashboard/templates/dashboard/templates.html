@@ -1,0 +1,26 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Templates · DevForge{% endblock %}
+{% block crumb %}Build / Templates{% endblock %}
+{% block content %}
+  <h1>Starter templates</h1>
+  <p class="sub">The technology stacks DevForge can generate. “Runnable” means DevForge
+    compiles and tests it in the sandbox on this environment; others generate real,
+    exportable source that runs where their toolchain is available.</p>
+
+  <div class="card">
+    <table>
+      <tr><th>Stack</th><th>Language</th><th>Framework</th><th>Kind</th><th>Runnable here</th></tr>
+      {% for s in stacks %}
+      <tr>
+        <td class="strong">{{ s.id }}</td>
+        <td>{{ s.language }}</td>
+        <td class="muted">{{ s.framework|default:"—" }}</td>
+        <td><span class="chip">{{ s.kind }}</span></td>
+        <td>{% if s.runnable %}<span class="badge b-completed">yes</span>{% else %}<span class="badge b-queued">exportable</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  <p class="muted" style="font-size:12.5px;margin-top:10px">Start a project from any of these on the
+    <a href="{% url 'dashboard:projects' %}">Projects</a> page (choose the stack there).</p>
+{% endblock %}

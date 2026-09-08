@@ -1,0 +1,80 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}{{ title }} · DevForge{% endblock %}
+{% block crumb %}Operations / {{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+
+  {% if area == 'environments' %}
+  <p class="sub">Workspaces and deployments across your projects.</p>
+  <div class="card">
+    <div style="font-weight:700;margin-bottom:6px">Workspaces</div>
+    <table>
+      <tr><th>Workspace</th><th>Project</th><th>Environment</th><th>Default</th></tr>
+      {% for w in workspaces %}
+      <tr><td class="strong">{{ w.name }}</td><td>{{ w.project.name }}</td>
+        <td><span class="chip">{{ w.get_environment_display }}</span></td>
+        <td>{% if w.is_default %}✓{% else %}—{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="4" class="empty">No workspaces yet.</td></tr>{% endfor %}
+    </table>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div style="font-weight:700;margin-bottom:6px">Deployments</div>
+    <table>
+      <tr><th>Project</th><th>Environment</th><th>Provider</th><th>Status</th></tr>
+      {% for d in deployments %}
+      <tr><td>{{ d.project.name }}</td><td>{{ d.get_environment_display }}</td>
+        <td class="muted">{{ d.provider }}</td><td><span class="badge b-{{ d.status }}">{{ d.get_status_display }}</span></td></tr>
+      {% empty %}<tr><td colspan="4" class="empty">No deployments yet.</td></tr>{% endfor %}
+    </table>
+  </div>
+
+  {% elif area == 'cloud' %}
+  <p class="sub">Cloud providers DevForge can deploy to. Providers are separate from the
+    database/stack; a provider is usable once its credentials are configured.</p>
+  <div class="card">
+    <table>
+      <tr><th>Provider</th><th>Status</th></tr>
+      {% for p in providers %}
+      <tr><td class="strong">{{ p.name }}</td>
+        <td>{% if p.available %}<span class="badge b-completed">available</span>{% else %}<span class="badge b-queued">not configured</span>{% endif %}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  {% elif area == 'logs' %}
+  <p class="sub">Recent agent activity across your projects (the real execution log).</p>
+  <div class="card">
+    <table>
+      <tr><th>When</th><th>Agent</th><th>Project</th><th>Status</th><th>Detail</th></tr>
+      {% for t in tasks %}
+      <tr><td class="muted">{{ t.created_at|date:"M j, H:i" }}</td>
+        <td>{{ t.agent_key }}</td><td>{{ t.project.name }}</td>
+        <td><span class="badge b-{{ t.status }}">{{ t.get_status_display }}</span></td>
+        <td class="muted" style="font-size:12px">{% if t.messages %}{{ t.messages|last|truncatechars:60 }}{% elif t.error %}{{ t.error|truncatechars:60 }}{% else %}—{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="5" class="empty">No agent activity yet.</td></tr>{% endfor %}
+    </table>
+  </div>
+
+  {% elif area == 'modernization' %}
+  <p class="sub">Imported (existing) applications DevForge can modernize.</p>
+  <div class="card">
+    <table>
+      <tr><th>Project</th><th>Organization</th><th>Stack</th></tr>
+      {% for p in imports %}
+      <tr><td class="strong">{{ p.name }}</td><td class="muted">{{ p.organization.name }}</td>
+        <td>{% for role, tech in p.technology.items %}<span class="chip">{{ tech }}</span>{% empty %}—{% endfor %}</td></tr>
+      {% empty %}<tr><td colspan="3" class="empty">No imported apps yet — bring one in via <a href="{% url 'dashboard:import' %}">Analyze Software</a>.</td></tr>{% endfor %}
+    </table>
+  </div>
+
+  {% else %}
+  <p class="sub">This is a live-operations view.</p>
+  <div class="card">
+    <p style="margin-top:0">{{ title }} shows real data once {{ needs|default:"a live deployment" }} is connected.
+      DevForge doesn't invent metrics — until then there's nothing real to show here.</p>
+    <p class="muted" style="font-size:12.5px;margin-bottom:0">
+      Deploy a project (<a href="{% url 'dashboard:deployments' %}">Deployments</a>) and connect a
+      provider (<a href="{% url 'dashboard:ops' 'cloud' %}">Cloud</a>) to light this up.</p>
+  </div>
+  {% endif %}
+{% endblock %}

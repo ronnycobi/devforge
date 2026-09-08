@@ -192,3 +192,41 @@ class PeopleUITests(TestCase):
         self.assertTrue(
             self.org.memberships.filter(user=joiner).exists()  # membership created
         )
+
+
+class RealPagesTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="rp@x.com", password="pw12345!")
+        self.org = Organization.objects.create(name="Acme")
+        self.org.add_member(self.user, role=Role.OWNER)
+        Project.objects.create(organization=self.org, name="App", created_by=self.user)
+        self.client.force_login(self.user)
+
+    def test_all_former_soon_links_render_real_pages(self):
+        named = ["templates", "repository", "settings"]
+        for name in named:
+            r = self.client.get(reverse(f"dashboard:{name}"))
+            self.assertEqual(r.status_code, 200, name)
+            self.assertNotContains(r, "coming soon")
+        for slug in ["apis", "database", "tests", "code-issues"]:
+            r = self.client.get(reverse("dashboard:section", args=[slug]))
+            self.assertEqual(r.status_code, 200, slug)
+            self.assertNotContains(r, "coming soon")
+        for area in ["environments", "cloud", "logs", "monitoring", "incidents",
+                     "scaling", "performance", "infrastructure", "modernization"]:
+            r = self.client.get(reverse("dashboard:ops", args=[area]))
+            self.assertEqual(r.status_code, 200, area)
+            self.assertNotContains(r, "coming soon")
+
+    def test_settings_rename_and_delete(self):
+        p = Project.objects.create(organization=self.org, name="Temp", created_by=self.user)
+        self.client.post(reverse("dashboard:settings"),
+                         {"action": "rename", "project": p.id, "name": "Renamed", "description": "d"})
+        p.refresh_from_db()
+        self.assertEqual(p.name, "Renamed")
+        self.client.post(reverse("dashboard:settings"), {"action": "delete", "project": p.id})
+        self.assertFalse(Project.objects.filter(pk=p.id).exists())
+
+    def test_unknown_section_404(self):
+        self.assertEqual(self.client.get(reverse("dashboard:section", args=["nope"])).status_code, 404)
+        self.assertEqual(self.client.get(reverse("dashboard:ops", args=["nope"])).status_code, 404)

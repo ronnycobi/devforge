@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "devforge",
-      "runtimeExecutable": "/Users/apple/Documents/pythonProjects/env/bin/python",
-      "runtimeArgs": ["backend/manage.py", "runserver", "8020"],
-      "port": 8020
+      "runtimeExecutable": "../env/bin/python",
+      "runtimeArgs": ["backend/manage.py", "runserver", "8000"],
+      "port": 8000,
+      "url": "http://localhost:8000/app/"
     }
   ]
 }

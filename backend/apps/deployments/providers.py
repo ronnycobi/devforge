@@ -83,3 +83,11 @@ def get_provider(name: str) -> CloudProvider | None:
 
 def all_providers() -> list[CloudProvider]:
     return list(_PROVIDERS.values())
+
+
+def provider_status() -> list[dict]:
+    """Name + availability for every known cloud provider (for the UI)."""
+    return [
+        {"name": name, "available": p.is_available()}
+        for name, p in _PROVIDERS.items()
+    ]

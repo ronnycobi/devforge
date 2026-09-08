@@ -1,0 +1,34 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}{{ title }} · DevForge{% endblock %}
+{% block crumb %}{{ title }}{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p class="sub">{{ sub }}</p>
+
+  {% if rows %}
+  {% for r in rows %}
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <span style="font-weight:700">{{ r.project.name }}</span>
+      <span class="muted" style="font-size:12px">{{ r.project.organization.name }}
+        {% if slug == 'database' %}· {{ r.db|default:"no datastore chosen" }} · {{ r.migrations }} migration(s){% endif %}
+        · {{ r.count }} item(s)</span>
+    </div>
+    {% if r.entries %}
+    <table style="margin-top:10px">
+      <tr><th>Item</th>{% if slug == 'code-issues' %}<th style="width:90px">Severity</th>{% endif %}<th>Detail</th></tr>
+      {% for e in r.entries %}
+      <tr>
+        <td class="strong">{{ e.title }}</td>
+        {% if slug == 'code-issues' %}<td><span class="badge b-{% if e.data.severity == 'high' %}failed{% elif e.data.severity == 'medium' %}waiting_for_approval{% else %}queued{% endif %}">{{ e.data.severity|default:"info" }}</span></td>{% endif %}
+        <td class="muted" style="font-size:13px">{{ e.content|truncatechars:120 }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty" style="margin:8px 0 0">Recorded, but no {{ title|lower }} items yet.</p>{% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="card"><p class="empty">Nothing here yet — {{ title|lower }} appear as DevForge builds or analyzes your projects.</p></div>
+  {% endif %}
+{% endblock %}
