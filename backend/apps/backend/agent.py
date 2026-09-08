@@ -21,9 +21,14 @@ from apps.agents.definitions import BACKEND
 from apps.agents.runners import register_runner
 from apps.ai_providers.base import Message
 from apps.backend.parsing import parse_backend
-from apps.backend.prompts import build_user_prompt, repair_prompt, system_prompt
+from apps.backend.prompts import (
+    build_user_prompt,
+    repair_prompt,
+    system_prompt,
+    test_repair_prompt,
+)
 from apps.codegen.parsing import parse_files
-from apps.codegen.service import materialize, verify_python
+from apps.codegen.service import materialize, run_repo_tests, verify_python
 from apps.core.jsonx import extract_json
 from apps.model_router.router import ModelRouter, RoutingRequest, TaskComplexity
 from apps.project_context.models import ContextKind
@@ -94,57 +99,69 @@ class BackendAgent(BaseAgent):
         user_prompt = build_user_prompt(
             architecture, requirements, schema, existing_api, brief
         )
+        max_repairs = int(context.input.get("max_repairs", 2))
+        run_tests = context.input.get("run_tests", True)
 
-        # Generate, verify, and (on failure) repair before anything ships. We
-        # verify in-memory first and only materialize code that we've either
-        # confirmed compiles or exhausted repair attempts trying to fix.
+        # Generate, then verify and repair before anything is declared done.
+        # A single repair budget covers two kinds of failure, in order:
+        #   1. compile — checked in-memory (cheap), repaired before we materialize;
+        #   2. tests   — real suite run in the sandbox once it compiles, repaired
+        #                against the actual failure output.
         response = self._complete(system, [Message("user", user_prompt)])
         app_label = self._extract_app_label(stack, response.text)
         files = self._build_files(stack, response.text, app_label)
-        verified, verify_log = (verify_python(files) if files else (None, ""))
-
-        max_repairs = int(context.input.get("max_repairs", 2))
-        total_tokens = response.usage.total_tokens
         final_response = response
-        repair_rounds = 0
+        total_tokens = response.usage.total_tokens
+        rounds = 0
 
-        while files and verified is False and repair_rounds < max_repairs:
-            repair_rounds += 1
-            fix = self._complete(
-                system,
-                [
-                    Message("user", user_prompt),
-                    Message("assistant", final_response.text),
-                    Message("user", repair_prompt(stack, verify_log)),
-                ],
+        # Phase 1: compile.
+        compiled, compile_log = (verify_python(files) if files else (None, ""))
+        while files and compiled is False and rounds < max_repairs:
+            rounds += 1
+            fix, repaired = self._ask_repair(
+                stack, system, user_prompt, final_response.text,
+                repair_prompt(stack, compile_log), app_label,
             )
             total_tokens += fix.usage.total_tokens
-            repaired = self._build_files(stack, fix.text, app_label)
             if not repaired:
-                break  # model returned nothing usable; keep the prior attempt
+                break  # nothing usable came back; keep the prior attempt
             files, final_response = repaired, fix
-            verified, verify_log = verify_python(files)
+            compiled, compile_log = verify_python(files)
+
+        commit_sha = self._materialize(project, stack, files, context) if files else None
+
+        # Phase 2: real tests (only if it compiles and the caller wants them).
+        tests_passed, test_log, tests_ran = None, "", 0
+        if files and compiled and run_tests:
+            result = run_repo_tests(project)
+            tests_passed = result.get("passed")
+            tests_ran = result.get("ran", 0)
+            test_log = (result.get("output") or result.get("note") or "").strip()
+            while tests_passed is False and rounds < max_repairs:
+                rounds += 1
+                fix, repaired = self._ask_repair(
+                    stack, system, user_prompt, final_response.text,
+                    test_repair_prompt(stack, test_log), app_label,
+                )
+                total_tokens += fix.usage.total_tokens
+                if not repaired:
+                    break
+                files, final_response = repaired, fix
+                compiled, compile_log = verify_python(files)
+                commit_sha = self._materialize(project, stack, files, context)
+                if not compiled:
+                    break  # the fix broke compilation; reported honestly below
+                result = run_repo_tests(project)
+                tests_passed = result.get("passed")
+                tests_ran = result.get("ran", 0)
+                test_log = (result.get("output") or result.get("note") or "").strip()
 
         source = f"agent:{self.key}#task:{context.metadata.get('task_id', '')}"
         endpoints = parse_backend(final_response.text)["endpoints"]
         self._persist_endpoints(ctx, endpoints, source)
 
-        commit_sha = None
-        if files:
-            _, commit_sha = materialize(
-                project,
-                files,
-                message=f"{stack.id} backend by {self.key} (task {context.metadata.get('task_id', '')})",
-            )
-
-        if not files:
-            messages = [f"{final_response.model} returned no parseable code; nothing written."]
-        else:
-            check = "passed" if verified else "FAILED"
-            note = f"[{stack.id}] generated {len(files)} file(s) via {final_response.model}."
-            if repair_rounds:
-                note += f" Self-repair rounds: {repair_rounds}."
-            messages = [note, f"Compile check: {check} — {verify_log}"]
+        messages = self._summary(stack, final_response, files, rounds, compiled,
+                                  compile_log, run_tests, tests_passed, tests_ran, test_log)
 
         return AgentResult.completed(
             self.key,
@@ -155,9 +172,12 @@ class BackendAgent(BaseAgent):
                 "endpoints_written": len(endpoints),
                 "files_generated": len(files),
                 "commit": commit_sha,
-                "verified": verified,
-                "repair_rounds": repair_rounds,
-                "compile_log": verify_log,
+                "verified": compiled,
+                "tests_passed": tests_passed,
+                "tests_ran": tests_ran,
+                "repair_rounds": rounds,
+                "compile_log": compile_log,
+                "test_log": test_log[-2000:],
             },
             messages=messages,
             model=final_response.model,
@@ -171,6 +191,40 @@ class BackendAgent(BaseAgent):
             system=system,
             max_tokens=4000,
         )
+
+    def _ask_repair(self, stack, system, user_prompt, prior_text, instruction, app_label):
+        """One repair turn: show the model its prior answer + the failure, rebuild."""
+        fix = self._complete(system, [
+            Message("user", user_prompt),
+            Message("assistant", prior_text),
+            Message("user", instruction),
+        ])
+        return fix, self._build_files(stack, fix.text, app_label)
+
+    def _materialize(self, project, stack, files, context):
+        _, sha = materialize(
+            project, files,
+            message=f"{stack.id} backend by {self.key} (task {context.metadata.get('task_id', '')})",
+        )
+        return sha
+
+    @staticmethod
+    def _summary(stack, response, files, rounds, compiled, compile_log,
+                 run_tests, tests_passed, tests_ran, test_log):
+        if not files:
+            return [f"{response.model} returned no parseable code; nothing written."]
+        note = f"[{stack.id}] generated {len(files)} file(s) via {response.model}."
+        if rounds:
+            note += f" Self-repair rounds: {rounds}."
+        out = [note, f"Compile check: {'passed' if compiled else 'FAILED'} — {compile_log}"]
+        if run_tests and compiled:
+            if tests_passed is True:
+                out.append(f"Tests: passed ({tests_ran} run).")
+            elif tests_passed is False:
+                out.append(f"Tests: FAILED — {test_log[-300:]}")
+            else:
+                out.append(f"Tests: not run — {test_log or 'nothing runnable here'}.")
+        return out
 
     def _extract_app_label(self, stack, text):
         if not stack.needs_app_label:

@@ -39,6 +39,19 @@ def repair_prompt(stack, error_log: str) -> str:
     )
 
 
+def test_repair_prompt(stack, test_output: str) -> str:
+    """Ask the model to fix code that compiles but whose tests fail."""
+    shape = "files, endpoints" + (", app_label" if stack.needs_app_label else "")
+    return (
+        "The code compiles but its TESTS FAIL. Fix the code so the tests pass.\n\n"
+        f"Test output:\n{(test_output or '').strip()[-1500:] or '(no detail)'}\n\n"
+        "Fix the actual defect in the implementation (do not weaken or delete a "
+        "test to make it pass, unless a test is clearly wrong). Return the COMPLETE "
+        f"corrected JSON in the same shape ({shape}) — every file needed to run, "
+        "not a diff. No prose outside the JSON."
+    )
+
+
 def build_user_prompt(architecture_digest, requirements_digest, schema_digest,
                       existing_api="", brief=""):
     parts = []

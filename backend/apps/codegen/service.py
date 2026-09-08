@@ -150,11 +150,19 @@ def run_repo_tests(project, *, command=None) -> dict:
     if go_pass or go_fail:
         ran = ran or (go_pass + go_fail)
         failures = failures or go_fail
+    errors = _int(re.search(r"errors=(\d+)", output))
+
+    passed = result.exit_code == 0 and not result.timed_out
+    # Nothing actually ran and nothing errored (e.g. unittest's exit-5 "NO TESTS
+    # RAN") is "nothing to verify", not a failure — don't let it trigger repairs.
+    if ran == 0 and failures == 0 and errors == 0 and not result.timed_out:
+        passed = None
+
     return {
         "ran": ran,
         "failures": failures,
-        "errors": _int(re.search(r"errors=(\d+)", output)),
-        "passed": result.exit_code == 0 and not result.timed_out,
+        "errors": errors,
+        "passed": passed,
         "exit_code": result.exit_code,
         "timed_out": result.timed_out,
         "output": output[-2000:],

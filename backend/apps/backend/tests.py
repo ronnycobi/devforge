@@ -106,6 +106,10 @@ class BackendCodegenFlowTests(TestCase):
 
     def _run(self, response_text=None, task_input=None, side_effect=None):
         effect = side_effect or _fake(response_text)
+        # Default these agent-unit tests to compile-only (fast, focused). The
+        # dedicated test-repair cases opt into real test runs explicitly.
+        task_in = {"run_tests": False}
+        task_in.update(task_input or {})
         with tempfile.TemporaryDirectory() as tmp:
             with override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
                 with mock.patch(
@@ -114,7 +118,7 @@ class BackendCodegenFlowTests(TestCase):
                 ):
                     orch = Orchestrator()
                     task = orch.create_task(
-                        project=self.project, agent_key="backend", input=task_input or {}
+                        project=self.project, agent_key="backend", input=task_in
                     )
                     orch.run_task(task)
                     task.refresh_from_db()
@@ -260,6 +264,64 @@ class BackendCodegenFlowTests(TestCase):
         )
         self.assertTrue(task.output["verified"])
         self.assertEqual(task.output["repair_rounds"], 1)
+
+    # --- repair against real test runs -----------------------------------
+
+    def test_repairs_against_failing_tests(self):
+        # Compiles both times, but the first implementation has a bug its own
+        # test catches; the repair round fixes the code so the suite passes.
+        buggy = json.dumps({"endpoints": [], "files": [
+            {"path": "calc.py", "content": "def add(a, b):\n    return a - b\n"},
+            {"path": "test_calc.py", "content": (
+                "import unittest\nfrom calc import add\n\n"
+                "class T(unittest.TestCase):\n"
+                "    def test_add(self):\n        self.assertEqual(add(1, 1), 2)\n"
+            )},
+        ]})
+        fixed = json.dumps({"endpoints": [], "files": [
+            {"path": "calc.py", "content": "def add(a, b):\n    return a + b\n"},
+            {"path": "test_calc.py", "content": (
+                "import unittest\nfrom calc import add\n\n"
+                "class T(unittest.TestCase):\n"
+                "    def test_add(self):\n        self.assertEqual(add(1, 1), 2)\n"
+            )},
+        ]})
+        task, files = self._run(
+            side_effect=_sequence(buggy, fixed), task_input={"run_tests": True}
+        )
+        self.assertEqual(task.status, "completed")
+        self.assertTrue(task.output["verified"])          # compiled throughout
+        self.assertTrue(task.output["tests_passed"])       # fixed → suite green
+        self.assertEqual(task.output["repair_rounds"], 1)  # one test-repair round
+        self.assertGreaterEqual(task.output["tests_ran"], 1)
+
+    def test_reports_test_failure_after_repairs_exhausted(self):
+        # Always buggy: compiles, but the test never passes even after repairs.
+        buggy = json.dumps({"endpoints": [], "files": [
+            {"path": "calc.py", "content": "def add(a, b):\n    return a - b\n"},
+            {"path": "test_calc.py", "content": (
+                "import unittest\nfrom calc import add\n\n"
+                "class T(unittest.TestCase):\n"
+                "    def test_add(self):\n        self.assertEqual(add(1, 1), 2)\n"
+            )},
+        ]})
+        task, _ = self._run(response_text=buggy, task_input={"run_tests": True})
+        self.assertEqual(task.status, "completed")
+        self.assertTrue(task.output["verified"])           # it compiles
+        self.assertFalse(task.output["tests_passed"])      # but tests fail, honestly
+        self.assertEqual(task.output["repair_rounds"], 2)  # tried twice
+        self.assertIn("FAILED", " ".join(task.messages))
+
+    def test_no_runnable_tests_is_not_a_failure(self):
+        # Compiles, no test files → nothing to run → shipped, not blocked.
+        only_impl = json.dumps(
+            {"endpoints": [], "files": [{"path": "svc.py", "content": "def ok():\n    return 1\n"}]}
+        )
+        task, _ = self._run(response_text=only_impl, task_input={"run_tests": True})
+        self.assertEqual(task.status, "completed")
+        self.assertTrue(task.output["verified"])
+        self.assertIsNone(task.output["tests_passed"])     # nothing to run
+        self.assertEqual(task.output["repair_rounds"], 0)
 
     def test_offline_stub_generates_nothing(self):
         orch = Orchestrator()
