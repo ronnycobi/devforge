@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.test import TestCase
 
-from apps.organizations.models import Membership, Organization, Role
+from apps.organizations.models import Membership, Organization, Role, Team
 
 User = get_user_model()
 
@@ -54,3 +54,87 @@ class MembershipTests(TestCase):
         self.org.add_member(self.user, role=Role.ADMIN)
         self.assertIn(self.org, self.user.organizations.all())
         self.assertIn(self.user, self.org.members.all())
+
+
+class TeamTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(email="own@x.com", password="pw12345!")
+        self.member = User.objects.create_user(email="mem@x.com", password="pw12345!")
+        self.outsider = User.objects.create_user(email="out@x.com", password="pw12345!")
+        self.org = Organization.objects.create(name="Acme")
+        self.org.add_member(self.owner, role=Role.OWNER)
+        self.org.add_member(self.member)
+
+    def test_team_slug_unique_per_org(self):
+        a = Team.objects.create(organization=self.org, name="Platform")
+        b = Team.objects.create(organization=self.org, name="Platform")
+        self.assertEqual(a.slug, "platform")
+        self.assertNotEqual(a.slug, b.slug)  # scoped-unique, auto-suffixed
+
+    def test_add_member_requires_org_membership(self):
+        team = Team.objects.create(organization=self.org, name="Core")
+        team.add_member(self.member)
+        self.assertIn(self.member, team.members.all())
+        with self.assertRaises(ValueError):
+            team.add_member(self.outsider)  # not in the org
+
+
+class InvitationTests(TestCase):
+    def setUp(self):
+        from apps.organizations import invitations
+        self.inv = invitations
+        self.owner = User.objects.create_user(email="own@x.com", password="pw12345!")
+        self.org = Organization.objects.create(name="Acme")
+        self.org.add_member(self.owner, role=Role.OWNER)
+
+    def test_create_and_accept(self):
+        invite = self.inv.create_invitation(self.org, "New@X.com", role=Role.ADMIN,
+                                            invited_by=self.owner)
+        self.assertTrue(invite.is_pending)
+        self.assertTrue(invite.token)
+        user = User.objects.create_user(email="new@x.com", password="pw12345!")
+        m = self.inv.accept_invitation(invite.token, user)
+        self.assertEqual(m.role, Role.ADMIN)
+        invite.refresh_from_db()
+        self.assertEqual(invite.status, "accepted")
+
+    def test_cannot_invite_existing_member(self):
+        with self.assertRaises(self.inv.InvitationError):
+            self.inv.create_invitation(self.org, "own@x.com")
+
+    def test_accept_requires_matching_email(self):
+        invite = self.inv.create_invitation(self.org, "a@x.com")
+        wrong = User.objects.create_user(email="b@x.com", password="pw12345!")
+        with self.assertRaises(self.inv.InvitationError):
+            self.inv.accept_invitation(invite.token, wrong)
+
+    def test_cannot_accept_twice(self):
+        invite = self.inv.create_invitation(self.org, "c@x.com")
+        u = User.objects.create_user(email="c@x.com", password="pw12345!")
+        self.inv.accept_invitation(invite.token, u)
+        with self.assertRaises(self.inv.InvitationError):
+            self.inv.accept_invitation(invite.token, u)
+
+    def test_revoked_cannot_be_accepted(self):
+        invite = self.inv.create_invitation(self.org, "d@x.com")
+        self.inv.revoke_invitation(invite)
+        u = User.objects.create_user(email="d@x.com", password="pw12345!")
+        with self.assertRaises(self.inv.InvitationError):
+            self.inv.accept_invitation(invite.token, u)
+
+    def test_expired_cannot_be_accepted(self):
+        from django.utils import timezone
+        from datetime import timedelta
+        invite = self.inv.create_invitation(self.org, "e@x.com")
+        invite.expires_at = timezone.now() - timedelta(days=1)
+        invite.save(update_fields=["expires_at"])
+        u = User.objects.create_user(email="e@x.com", password="pw12345!")
+        with self.assertRaises(self.inv.InvitationError):
+            self.inv.accept_invitation(invite.token, u)
+
+    def test_reinvite_supersedes_previous_pending(self):
+        first = self.inv.create_invitation(self.org, "f@x.com")
+        second = self.inv.create_invitation(self.org, "f@x.com")
+        first.refresh_from_db()
+        self.assertEqual(first.status, "revoked")
+        self.assertTrue(second.is_pending)
