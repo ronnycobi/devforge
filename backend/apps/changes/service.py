@@ -126,6 +126,9 @@ def approve(change: ChangeRequest, user) -> ChangeRequest:
     # deploy (DevForge doesn't apply to a customer DB it has no connection to).
     if change.migration_id and not change.migration.approved:
         migration_service.approve(change.migration, user)
+    from apps.audit.service import record
+    record("change.approved", actor=user, organization=change.project.organization,
+           target=f"change:{change.id}", summary=change.description[:200])
     return change
 
 
@@ -167,6 +170,14 @@ def implement(change: ChangeRequest) -> ChangeRequest:
     change.result_commit = repo.head() if repo.is_initialized else ""
     change.status = ChangeStatus.DONE if change.result["ok"] else ChangeStatus.FAILED
     change.save(update_fields=["result", "result_commit", "status", "updated_at"])
+    from apps.audit.service import record
+    record(
+        "change.implemented" if change.result["ok"] else "change.failed",
+        actor=change.created_by, organization=change.project.organization,
+        target=f"change:{change.id}",
+        summary=f"{change.result['completed']}/{change.result['total']} steps",
+        metadata={"commit": change.result_commit, "failed": change.result.get("failed", [])},
+    )
     return change
 
 

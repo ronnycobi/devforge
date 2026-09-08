@@ -83,6 +83,10 @@ def approve(migration: DatabaseMigration, user) -> DatabaseMigration:
     if migration.status == MigrationStatus.AWAITING_APPROVAL:
         migration.status = MigrationStatus.APPROVED
     migration.save(update_fields=["approved_by", "approved_at", "status"])
+    from apps.audit.service import record
+    record("migration.approved", actor=user, organization=migration.project.organization,
+           target=f"migration:{migration.id}",
+           summary=f"{migration.operation} · {migration.risk_level} risk")
     return migration
 
 

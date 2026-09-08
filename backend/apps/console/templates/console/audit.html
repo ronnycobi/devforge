@@ -1,0 +1,32 @@
+{% extends "console/base_console.html" %}
+{% block title %}Audit Log · Staff Console{% endblock %}
+{% block crumb %}Business / Audit Log{% endblock %}
+{% block content %}
+  <h1>Audit log</h1>
+  <p class="sub">Security-relevant actions across every tenant — who did what, when.</p>
+
+  <div class="filters">
+    <a href="{% url 'console:audit' %}" class="{% if not current %}on{% endif %}">All</a>
+    {% for a in actions %}
+    <a href="?action={{ a }}" class="{% if current == a %}on{% endif %}">{{ a }}</a>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    {% if rows %}
+    <table>
+      <tr><th>When</th><th>Action</th><th>Actor</th><th>Tenant</th><th>Target</th><th>Detail</th></tr>
+      {% for e in rows %}
+      <tr>
+        <td class="muted">{{ e.created_at|date:"M j, H:i" }}</td>
+        <td class="strong">{{ e.action }}</td>
+        <td>{{ e.actor.email|default:"system" }}</td>
+        <td class="muted">{% if e.organization %}<a href="{% url 'console:org' e.organization.id %}">{{ e.organization.name }}</a>{% else %}—{% endif %}</td>
+        <td class="muted">{{ e.target|default:"—" }}</td>
+        <td class="muted">{{ e.summary|truncatechars:70 }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No audit events yet.</p>{% endif %}
+  </div>
+{% endblock %}

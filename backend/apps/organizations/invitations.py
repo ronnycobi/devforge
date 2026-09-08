@@ -75,6 +75,9 @@ def accept_invitation(token: str, user) -> Membership:
     inv.status = InvitationStatus.ACCEPTED
     inv.accepted_at = timezone.now()
     inv.save(update_fields=["status", "accepted_at"])
+    from apps.audit.service import record
+    record("member.joined", actor=user, organization=inv.organization,
+           target=f"user:{user.id}", summary=f"{user.email} joined as {inv.role}")
     return membership
 
 

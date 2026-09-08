@@ -50,6 +50,10 @@ def approve(deployment: Deployment, user) -> Deployment:
     deployment.save(
         update_fields=["approved", "approved_by", "approved_at", "status"]
     )
+    from apps.audit.service import record
+    record("deploy.approved", actor=user, organization=deployment.project.organization,
+           target=f"deployment:{deployment.id}",
+           summary=f"{deployment.environment} · {deployment.provider}")
     return deployment
 
 
@@ -85,6 +89,12 @@ def run(deployment: Deployment) -> Deployment:
     deployment.log = log
     deployment.completed_at = timezone.now()
     deployment.save(update_fields=["status", "url", "log", "completed_at"])
+    from apps.audit.service import record
+    record("deploy.succeeded", actor=deployment.created_by,
+           organization=deployment.project.organization,
+           target=f"deployment:{deployment.id}",
+           summary=f"{deployment.environment} · {deployment.provider}",
+           metadata={"url": deployment.url})
     return deployment
 
 

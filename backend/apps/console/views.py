@@ -186,3 +186,18 @@ def deployments(request):
 def leads(request):
     rows = ContactMessage.objects.order_by("-created_at")[:200]
     return render(request, "console/leads.html", {"active": "leads", "rows": rows})
+
+
+@staff_required
+def audit(request):
+    from apps.audit.models import AuditEvent
+    action = request.GET.get("action") or ""
+    qs = AuditEvent.objects.select_related("actor", "organization").order_by("-created_at")
+    if action:
+        qs = qs.filter(action=action)
+    actions = sorted(
+        AuditEvent.objects.values_list("action", flat=True).distinct()
+    )
+    return render(request, "console/audit.html", {
+        "active": "audit", "rows": qs[:300], "actions": actions, "current": action,
+    })

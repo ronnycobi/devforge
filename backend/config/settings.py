@@ -79,6 +79,7 @@ INSTALLED_APPS = [
     "apps.ingest",
     "apps.dashboard",
     "apps.console",
+    "apps.audit",
     "apps.marketing",
     "apps.notifications",
 ]
