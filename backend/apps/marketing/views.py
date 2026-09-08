@@ -42,6 +42,28 @@ _CAPABILITIES = [
 ]
 
 
+_BUILD_CATEGORIES = [
+    ("Business applications", ["CRM", "ERP", "Operations software", "HR systems", "Finance systems"]),
+    ("Customer products", ["SaaS", "Marketplaces", "Booking systems", "E-commerce", "Customer portals"]),
+    ("Websites", ["Business websites", "Landing pages", "Marketing sites", "Directories"]),
+    ("Internal tools", ["Dashboards", "Approval systems", "Workflow tools", "Reporting"]),
+    ("Developer products", ["APIs", "Backend systems", "Data applications", "Developer tools"]),
+]
+_EXAMPLES = [
+    ("CRM", "Build a CRM with contacts, companies, leads, deals and a sales dashboard."),
+    ("SaaS", "Build a SaaS platform where teams sign up, manage members and subscribe."),
+    ("Website", "Build a professional website for my business with services and contact pages."),
+    ("E-commerce", "Build an online store with a product catalog, cart, checkout and orders."),
+    ("Customer Portal", "Build a portal where clients log in, submit requests and track status."),
+    ("Internal Tool", "Build an internal tool to manage tasks, approvals and reports."),
+]
+_IMPROVE_EXAMPLES = [
+    "Add WhatsApp support.", "Fix the checkout.", "Make the dashboard faster.",
+    "Add employee leave management.", "Add PayFast payments.",
+    "Redesign the customer portal.", "Modernize this old application.",
+]
+
+
 def _base_context():
     return {
         "pillars": _PILLARS,
@@ -52,7 +74,13 @@ def _base_context():
 
 
 def home(request):
-    return render(request, "marketing/home.html", _base_context())
+    ctx = _base_context()
+    ctx.update({
+        "build_categories": _BUILD_CATEGORIES,
+        "examples": _EXAMPLES,
+        "improve_examples": _IMPROVE_EXAMPLES,
+    })
+    return render(request, "marketing/home.html", ctx)
 
 
 def platform(request):
@@ -78,18 +106,21 @@ def capabilities(request):
 
 def pricing(request):
     tiers = [
-        {"name": "Free", "price": "$0", "credits": plans().get("free", 0),
-         "blurb": "Explore DevForge and build your first project.",
-         "features": ["1 organization", "Community support", "Export your code anytime"]},
-        {"name": "Pro", "price": "$49", "credits": plans().get("pro", 0),
-         "blurb": "For individual builders shipping real software.",
-         "features": ["Unlimited projects", "All runnable stacks", "Priority agents"], "highlight": True},
-        {"name": "Business", "price": "$199", "credits": plans().get("business", 0),
-         "blurb": "For teams building and operating products.",
-         "features": ["Team members & roles", "Deployments & environments", "Usage analytics"]},
-        {"name": "Enterprise", "price": "Custom", "credits": None,
-         "blurb": "Private deployment, SSO, data residency, and support.",
-         "features": ["SSO / SAML", "Private models & networking", "Dedicated support"]},
+        {"name": "Free", "price": "R0", "period": "", "credits": plans().get("free", 0),
+         "blurb": "Explore DevForge.",
+         "features": ["Build projects", "Limited AI usage", "Preview", "Export your code anytime"]},
+        {"name": "Builder", "price": "R299", "period": "/ month", "credits": plans().get("pro", 0),
+         "blurb": "For serious builders.",
+         "features": ["More AI credits", "More projects", "Deployment", "Git integration", "Custom domain"],
+         "highlight": True},
+        {"name": "Pro", "price": "R999", "period": "/ month", "credits": plans().get("business", 0),
+         "blurb": "For businesses.",
+         "features": ["Higher AI allowance", "Improve existing software", "Team collaboration",
+                      "Monitoring", "More deployment capacity"]},
+        {"name": "Business", "price": "Custom", "period": "", "credits": None,
+         "blurb": "For growing teams.",
+         "features": ["Team management", "Security & audit logs", "Private deployments",
+                      "Advanced controls", "Priority support"]},
     ]
     return render(request, "marketing/pricing.html", {**_base_context(), "tiers": tiers})
 
@@ -115,7 +146,10 @@ def contact(request):
 
 
 def signup(request):
+    idea = (request.GET.get("idea") or request.POST.get("idea") or "").strip()
     if request.user.is_authenticated:
+        if idea:
+            request.session["build_idea"] = idea[:2000]
         return redirect("dashboard:home")
     if request.method == "POST":
         email = (request.POST.get("email") or "").strip().lower()
@@ -137,5 +171,10 @@ def signup(request):
             org.add_member(user, role=Role.OWNER)
             ensure_account(org, plan="free")  # start with free-tier credits
             login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+            idea = (request.POST.get("idea") or "").strip()
+            if idea:
+                request.session["build_idea"] = idea[:2000]  # carried into the builder
             return redirect("dashboard:home")
-    return render(request, "marketing/signup.html", _base_context())
+    ctx = _base_context()
+    ctx["idea"] = (request.GET.get("idea") or request.POST.get("idea") or "").strip()
+    return render(request, "marketing/signup.html", ctx)

@@ -1,58 +1,117 @@
 {% extends "marketing/base.html" %}
 {% block body %}
-<section class="hero-glow"><div class="wrap">
-  <div class="eyebrow">AI software engineering platform</div>
-  <h1>Build. Improve.<br><span class="grad">Deploy. Scale.</span></h1>
-  <p class="lead" style="margin-top:18px">
-    DevForge uses AI-powered software engineering to plan, build, test, deploy and
-    improve applications — in the technology stack <em>you</em> choose. Describe
-    what you need; get designed, generated, tested, and deployable software.
-  </p>
-  <div style="margin-top:26px;display:flex;gap:12px;flex-wrap:wrap">
-    <a class="btn grad lg" href="{% url 'marketing:signup' %}">Start building free</a>
-    <a class="btn ghost lg" href="{% url 'marketing:how_it_works' %}">See how it works</a>
-  </div>
-  <div style="margin-top:34px" class="pipe">
-    <span class="step">Describe</span><span class="arw">→</span>
-    <span class="step">Build</span><span class="arw">→</span>
-    <span class="step">Test</span><span class="arw">→</span>
-    <span class="step">Deploy</span><span class="arw">→</span>
-    <span class="step">Operate</span>
-  </div>
-</div></section>
+<style>
+  .promptwrap{max-width:720px;margin:26px auto 0;text-align:left}
+  .promptwrap textarea{width:100%;min-height:120px;resize:vertical;font-size:15px;line-height:1.6;
+    padding:16px 16px 58px;border-radius:16px;border:1px solid rgba(255,255,255,.16);
+    background:rgba(255,255,255,.04);color:#fff}
+  .promptwrap .row{position:relative}
+  .promptwrap .go{position:absolute;right:12px;bottom:12px}
+  .examples{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0 0}
+  .examples .lbl{width:100%;color:var(--muted,#8a93ad);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;text-align:center}
+  .examples button{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.16);color:#cdd5ea;
+    border-radius:99px;padding:7px 15px;font-size:13px;font-weight:600;cursor:pointer}
+  .examples button:hover{color:#fff;border-color:var(--brand,#4f7cff)}
+  .mock{max-width:560px;margin:36px auto 0;border:1px solid rgba(255,255,255,.12);border-radius:16px;
+    background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));overflow:hidden}
+  .mock .top{padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.1);font-size:12px;color:var(--muted,#8a93ad)}
+  .mock .body{padding:20px}
+  .mock .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px}
+  .mock .kpi .k{font-size:11px;color:var(--muted,#8a93ad);text-transform:uppercase;letter-spacing:.5px}
+  .mock .kpi .v{font-size:24px;font-weight:800}
+  .mock .barline{height:10px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+  .mock .barline>i{display:block;height:100%;width:68%;background:linear-gradient(90deg,#4f7cff,#9b6bff)}
+  .ribbon{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;margin-top:18px}
+  .ribbon .s{border:1px solid rgba(255,255,255,.16);border-radius:99px;padding:6px 14px;font-weight:700;font-size:13px}
+  .ribbon .a{color:var(--muted,#8a93ad)}
+</style>
 
-<section style="padding-top:0"><div class="wrap">
-  <div class="grid g4">
-    {% for name, blurb in pillars %}
-      <div class="card"><h3 class="grad-text">{{ name }}</h3><p class="muted" style="margin:0">{{ blurb }}</p></div>
+<section class="hero-glow"><div class="wrap" style="text-align:center">
+  <div class="eyebrow">Build it. Improve it. Run it.</div>
+  <h1>Build software by <span class="grad">describing it</span>.</h1>
+  <p class="lead" style="margin:16px auto 0;max-width:640px">
+    From websites and CRMs to full business applications, DevForge turns your idea
+    into working software — then helps you improve, test, deploy and operate it.
+  </p>
+
+  <form class="promptwrap" method="get" action="{% url 'marketing:signup' %}" id="hero">
+    <div class="row">
+      <textarea name="idea" id="idea" placeholder="Build a CRM for my construction company with customers, leads, quotations, projects and a sales dashboard…"></textarea>
+      <button class="btn grad go" type="submit">＋ Build with DevForge</button>
+    </div>
+  </form>
+
+  <div class="examples">
+    <div class="lbl">Try an example</div>
+    {% for label, prompt in examples %}
+      <button type="button" data-prompt="{{ prompt }}">{{ label }}</button>
     {% endfor %}
   </div>
+
+  <!-- Immediately show software (illustrative) -->
+  <div class="mock">
+    <div class="top">Example · “Build a CRM for my consulting company.”</div>
+    <div class="body">
+      <div class="kpis">
+        <div class="kpi"><div class="k">Leads</div><div class="v">284</div></div>
+        <div class="kpi"><div class="k">Deals</div><div class="v grad-text">47</div></div>
+        <div class="kpi"><div class="k">Revenue</div><div class="v">R842,400</div></div>
+      </div>
+      <div class="k" style="font-size:11px;color:var(--muted,#8a93ad);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Pipeline</div>
+      <div class="barline"><i></i></div>
+    </div>
+  </div>
 </div></section>
 
+<!-- Three steps -->
 <section><div class="wrap">
-  <div class="eyebrow">Capabilities</div>
-  <h2>Across the whole software lifecycle</h2>
-  <p class="lead">From understanding requirements to building, testing, deploying and improving your software — one platform, your stack.</p>
-  <div class="grid g3" style="margin-top:22px">
-    {% for title, tagline, desc in capabilities %}
+  <div class="grid g3">
+    <div class="card"><div class="eyebrow">01 — Describe</div><h3>Say what you need</h3><p class="muted" style="margin:0">Tell DevForge, in plain language, the software your business needs.</p></div>
+    <div class="card"><div class="eyebrow">02 — Build</div><h3>Get working software</h3><p class="muted" style="margin:0">DevForge designs it, builds it, and tests it — ready to preview.</p></div>
+    <div class="card"><div class="eyebrow">03 — Improve &amp; operate</div><h3>Keep it growing</h3><p class="muted" style="margin:0">Refine it, deploy it, and keep improving it as your business grows.</p></div>
+  </div>
+</div></section>
+
+<!-- What can you build -->
+<section style="padding-top:0"><div class="wrap">
+  <div class="eyebrow">What can you build?</div>
+  <h2>Build almost anything</h2>
+  <div class="grid g3" style="margin-top:20px">
+    {% for group, items in build_categories %}
       <div class="card">
-        <div class="eyebrow" style="font-size:11px">{{ title }}</div>
-        <h3 style="margin-top:8px">{{ tagline }}</h3>
-        <p class="muted" style="margin:0;font-size:14px">{{ desc }}</p>
+        <h3 style="margin-top:0">{{ group }}</h3>
+        <div>{% for it in items %}<span class="chip">{{ it }}</span> {% endfor %}</div>
       </div>
     {% endfor %}
   </div>
 </div></section>
 
+<!-- Idea to production -->
+<section style="padding-top:0"><div class="wrap card" style="text-align:center;padding:40px 24px">
+  <div class="eyebrow">From idea to production</div>
+  <h2>Don’t stop at the prototype</h2>
+  <p class="lead" style="margin:8px auto 0;max-width:620px">DevForge is built for software that keeps evolving — build the first version,
+    connect real services, deploy it, fix problems, add features, and keep improving it.</p>
+  <div class="ribbon">
+    <span class="s">Idea</span><span class="a">→</span><span class="s">Build</span><span class="a">→</span>
+    <span class="s">Refine</span><span class="a">→</span><span class="s">Test</span><span class="a">→</span>
+    <span class="s">Deploy</span><span class="a">→</span><span class="s">Operate</span><span class="a">→</span>
+    <span class="s grad-text">Improve</span>
+  </div>
+</div></section>
+
+<!-- Bring existing software -->
 <section style="padding-top:0"><div class="wrap">
-  <div class="eyebrow">Any stack</div>
-  <h2>Build in the technology you choose</h2>
-  <p class="lead">DevForge isn’t a single-framework tool. Pick your language and framework — a check marks the stacks DevForge can generate and run today.</p>
-  <div style="margin-top:18px">
-    <div class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Languages</div>
-    {% for t in languages %}<span class="chip {% if t.codegen == 'supported' %}on{% endif %}">{{ t.name }}{% if t.codegen == 'supported' %} <span class="dot">✓</span>{% endif %}</span>{% endfor %}
-    <div class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:1px;margin:16px 0 6px">Frameworks</div>
-    {% for t in frameworks %}<span class="chip {% if t.codegen == 'supported' %}on{% endif %}">{{ t.name }}{% if t.codegen == 'supported' %} <span class="dot">✓</span>{% endif %}</span>{% endfor %}
+  <div class="eyebrow">Existing software</div>
+  <h2>Already have software? Make it better.</h2>
+  <p class="lead">Connect your existing project and tell DevForge what to change.</p>
+  <div style="margin:16px 0 20px">
+    {% for ex in improve_examples %}<span class="chip">“{{ ex }}”</span> {% endfor %}
+  </div>
+  <div class="ribbon" style="justify-content:flex-start">
+    <span class="s">Your software</span><span class="a">→</span><span class="s">DevForge understands it</span><span class="a">→</span>
+    <span class="s">You describe the change</span><span class="a">→</span><span class="s">Implement</span><span class="a">→</span>
+    <span class="s">Test</span><span class="a">→</span><span class="s">Deploy</span>
   </div>
 </div></section>
 
@@ -61,4 +120,16 @@
   <p class="lead" style="margin:8px auto 22px">Free to start. Export your code anytime — no lock-in.</p>
   <a class="btn grad lg" href="{% url 'marketing:signup' %}">Start building free</a>
 </div></section>
+
+<script>
+  (function(){
+    var ta = document.getElementById('idea');
+    document.querySelectorAll('.examples button').forEach(function(b){
+      b.addEventListener('click', function(){ ta.value = b.dataset.prompt; ta.focus(); });
+    });
+    document.getElementById('hero').addEventListener('submit', function(e){
+      if(!ta.value.trim()){ e.preventDefault(); ta.focus(); }
+    });
+  })();
+</script>
 {% endblock %}

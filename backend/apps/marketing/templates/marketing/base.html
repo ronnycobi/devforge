@@ -78,19 +78,17 @@
   <nav><div class="wrap in">
     <a class="logo" href="{% url 'marketing:home' %}"><span class="mark"><img src="{% static 'img/devforge-mark.svg' %}" alt="" onerror="this.remove()"></span>Dev<b>Forge</b></a>
     <div class="links">
-      <a href="{% url 'marketing:platform' %}">Platform</a>
+      <a href="{% url 'marketing:platform' %}">Product</a>
+      <a href="{% url 'marketing:capabilities' %}">Solutions</a>
       <a href="{% url 'marketing:how_it_works' %}">How it works</a>
-      <a href="{% url 'marketing:capabilities' %}">Capabilities</a>
       <a href="{% url 'marketing:pricing' %}">Pricing</a>
-      <a href="{% url 'marketing:about' %}">About</a>
-      <a href="{% url 'marketing:contact' %}">Contact</a>
     </div>
     <div class="cta">
       {% if request.user.is_authenticated %}
         <a class="btn grad" href="{% url 'dashboard:home' %}">Dashboard →</a>
       {% else %}
         <a class="btn ghost" href="{% url 'dashboard:login' %}">Log in</a>
-        <a class="btn grad" href="{% url 'marketing:signup' %}">Start building</a>
+        <a class="btn grad" href="{% url 'marketing:signup' %}">Start building free</a>
       {% endif %}
     </div>
   </div></nav>

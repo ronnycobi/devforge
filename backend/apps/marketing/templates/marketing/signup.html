@@ -8,6 +8,8 @@
   <div class="card" style="margin-top:20px">
     <form method="post">
       {% csrf_token %}
+      {% if idea %}<input type="hidden" name="idea" value="{{ idea }}">
+      <p class="muted" style="font-size:13px;margin:0 0 12px">DevForge will start building: <em>“{{ idea|truncatechars:80 }}”</em></p>{% endif %}
       <label>Full name (optional)</label><input name="full_name" placeholder="Ada Lovelace">
       <label>Work email</label><input type="email" name="email" placeholder="you@company.com" required>
       <label>Password</label><input type="password" name="password" placeholder="At least 8 characters" required minlength="8">

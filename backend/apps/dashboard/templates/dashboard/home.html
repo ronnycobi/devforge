@@ -26,7 +26,7 @@
       {% csrf_token %}
       <input type="hidden" name="action" value="build">
       <div class="promptbox">
-        <textarea name="brief" id="brief" required></textarea>
+        <textarea name="brief" id="brief" required>{{ prefill }}</textarea>
         <button type="submit" class="go">Build →</button>
       </div>
     </form>

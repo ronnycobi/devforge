@@ -166,6 +166,7 @@ def overview(request):
     return render(request, "dashboard/home.html", {
         "active": "overview", "cards": cards,
         "starters": _STARTERS, "placeholders": _PLACEHOLDERS,
+        "prefill": request.session.pop("build_idea", ""),  # carried from marketing signup
     })
 
 

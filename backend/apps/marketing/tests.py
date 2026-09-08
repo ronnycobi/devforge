@@ -16,10 +16,23 @@ class PublicPagesTests(TestCase):
             resp = self.client.get(reverse("marketing:" + name))
             self.assertEqual(resp.status_code, 200, name)
 
-    def test_home_mentions_the_tagline(self):
+    def test_home_is_the_conversational_front_door(self):
         resp = self.client.get(reverse("marketing:home"))
-        self.assertContains(resp, "Build.")
-        self.assertContains(resp, "Deploy.")
+        self.assertContains(resp, "Build software by")   # hero
+        self.assertContains(resp, "Try an example")        # prompt starters
+        self.assertContains(resp, 'action="/signup/"')     # prompt routes to signup
+
+    def test_hero_idea_is_carried_into_signup_then_the_builder(self):
+        # Logged-out: signup shows the idea; after signup it lands in the builder.
+        from apps.accounts.models import User
+        idea = "Build a booking system for my salon."
+        r = self.client.get(reverse("marketing:signup"), {"idea": idea})
+        self.assertContains(r, idea)
+        self.client.post(reverse("marketing:signup"),
+                         {"email": "new@x.com", "password": "pw12345!", "idea": idea})
+        # New account is logged in; the builder prefills from the carried idea.
+        home = self.client.get(reverse("dashboard:home"))
+        self.assertContains(home, idea)
 
     def test_public_pages_never_leak_internal_machinery(self):
         # The internal agent topology / orchestration is proprietary and must not
