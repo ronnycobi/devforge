@@ -404,6 +404,12 @@ def change_detail(request, pk):
         elif action == "implement":
             changes_service.implement(change)
             messages.success(request, "Change implemented — agents ran against the project.")
+        elif action == "rollback":
+            if change.can_rollback:
+                changes_service.rollback(change)
+                messages.success(request, "Change rolled back — repo restored to its pre-change state.")
+            else:
+                messages.error(request, "This change can't be rolled back.")
         return redirect("dashboard:change", pk=pk)
 
     tasks = AgentTask.objects.filter(id__in=change.task_ids or [])

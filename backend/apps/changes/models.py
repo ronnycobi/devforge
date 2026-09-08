@@ -21,6 +21,7 @@ class ChangeStatus(models.TextChoices):
     IMPLEMENTING = "implementing", "Implementing"
     DONE = "done", "Done"
     FAILED = "failed", "Failed"
+    ROLLED_BACK = "rolled_back", "Rolled back"
 
 
 class ChangeRequest(models.Model):
@@ -41,6 +42,9 @@ class ChangeRequest(models.Model):
     )
     task_ids = models.JSONField(default=list, blank=True)  # AgentTask ids created to implement it
     result = models.JSONField(default=dict, blank=True)    # implementation outcome summary
+    # Repo version markers, so a change is a reversible unit of work.
+    base_commit = models.CharField(max_length=40, blank=True)    # HEAD before implement
+    result_commit = models.CharField(max_length=40, blank=True)  # HEAD after implement
     # First-class DB migration this change plans (when it touches the schema).
     migration = models.ForeignKey(
         "database_agent.DatabaseMigration", on_delete=models.SET_NULL,
@@ -63,3 +67,12 @@ class ChangeRequest(models.Model):
     @property
     def risk(self) -> str:
         return (self.plan or {}).get("risk", "medium")
+
+    @property
+    def can_rollback(self) -> bool:
+        """Reversible only if it changed the repo and hasn't been rolled back."""
+        return (
+            self.status == ChangeStatus.DONE
+            and bool(self.base_commit)
+            and self.result_commit != self.base_commit
+        )

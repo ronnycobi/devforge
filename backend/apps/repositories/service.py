@@ -117,3 +117,15 @@ class ProjectRepo:
 
     def diff(self, ref: str = "HEAD") -> str:
         return self._git("diff", ref, check=False).stdout
+
+    def head(self) -> str:
+        """Short SHA of the current HEAD, or '' if the repo has no commits."""
+        r = self._git("rev-parse", "--short", "HEAD", check=False)
+        return r.stdout.strip() if r.returncode == 0 else ""
+
+    def reset_hard(self, sha: str):
+        """Restore the working tree exactly to `sha` (used to roll back a change)."""
+        self._git("reset", "--hard", sha)
+
+    def diff_between(self, base: str, target: str = "HEAD") -> str:
+        return self._git("diff", base, target, check=False).stdout

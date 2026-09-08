@@ -69,11 +69,20 @@
           <form method="post">{% csrf_token %}<input type="hidden" name="action" value="approve"><button type="submit">Approve change</button></form>
         {% endif %}
         {% if change.status == 'planned' or change.approved %}
-          {% if change.status != 'done' %}
+          {% if change.status != 'done' and change.status != 'rolled_back' %}
             <form method="post">{% csrf_token %}<input type="hidden" name="action" value="implement"><button class="ghost" type="submit">▶ Implement</button></form>
           {% endif %}
         {% endif %}
+        {% if change.can_rollback %}
+          <form method="post" onsubmit="return confirm('Roll back this change? The repo will be restored to its pre-change state.')">{% csrf_token %}<input type="hidden" name="action" value="rollback"><button class="ghost" type="submit">↩ Roll back</button></form>
+        {% endif %}
       </div>
+      {% if change.result_commit %}
+      <p class="muted" style="font-size:12px;margin-top:8px">
+        Version: <code>{{ change.base_commit|default:"∅" }}</code> → <code>{{ change.result_commit }}</code>
+        {% if change.status == 'rolled_back' %} · <span class="fail">rolled back</span>{% endif %}
+      </p>
+      {% endif %}
       {% if change.requires_approval and not change.approved %}
         <p class="muted" style="font-size:12px;margin-top:8px">This change is significant — it needs approval before implementing.</p>
       {% endif %}

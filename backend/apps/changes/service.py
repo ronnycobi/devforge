@@ -15,6 +15,7 @@ from apps.orchestrator.models import AgentTask, TaskStatus
 from apps.orchestrator.service import Orchestrator
 from apps.project_context.models import ContextKind
 from apps.project_context.services import ProjectContext
+from apps.repositories.service import repo_for_project
 from apps.technology.registry import technology_for_role
 
 # Which specialist implements each affected area (api folds into backend).
@@ -152,18 +153,41 @@ def implement(change: ChangeRequest) -> ChangeRequest:
         previous = task
         ids.append(task.id)
 
+    repo = repo_for_project(change.project)
+    change.base_commit = repo.head() if repo.is_initialized else ""
     change.task_ids = ids
     change.status = ChangeStatus.IMPLEMENTING
-    change.save(update_fields=["task_ids", "status", "updated_at"])
+    change.save(update_fields=["base_commit", "task_ids", "status", "updated_at"])
 
     orch.run_ready(change.project)
 
     # Report the real outcome: DONE only if every task actually completed;
     # FAILED (with which agents failed) otherwise. Never claim success blindly.
     change.result = _summarize_tasks(ids)
+    change.result_commit = repo.head() if repo.is_initialized else ""
     change.status = ChangeStatus.DONE if change.result["ok"] else ChangeStatus.FAILED
-    change.save(update_fields=["result", "status", "updated_at"])
+    change.save(update_fields=["result", "result_commit", "status", "updated_at"])
     return change
+
+
+def rollback(change: ChangeRequest) -> ChangeRequest:
+    """Reverse an implemented change by restoring the repo to its base commit."""
+    if not change.can_rollback:
+        return change
+    repo = repo_for_project(change.project)
+    repo.reset_hard(change.base_commit)
+    change.status = ChangeStatus.ROLLED_BACK
+    change.save(update_fields=["status", "updated_at"])
+    return change
+
+
+def change_diff(change: ChangeRequest) -> str:
+    """The code diff this change introduced (base → result), if any."""
+    if not (change.base_commit and change.result_commit):
+        return ""
+    return repo_for_project(change.project).diff_between(
+        change.base_commit, change.result_commit
+    )
 
 
 def _summarize_tasks(task_ids: list[int]) -> dict:

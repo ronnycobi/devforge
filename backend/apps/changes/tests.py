@@ -250,3 +250,69 @@ class ChangeUITests(TestCase):
         page = self.client.get(reverse("dashboard:change", args=[change.id]))
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "Affected areas")
+
+
+class RollbackTests(TestCase):
+    def setUp(self):
+        import tempfile
+        from django.test import override_settings
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self._ov = override_settings(DEVFORGE_WORKSPACES_ROOT=self._tmp.name)
+        self._ov.enable()
+        self.addCleanup(self._ov.disable)
+        self.org = Organization.objects.create(name="Acme")
+        self.user = User.objects.create_user(email="o@a.com", password="x")
+        self.project = Project.objects.create(organization=self.org, name="App")
+
+    def _repo(self):
+        from apps.repositories.service import repo_for_project
+        return repo_for_project(self.project)
+
+    def test_reset_hard_restores_tree(self):
+        repo = self._repo()
+        repo.init()
+        repo.write_files({"a.py": "x = 1\n"})
+        base = repo.commit("base")
+        repo.write_files({"b.py": "y = 2\n"})
+        repo.commit("add b")
+        self.assertIn("b.py", repo.list_files())
+        repo.reset_hard(base)
+        self.assertNotIn("b.py", repo.list_files())  # fully restored
+        self.assertIn("a.py", repo.list_files())
+
+    def test_rollback_reverses_a_change(self):
+        repo = self._repo()
+        repo.init()
+        repo.write_files({"a.py": "x = 1\n"})
+        base = repo.commit("base")
+        repo.write_files({"feature.py": "z = 3\n"})
+        result = repo.commit("feature")
+
+        change = svc.create_change(self.project, "Add feature", self.user)
+        change.base_commit = base
+        change.result_commit = result
+        change.status = ChangeStatus.DONE
+        change.save()
+
+        self.assertTrue(change.can_rollback)
+        svc.rollback(change)
+        change.refresh_from_db()
+        self.assertEqual(change.status, ChangeStatus.ROLLED_BACK)
+        self.assertNotIn("feature.py", repo.list_files())
+        self.assertFalse(change.can_rollback)  # already rolled back
+
+    def test_no_rollback_when_repo_unchanged(self):
+        repo = self._repo()
+        repo.init()
+        repo.write_files({"a.py": "x = 1\n"})
+        base = repo.commit("base")
+        change = svc.create_change(self.project, "No-op", self.user)
+        change.base_commit = base
+        change.result_commit = base  # nothing changed
+        change.status = ChangeStatus.DONE
+        change.save()
+        self.assertFalse(change.can_rollback)
+        svc.rollback(change)  # no-op, safe
+        change.refresh_from_db()
+        self.assertEqual(change.status, ChangeStatus.DONE)
