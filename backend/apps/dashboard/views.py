@@ -465,6 +465,15 @@ def publish_center(request, pk):
             config = seo.ensure_config(website)
             n = config.pages.update(approved=True)
             messages.success(request, f"Approved SEO for {n} page(s).")
+        elif action == "add_form" and website:
+            from apps.publishing import forms_service as forms
+            forms.create_form(website, kind=request.POST.get("kind", "contact"), user=request.user)
+            messages.success(request, "Form added — copy its embed snippet into your site.")
+        elif action == "remove_form" and website:
+            form = website.forms.filter(pk=request.POST.get("form", 0)).first()
+            if form:
+                form.delete()
+                messages.success(request, "Form removed.")
         elif action == "seo_apply" and website:
             from apps.publishing import seo_service as seo
             try:
@@ -485,7 +494,17 @@ def publish_center(request, pk):
         "can_publish": pub_readiness.can_publish(checks) if checks else False,
         "domains": website.domains.all() if website else [],
         "seo": _seo_context(website) if website else None,
+        "forms": _forms_context(website, request) if website else None,
+        "lead_count": website.leads.count() if website else 0,
     })
+
+
+def _forms_context(website, request):
+    from apps.publishing.forms_service import embed_html
+    base = f"{request.scheme}://{request.get_host()}"
+    return [{"form": f, "embed": embed_html(f, action_base=base),
+             "submissions": f.submissions.filter(is_spam=False).count()}
+            for f in website.forms.all()]
 
 
 def _seo_context(website):
@@ -498,6 +517,34 @@ def _seo_context(website):
         "pages": list(config.pages.all()) if config else [],
         "applied_at": config.applied_at if config else None,
     }
+
+
+@login_required
+def leads(request, pk):
+    """Leads inbox — the CRM surface for a website's captured leads (spec §23)."""
+    from apps.publishing.models import Lead
+    proj = get_object_or_404(
+        Project.objects.filter(organization__in=organizations_for(request.user)), pk=pk
+    )
+    can_manage = proj.organization_id in _manageable_ids(request.user)
+    website = getattr(proj, "website", None)
+
+    if request.method == "POST" and website and can_manage:
+        lead = Lead.objects.filter(pk=request.POST.get("lead", 0), website=website).first()
+        status = request.POST.get("status")
+        if lead and status in dict(Lead.STATUS):
+            lead.status = status
+            lead.save(update_fields=["status"])
+        return redirect("dashboard:leads", pk=pk)
+
+    rows = list(website.leads.select_related("source_form")[:200]) if website else []
+    status_counts = []
+    if website:
+        status_counts = [(label, website.leads.filter(status=s).count()) for s, label in Lead.STATUS]
+    return render(request, "dashboard/leads.html", {
+        "active": "projects", "project": proj, "can_manage": can_manage,
+        "website": website, "leads": rows, "status_counts": status_counts, "statuses": Lead.STATUS,
+    })
 
 
 @login_required

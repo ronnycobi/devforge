@@ -11,6 +11,7 @@ urlpatterns = [
     path("projects/<int:pk>/", views.project, name="project"),
     path("projects/<int:pk>/release/", views.release_center, name="release_center"),
     path("projects/<int:pk>/publish/", views.publish_center, name="publish_center"),
+    path("projects/<int:pk>/leads/", views.leads, name="leads"),
     path("projects/<int:pk>/preview/", views.preview, name="preview"),
     path("projects/<int:pk>/live/", views.preview_live, {"path": ""}, name="preview_live"),
     path("projects/<int:pk>/live/<path:path>", views.preview_live, name="preview_live_path"),

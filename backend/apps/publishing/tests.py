@@ -274,6 +274,101 @@ class SeoEngineTests(TestCase):
         self.assertEqual(twice.count("devforge:seo -->"), 2)  # one open + one close marker only
 
 
+class FormsAndLeadsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="owner@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Acme Site", created_by=self.user)
+
+    def _site(self, tmp):
+        return pub.get_or_create_website(self.project)
+
+    def test_create_form_has_default_fields(self):
+        from apps.publishing import forms_service as forms
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            form = forms.create_form(self._site(tmp), kind="quote", user=self.user)
+            names = {f["name"] for f in form.fields}
+            self.assertEqual(names, {"name", "email", "phone", "message"})
+            self.assertEqual(form.notify_email, "owner@acme.com")   # defaults to owner
+
+    def test_submission_creates_lead_and_sends_email(self):
+        from django.core import mail
+        from apps.publishing import forms_service as forms
+        from apps.publishing.models import Lead
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            form = forms.create_form(self._site(tmp), kind="contact", user=self.user)
+            sub, lead = forms.submit(form, {"name": "Jo", "email": "jo@x.com", "message": "Hi there"})
+            self.assertIsInstance(lead, Lead)
+            self.assertEqual(lead.name, "Jo")
+            self.assertEqual(lead.email, "jo@x.com")
+            self.assertEqual(Lead.objects.count(), 1)
+            self.assertEqual(len(mail.outbox), 1)              # notification really sent
+            self.assertTrue(sub.email_notified)
+
+    def test_validation_rejects_missing_required(self):
+        from apps.publishing import forms_service as forms
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            form = forms.create_form(self._site(tmp), kind="contact", user=self.user)
+            with self.assertRaises(forms.FormError):
+                forms.submit(form, {"name": "Jo"})            # no email/message
+            with self.assertRaises(forms.FormError):
+                forms.submit(form, {"name": "Jo", "email": "bad", "message": "x"})  # bad email
+
+    def test_honeypot_drops_spam_no_lead(self):
+        from apps.publishing import forms_service as forms
+        from apps.publishing.models import Lead
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            form = forms.create_form(self._site(tmp), kind="contact", user=self.user)
+            sub, lead = forms.submit(form, {"name": "Bot", "email": "b@x.com",
+                                            "message": "spam", "_gotcha": "iamabot"})
+            self.assertIsNone(lead)
+            self.assertTrue(sub.is_spam)
+            self.assertEqual(Lead.objects.count(), 0)
+
+    def test_no_email_configured_still_captures_lead(self):
+        from apps.publishing import forms_service as forms
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            form = forms.create_form(self._site(tmp), kind="contact", user=self.user)
+            form.notify_email = ""; form.save()
+            sub, lead = forms.submit(form, {"name": "Jo", "email": "jo@x.com", "message": "Hi"})
+            self.assertIsNotNone(lead)               # lead captured
+            self.assertFalse(sub.email_notified)     # honest: no email sent
+
+    def test_public_endpoint_creates_lead(self):
+        from apps.publishing import forms_service as forms
+        from apps.publishing.models import Lead
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site(tmp)
+            form = forms.create_form(site, kind="contact", user=self.user)
+            r = self.client.post(
+                reverse("publishing:submit_form", args=[site.subdomain, form.slug]),
+                {"name": "Web Visitor", "email": "v@x.com", "message": "From the site"},
+            )
+            self.assertEqual(r.status_code, 302)     # redirect back to the site
+            self.assertEqual(Lead.objects.filter(name="Web Visitor").count(), 1)
+
+    def test_embed_snippet_points_at_endpoint(self):
+        from apps.publishing import forms_service as forms
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site(tmp)
+            form = forms.create_form(site, kind="contact", user=self.user)
+            html = forms.embed_html(form, action_base="https://devforge.app")
+            self.assertIn(f"/sites/{site.subdomain}/f/{form.slug}", html)
+            self.assertIn('name="_gotcha"', html)    # honeypot present
+
+    def test_leads_inbox_page(self):
+        from apps.publishing import forms_service as forms
+        Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site(tmp)
+            form = forms.create_form(site, kind="contact", user=self.user)
+            forms.submit(form, {"name": "Jo", "email": "jo@x.com", "message": "Hi"})
+            self.client.force_login(self.user)
+            r = self.client.get(reverse("dashboard:leads", args=[self.project.id]))
+            self.assertEqual(r.status_code, 200)
+            self.assertContains(r, "jo@x.com")
+
+
 class PublishUITests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="o@acme.com", password="x")

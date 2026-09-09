@@ -87,6 +87,44 @@
     {% endif %}
   </div>
 
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <h2 style="margin:0">Forms &amp; leads</h2>
+      {% if lead_count %}<a class="ghost" href="{% url 'dashboard:leads' project.id %}" style="display:inline-block;padding:7px 12px;border:1px solid var(--line2);border-radius:9px">Leads inbox ({{ lead_count }}) →</a>{% endif %}
+    </div>
+    <p class="muted" style="font-size:12px;margin-top:6px">
+      Add a form, paste its snippet into your site, and submissions become leads in your inbox —
+      with an email notification. No backend to wire up.
+    </p>
+    {% for f in forms %}
+    <div style="border:1px solid var(--line2);border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div><strong>{{ f.form.name }}</strong> <span class="chip">{{ f.form.get_kind_display }}</span>
+          <span class="muted" style="font-size:12px">· {{ f.submissions }} submission{{ f.submissions|pluralize }}</span></div>
+        {% if can_manage %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="remove_form">
+          <input type="hidden" name="form" value="{{ f.form.id }}"><button class="ghost" type="submit" style="padding:5px 10px;font-size:12px">Remove</button></form>
+        {% endif %}
+      </div>
+      <p class="muted" style="font-size:11px;margin:8px 0 3px">Paste this into your site:</p>
+      <textarea readonly rows="4" style="width:100%;font-family:monospace;font-size:11px" onclick="this.select()">{{ f.embed }}</textarea>
+      {% if f.form.notify_email %}<p class="muted" style="font-size:11px;margin:4px 0 0">Notifies: {{ f.form.notify_email }}</p>{% endif %}
+    </div>
+    {% endfor %}
+    {% if can_manage %}
+    <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px">{% csrf_token %}
+      <input type="hidden" name="action" value="add_form">
+      <select name="kind" style="width:auto">
+        <option value="contact">Contact form</option>
+        <option value="quote">Quotation request</option>
+        <option value="newsletter">Newsletter</option>
+        <option value="booking">Booking</option>
+      </select>
+      <button class="ghost" type="submit">Add form</button>
+    </form>
+    {% endif %}
+  </div>
+
   {% if seo %}
   <div class="card">
     <h2 style="margin-top:0">SEO</h2>

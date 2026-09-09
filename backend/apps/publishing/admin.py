@@ -1,6 +1,8 @@
 from django.contrib import admin
 
-from apps.publishing.models import CustomDomain, PageSeo, PublishVersion, SeoConfig, Website
+from apps.publishing.models import (
+    CustomDomain, Form, FormSubmission, Lead, PageSeo, PublishVersion, SeoConfig, Website,
+)
 
 
 @admin.register(Website)
@@ -27,3 +29,18 @@ admin.site.register(SeoConfig)
 class PageSeoAdmin(admin.ModelAdmin):
     list_display = ("path", "config", "ai_generated", "approved", "applied")
     list_filter = ("ai_generated", "approved", "applied")
+
+
+@admin.register(Form)
+class FormAdmin(admin.ModelAdmin):
+    list_display = ("name", "website", "kind", "active", "created_at")
+    list_filter = ("kind", "active")
+
+
+@admin.register(Lead)
+class LeadAdmin(admin.ModelAdmin):
+    list_display = ("name", "email", "website", "status", "source_form", "created_at")
+    list_filter = ("status",)
+
+
+admin.site.register(FormSubmission)

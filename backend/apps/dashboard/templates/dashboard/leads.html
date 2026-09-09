@@ -1,0 +1,47 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Leads · {{ project.name }}{% endblock %}
+{% block crumb %}Build / Projects / {{ project.name }} / Leads{% endblock %}
+{% block content %}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+    <h1>Leads</h1>
+    <a class="btn ghost" href="{% url 'dashboard:publish_center' project.id %}">← Release Center</a>
+  </div>
+  <p class="sub">{{ project.name }} · leads captured from your website forms.</p>
+
+  {% if not website %}
+  <div class="card"><p class="empty">Set up publishing and add a form to start capturing leads.</p></div>
+  {% else %}
+  <div class="cards" style="margin-bottom:16px">
+    {% for label, count in status_counts %}
+    <div class="card stat"><div class="k">{{ label }}</div><div class="v">{{ count }}</div></div>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    {% if leads %}
+    <table>
+      <tr><th>Name</th><th>Email</th><th>Phone</th><th>Message</th><th>Form</th><th>When</th><th>Status</th></tr>
+      {% for l in leads %}
+      <tr>
+        <td class="strong">{{ l.name|default:"—" }}</td>
+        <td>{{ l.email|default:"—" }}</td>
+        <td class="muted">{{ l.phone|default:"—" }}</td>
+        <td class="muted">{{ l.message|truncatechars:60 }}</td>
+        <td class="muted">{{ l.source_form.name|default:"—" }}</td>
+        <td class="muted">{{ l.created_at|date:"M j, H:i" }}</td>
+        <td>
+          {% if can_manage %}
+          <form method="post">{% csrf_token %}<input type="hidden" name="lead" value="{{ l.id }}">
+            <select name="status" onchange="this.form.submit()" style="width:auto;padding:5px 8px;font-size:12px">
+              {% for s, label in statuses %}<option value="{{ s }}" {% if l.status == s %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+          </form>
+          {% else %}<span class="chip">{{ l.get_status_display }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No leads yet. Add a form and embed it on your site.</p>{% endif %}
+  </div>
+  {% endif %}
+{% endblock %}

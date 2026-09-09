@@ -169,6 +169,76 @@ class PageSeo(models.Model):
         return f"{self.path} SEO"
 
 
+class Form(models.Model):
+    """A form on a customer's website (spec §23). Submissions are validated, stored,
+    emailed, and turned into CRM leads."""
+
+    KINDS = [
+        ("contact", "Contact"), ("lead", "Lead"), ("quote", "Quotation request"),
+        ("newsletter", "Newsletter"), ("booking", "Booking"), ("custom", "Custom"),
+    ]
+
+    website = models.ForeignKey(Website, on_delete=models.CASCADE, related_name="forms")
+    slug = models.SlugField(max_length=64)
+    name = models.CharField(max_length=120)
+    kind = models.CharField(max_length=20, choices=KINDS, default="contact")
+    fields = models.JSONField(default=list)   # [{name,label,type,required}]
+    notify_email = models.EmailField(blank=True)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["website", "slug"], name="uniq_form_slug")
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.website.subdomain})"
+
+
+class FormSubmission(models.Model):
+    """One raw submission of a form (spec §23)."""
+
+    form = models.ForeignKey(Form, on_delete=models.CASCADE, related_name="submissions")
+    data = models.JSONField(default=dict)
+    is_spam = models.BooleanField(default=False)
+    email_notified = models.BooleanField(default=False)   # honest: only true if actually sent
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"submission of {self.form_id} @ {self.created_at:%Y-%m-%d}"
+
+
+class Lead(models.Model):
+    """A CRM lead captured from a website form (spec §23). This is the CRM surface —
+    where leads live and are worked — not a disconnected side store."""
+
+    STATUS = [("new", "New"), ("contacted", "Contacted"), ("qualified", "Qualified"),
+              ("won", "Won"), ("lost", "Lost")]
+
+    website = models.ForeignKey(Website, on_delete=models.CASCADE, related_name="leads")
+    source_form = models.ForeignKey(Form, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name="leads")
+    submission = models.OneToOneField(FormSubmission, on_delete=models.CASCADE,
+                                      null=True, blank=True, related_name="lead")
+    name = models.CharField(max_length=255, blank=True)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=64, blank=True)
+    message = models.TextField(blank=True)
+    status = models.CharField(max_length=16, choices=STATUS, default="new")
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name or self.email or 'Lead'} ({self.status})"
+
+
 class PublishCheck(models.Model):
     """One publish-readiness check result (spec §12, §41)."""
 
