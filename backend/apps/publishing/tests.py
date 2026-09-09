@@ -936,6 +936,89 @@ class AcmeChallengeTests(TestCase):
         self.assertEqual(r.status_code, 404)
 
 
+class PaymentsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="owner@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Acme Site", created_by=self.user)
+
+    def _site(self):
+        return pub.get_or_create_website(self.project)
+
+    def test_card_gateways_gated_manual_available(self):
+        from apps.publishing import payments
+        self.assertTrue(payments.get_provider("manual").is_available())
+        self.assertFalse(payments.get_provider("stripe").is_available())    # no key in env
+        self.assertFalse(payments.get_provider("payfast").is_available())
+
+    def test_gateway_refuses_without_key(self):
+        from apps.publishing import payments
+        with self.assertRaises(payments.PaymentError) as ctx:
+            payments.get_provider("stripe").start_checkout(order=None)
+        self.assertIn("not configured", str(ctx.exception).lower())
+
+    def test_order_total_computed_server_side(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 3}],
+                                      customer_email="buyer@x.com")
+            self.assertEqual(order.subtotal_cents, 4500)   # 3 × 1500, from real price
+            self.assertEqual(order.items.count(), 1)
+
+    def test_manual_checkout_then_merchant_confirms(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}])
+            result = shop.start_checkout(order, provider_key="manual")
+            self.assertEqual(result["mode"], "manual")
+            order.refresh_from_db()
+            self.assertEqual(order.status, "awaiting_payment")   # NOT paid yet
+            # Only a real merchant confirmation marks it paid.
+            shop.confirm_manual_payment(order, user=self.user)
+            order.refresh_from_db()
+            self.assertEqual(order.status, "paid")
+            self.assertEqual(order.payments.filter(status="succeeded").count(), 1)
+
+    def test_checkout_via_gateway_does_not_fake_payment(self):
+        from apps.publishing import ecommerce_service as shop
+        from apps.publishing.payments import PaymentError
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}])
+            with self.assertRaises(PaymentError):
+                shop.start_checkout(order, provider_key="stripe")   # refuses, no fake charge
+            order.refresh_from_db()
+            self.assertEqual(order.status, "pending")   # unchanged — never marked paid
+
+    def test_public_checkout_endpoint_creates_order(self):
+        from apps.publishing import ecommerce_service as shop
+        from apps.publishing.models import Order
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            r = self.client.post(reverse("publishing:checkout", args=[site.subdomain]),
+                                  {"product_id": p.id, "quantity": "2", "email": "b@x.com"})
+            self.assertEqual(r.status_code, 200)
+            self.assertIn(b"Thank you", r.content)
+            order = Order.objects.get(website=site)
+            self.assertEqual(order.subtotal_cents, 3000)
+            self.assertEqual(order.status, "awaiting_payment")
+
+    def test_store_page_renders(self):
+        Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            self.client.force_login(self.user)
+            r = self.client.get(reverse("dashboard:store", args=[self.project.id]))
+            self.assertEqual(r.status_code, 200)
+            self.assertContains(r, "Payment methods")
+            self.assertContains(r, "Not configured")   # card gateways honest
+
+
 class PublishUITests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="o@acme.com", password="x")

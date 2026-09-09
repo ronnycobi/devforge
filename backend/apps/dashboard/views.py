@@ -615,6 +615,60 @@ def analytics(request, pk):
 
 
 @login_required
+def store(request, pk):
+    """Merchant e-commerce console (spec §32): products, orders, manual-payment
+    confirmation. Card gateways are shown with their real availability."""
+    from apps.publishing import ecommerce_service as shop
+    from apps.publishing import payments
+    from apps.publishing import service as pub
+    from apps.publishing.models import Order
+    proj = get_object_or_404(
+        Project.objects.filter(organization__in=organizations_for(request.user)), pk=pk
+    )
+    can_manage = proj.organization_id in _manageable_ids(request.user)
+    website = getattr(proj, "website", None)
+
+    if request.method == "POST":
+        if not can_manage:
+            messages.error(request, "Owner or admin required.")
+            return redirect("dashboard:store", pk=pk)
+        if website is None:
+            website = pub.get_or_create_website(proj)
+        action = request.POST.get("action")
+        try:
+            if action == "add_product":
+                price = request.POST.get("price", "0").strip()
+                cents = int(round(float(price) * 100))
+                shop.create_product(website, name=(request.POST.get("name") or "").strip(),
+                                    price_cents=cents,
+                                    currency=(request.POST.get("currency") or "USD").strip().upper()[:3],
+                                    description=(request.POST.get("description") or "").strip(),
+                                    user=request.user)
+                messages.success(request, "Product added.")
+            elif action == "confirm_payment":
+                order = Order.objects.filter(pk=request.POST.get("order", 0), website=website).first()
+                if order:
+                    shop.confirm_manual_payment(order, user=request.user)
+                    messages.success(request, f"Order {order.reference} marked paid.")
+            elif action == "cancel_order":
+                order = Order.objects.filter(pk=request.POST.get("order", 0), website=website).first()
+                if order:
+                    shop.cancel_order(order, user=request.user)
+                    messages.success(request, "Order cancelled.")
+        except (shop.EcommerceError, ValueError) as exc:
+            messages.error(request, str(exc))
+        return redirect("dashboard:store", pk=pk)
+
+    return render(request, "dashboard/store.html", {
+        "active": "projects", "project": proj, "can_manage": can_manage,
+        "website": website,
+        "products": list(website.products.all()) if website else [],
+        "orders": list(website.orders.prefetch_related("items")[:50]) if website else [],
+        "providers": payments.provider_status(),
+    })
+
+
+@login_required
 def content(request, pk):
     """Content management (spec §25): opt-in collections that generate real pages."""
     from apps.publishing import cms_service as cms

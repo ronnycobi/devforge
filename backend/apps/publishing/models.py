@@ -397,6 +397,112 @@ class AcmeChallenge(models.Model):
         return f"acme-challenge {self.token[:12]}… for {self.domain.hostname}"
 
 
+class Product(models.Model):
+    """A product a customer's website sells (spec §32). Prices are stored in integer
+    minor units (cents) to avoid float rounding."""
+
+    website = models.ForeignKey(Website, on_delete=models.CASCADE, related_name="products")
+    slug = models.SlugField(max_length=80)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    price_cents = models.PositiveIntegerField(default=0)
+    currency = models.CharField(max_length=3, default="USD")
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["website", "slug"], name="uniq_product_slug")
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.price_display})"
+
+    @property
+    def price_display(self) -> str:
+        return f"{self.currency} {self.price_cents / 100:.2f}"
+
+
+class Order(models.Model):
+    """A customer order (spec §32). Status reflects the REAL payment state — it only
+    becomes 'paid' when a payment actually succeeds (a gateway confirmation or a
+    merchant confirming a manual payment), never optimistically."""
+
+    STATUS = [
+        ("pending", "Pending"), ("awaiting_payment", "Awaiting payment"),
+        ("paid", "Paid"), ("failed", "Failed"),
+        ("refunded", "Refunded"), ("cancelled", "Cancelled"),
+    ]
+
+    website = models.ForeignKey(Website, on_delete=models.CASCADE, related_name="orders")
+    reference = models.CharField(max_length=32, unique=True)
+    customer_name = models.CharField(max_length=255, blank=True)
+    customer_email = models.EmailField(blank=True)
+    subtotal_cents = models.PositiveIntegerField(default=0)
+    currency = models.CharField(max_length=3, default="USD")
+    status = models.CharField(max_length=20, choices=STATUS, default="pending")
+    provider = models.CharField(max_length=32, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.reference} ({self.status})"
+
+    @property
+    def total_display(self) -> str:
+        return f"{self.currency} {self.subtotal_cents / 100:.2f}"
+
+
+class OrderItem(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name="order_items")
+    name = models.CharField(max_length=200)
+    unit_price_cents = models.PositiveIntegerField(default=0)
+    quantity = models.PositiveIntegerField(default=1)
+
+    @property
+    def line_total_cents(self) -> int:
+        return self.unit_price_cents * self.quantity
+
+    def __str__(self):
+        return f"{self.quantity} × {self.name}"
+
+
+class Payment(models.Model):
+    """A payment attempt against an order (spec §24, §32). `succeeded` is set only on a
+    real confirmation — a gateway callback or a merchant confirming a manual payment.
+    Card/gateway processing is gated on credentials + a verified integration; nothing
+    here fabricates a successful charge."""
+
+    STATUS = [("pending", "Pending"), ("succeeded", "Succeeded"),
+              ("failed", "Failed"), ("refunded", "Refunded")]
+
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="payments")
+    provider = models.CharField(max_length=32)
+    method = models.CharField(max_length=32, blank=True)     # manual / card / …
+    amount_cents = models.PositiveIntegerField(default=0)
+    currency = models.CharField(max_length=3, default="USD")
+    status = models.CharField(max_length=16, choices=STATUS, default="pending")
+    provider_ref = models.CharField(max_length=255, blank=True)
+    detail = models.CharField(max_length=500, blank=True)
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="confirmed_payments",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.provider} {self.amount_cents / 100:.2f} ({self.status})"
+
+
 class PublishCheck(models.Model):
     """One publish-readiness check result (spec §12, §41)."""
 

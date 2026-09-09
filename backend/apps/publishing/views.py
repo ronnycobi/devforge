@@ -91,3 +91,38 @@ def submit_form(request, subdomain, slug):
     nxt = request.POST.get("_next") or ""
     safe = nxt if nxt.startswith(home) else home
     return HttpResponseRedirect(safe)
+
+
+@csrf_exempt
+@require_POST
+def checkout(request, subdomain):
+    """Public checkout endpoint for a published store (spec §32).
+
+    CSRF-exempt public endpoint (like the form endpoint): a static storefront posts
+    product_id + quantity + customer details. Totals are computed server-side from
+    real product prices; payment starts via the chosen provider (manual works; card
+    gateways refuse until configured — no fake charge)."""
+    from apps.publishing import ecommerce_service as shop
+    from apps.publishing.payments import PaymentError
+    website = Website.objects.filter(subdomain=subdomain).first()
+    if website is None:
+        raise Http404("No such site.")
+    product_id = request.POST.get("product_id")
+    try:
+        qty = max(1, int(request.POST.get("quantity", "1")))
+    except (TypeError, ValueError):
+        qty = 1
+    provider_key = request.POST.get("provider", "manual")
+    try:
+        order = shop.create_order(
+            website, items=[{"product_id": product_id, "quantity": qty}],
+            customer_name=request.POST.get("name", ""),
+            customer_email=request.POST.get("email", ""),
+        )
+        result = shop.start_checkout(order, provider_key=provider_key)
+    except (shop.EcommerceError, PaymentError) as exc:
+        return HttpResponse(f"<h1>Checkout</h1><p>{exc}</p>", status=400)
+    if result.get("mode") == "manual":
+        return HttpResponse(
+            f"<h1>Thank you</h1><p>{result['instructions']}</p>", content_type="text/html")
+    return HttpResponseRedirect(result.get("redirect_url", f"/sites/{subdomain}/"))

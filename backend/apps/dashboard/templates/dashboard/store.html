@@ -1,0 +1,79 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Store · {{ project.name }}{% endblock %}
+{% block crumb %}Build / Projects / {{ project.name }} / Store{% endblock %}
+{% block content %}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+    <h1>Store</h1>
+    <a class="btn ghost" href="{% url 'dashboard:publish_center' project.id %}">← Release Center</a>
+  </div>
+  <p class="sub">{{ project.name }} · products, orders and payments.</p>
+
+  <div class="card">
+    <h2 style="margin-top:0">Payment methods</h2>
+    <table>
+      <tr><th>Method</th><th>Status</th></tr>
+      {% for p in providers %}
+      <tr><td class="strong">{{ p.name }}</td>
+        <td>{% if p.available %}<span class="ok">● Available</span>{% else %}<span class="muted">○ Not configured</span>{% endif %}</td></tr>
+      {% endfor %}
+    </table>
+    <p class="muted" style="font-size:11px;margin-bottom:0">
+      Manual payment (EFT/invoice) works today. Card gateways activate once their keys are
+      configured and the integration is enabled — they never fake a charge.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Products</h2>
+    {% if products %}
+    <table>
+      <tr><th>Product</th><th>Price</th><th>Status</th></tr>
+      {% for p in products %}
+      <tr><td class="strong">{{ p.name }}</td><td>{{ p.price_display }}</td>
+        <td>{% if p.active %}<span class="ok">active</span>{% else %}<span class="muted">inactive</span>{% endif %}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No products yet.</p>{% endif %}
+    {% if can_manage %}
+    <form method="post" style="display:grid;gap:6px;max-width:420px;margin-top:10px">{% csrf_token %}
+      <input type="hidden" name="action" value="add_product">
+      <input type="text" name="name" placeholder="Product name" required>
+      <div style="display:flex;gap:6px">
+        <input type="number" name="price" placeholder="Price" step="0.01" min="0" required style="flex:1">
+        <input type="text" name="currency" placeholder="USD" maxlength="3" value="USD" style="width:80px">
+      </div>
+      <textarea name="description" rows="2" placeholder="Description (optional)"></textarea>
+      <button class="ghost" type="submit" style="justify-self:start">Add product</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Orders</h2>
+    {% if orders %}
+    <table>
+      <tr><th>Reference</th><th>Customer</th><th>Items</th><th>Total</th><th>Method</th><th>Status</th><th></th></tr>
+      {% for o in orders %}
+      <tr>
+        <td class="strong">{{ o.reference }}</td>
+        <td class="muted">{{ o.customer_email|default:o.customer_name|default:"—" }}</td>
+        <td class="muted">{% for it in o.items.all %}{{ it.quantity }}×{{ it.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+        <td>{{ o.total_display }}</td>
+        <td class="muted">{{ o.provider|default:"—" }}</td>
+        <td><span class="badge {% if o.status == 'paid' %}b-completed{% elif o.status == 'cancelled' or o.status == 'failed' %}b-failed{% else %}b-waiting_for_approval{% endif %}">{{ o.get_status_display }}</span></td>
+        <td>
+          {% if can_manage and o.status == 'awaiting_payment' and o.provider == 'manual' %}
+          <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="confirm_payment">
+            <input type="hidden" name="order" value="{{ o.id }}"><button class="btn" type="submit" style="padding:4px 10px;font-size:12px">Mark paid</button></form>
+          {% endif %}
+          {% if can_manage and o.status != 'paid' and o.status != 'cancelled' %}
+          <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="cancel_order">
+            <input type="hidden" name="order" value="{{ o.id }}"><button class="ghost" type="submit" style="padding:4px 10px;font-size:12px">Cancel</button></form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No orders yet.</p>{% endif %}
+  </div>
+{% endblock %}

@@ -71,3 +71,27 @@ class ContentCollectionAdmin(admin.ModelAdmin):
 class ContentItemAdmin(admin.ModelAdmin):
     list_display = ("title", "collection", "published", "order")
     list_filter = ("published",)
+
+
+from apps.publishing.models import Order, OrderItem, Payment, Product  # noqa: E402
+
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ("name", "website", "price_cents", "currency", "active")
+    list_filter = ("active", "currency")
+
+
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+    list_display = ("reference", "website", "subtotal_cents", "currency", "status", "provider", "created_at")
+    list_filter = ("status", "provider", "currency")
+
+
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = ("order", "provider", "amount_cents", "currency", "status", "created_at")
+    list_filter = ("status", "provider")
+
+
+admin.site.register(OrderItem)
