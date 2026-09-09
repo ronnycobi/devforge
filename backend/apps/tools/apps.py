@@ -8,3 +8,4 @@ class ToolsConfig(AppConfig):
 
     def ready(self):
         from apps.tools import builtin  # noqa: F401  (registers built-in tools)
+        from apps.tools import connectors  # noqa: F401  (registers external connectors)

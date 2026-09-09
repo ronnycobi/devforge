@@ -15,6 +15,7 @@ urlpatterns = [
     path("deployments/", views.deployments, name="deployments"),
     path("mobile/", views.mobile_releases, name="mobile"),
     path("websites/", views.websites, name="websites"),
+    path("connectors/", views.connectors, name="connectors"),
     path("leads/", views.leads, name="leads"),
     path("audit/", views.audit, name="audit"),
 ]

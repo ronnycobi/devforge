@@ -46,6 +46,7 @@ class Capability(StrEnum):
     USE_REPOSITORY = "use_repository"      # read files / search / diff / log
     WRITE_REPOSITORY = "write_repository"  # write files / commit / branch
     USE_SANDBOX = "use_sandbox"            # execute code in the isolated sandbox
+    USE_CONNECTORS = "use_connectors"      # call external systems via a Connector
 
     # Infrastructure / deployment
     READ_INFRASTRUCTURE = "read_infrastructure"

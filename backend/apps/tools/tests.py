@@ -84,3 +84,50 @@ class BuiltinToolTests(TestCase):
                 res = belt.invoke("tests.run", "run")
         self.assertTrue(res.ok)
         self.assertIsNone(res.data["passed"])  # nothing to run
+
+
+class ConnectorTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Acme")
+        self.project = Project.objects.create(organization=self.org, name="App")
+
+    def test_connectors_require_the_connector_capability(self):
+        # A belt without USE_CONNECTORS can't see or invoke a connector.
+        belt = Toolbelt(self.project, {C.USE_REPOSITORY})
+        self.assertNotIn("connector.github", {t.name for t in belt.available()})
+        with self.assertRaises(ToolPermissionDenied):
+            belt.invoke("connector.github", "repo.info")
+        # With the capability it's available.
+        belt2 = Toolbelt(self.project, {C.USE_CONNECTORS})
+        self.assertIn("connector.github", {t.name for t in belt2.available()})
+
+    def test_unconfigured_connector_refuses_honestly(self):
+        import os
+        from unittest import mock
+        belt = Toolbelt(self.project, {C.USE_CONNECTORS})
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("GITHUB_TOKEN", None)
+            r = belt.invoke("connector.github", "repo.info")
+        self.assertFalse(r.ok)
+        self.assertIn("not configured", r.error.lower())
+
+    def test_configured_connector_does_not_fake(self):
+        import os
+        from unittest import mock
+        belt = Toolbelt(self.project, {C.USE_CONNECTORS})
+        with mock.patch.dict(os.environ, {"GITHUB_TOKEN": "ghp_secret"}, clear=False):
+            r = belt.invoke("connector.github", "repo.info")
+        # Credential present, but no live integration → still refuses, never fabricates.
+        self.assertFalse(r.ok)
+        self.assertIn("not enabled", r.error.lower())
+
+    def test_status_and_describe_never_leak_the_secret(self):
+        import os
+        from unittest import mock
+        from apps.tools.connectors import connector_status, GitHubConnector
+        with mock.patch.dict(os.environ, {"GITHUB_TOKEN": "ghp_supersecret"}, clear=False):
+            status = {c["provider"]: c for c in connector_status()}
+            self.assertTrue(status["GitHub"]["configured"])
+            self.assertEqual(status["GitHub"]["credential_env"], "GITHUB_TOKEN")
+            blob = str(connector_status()) + str(GitHubConnector().describe())
+        self.assertNotIn("ghp_supersecret", blob)   # the value never appears anywhere

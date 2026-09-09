@@ -1,0 +1,27 @@
+{% extends "console/base_console.html" %}
+{% block title %}Connectors · Control Center{% endblock %}
+{% block crumb %}Platform / Connectors{% endblock %}
+{% block content %}
+  <h1>Connectors</h1>
+  <p class="sub">External systems DevForge agents can reach — through the permissioned
+    Tool Registry. A connector is inert until its credential is set in the environment.</p>
+
+  <div class="card">
+    <table>
+      <tr><th>Connector</th><th>Status</th><th>Credential (env var)</th><th>Actions</th></tr>
+      {% for c in connectors %}
+      <tr>
+        <td class="strong">{{ c.provider }}</td>
+        <td>{% if c.configured %}<span class="ok">● Configured</span>{% else %}<span class="muted">○ Not configured</span>{% endif %}</td>
+        <td class="muted"><code>{{ c.credential_env }}</code></td>
+        <td class="muted">{% for a in c.actions %}<span class="chip">{{ a }}</span>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p class="muted" style="font-size:12px;margin-bottom:0">
+      Credentials come from the environment only — their values are never stored, shown
+      here, or handed to an agent. A configured connector still refuses to run until its
+      live integration is enabled, so nothing is ever faked.
+    </p>
+  </div>
+{% endblock %}

@@ -238,6 +238,16 @@ def mobile_releases(request):
 
 
 @staff_required
+def connectors(request):
+    """External connectors inventory (spec: MCP-style layer). Honest: shows each
+    connector and whether it's configured — never the credential value."""
+    from apps.tools.connectors import connector_status
+    return render(request, "console/connectors.html", {
+        "active": "connectors", "connectors": connector_status(),
+    })
+
+
+@staff_required
 def websites(request):
     """Admin view of the Website Publishing platform (spec §43). Read-only, honest:
     host availability, every website, and its publish versions across tenants."""
