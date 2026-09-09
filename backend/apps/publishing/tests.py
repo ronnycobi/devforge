@@ -1020,14 +1020,16 @@ class PaymentsTests(TestCase):
             shop.start_checkout(order, provider_key="manual")
             order.refresh_from_db()
             self.assertTrue(order.confirmation_sent)
-            self.assertEqual(len(mail.outbox), 1)               # confirmation sent
-            self.assertIn(order.reference, mail.outbox[0].body)
-            self.assertIn("2 × Mug", mail.outbox[0].body)       # line items
+            buyer_mail = [m for m in mail.outbox if "buyer@x.com" in m.to]
+            self.assertEqual(len(buyer_mail), 1)                # buyer confirmation sent
+            self.assertIn(order.reference, buyer_mail[0].body)
+            self.assertIn("2 × Mug", buyer_mail[0].body)        # line items
             shop.confirm_manual_payment(order, user=self.user)
             order.refresh_from_db()
             self.assertTrue(order.receipt_sent)
-            self.assertEqual(len(mail.outbox), 2)               # receipt sent
-            self.assertIn("Payment received", mail.outbox[1].subject)
+            buyer_mail = [m for m in mail.outbox if "buyer@x.com" in m.to]
+            self.assertEqual(len(buyer_mail), 2)                # + receipt
+            self.assertIn("Payment received", buyer_mail[1].subject)
 
     def test_no_email_no_send_but_order_stands(self):
         from django.core import mail
@@ -1038,8 +1040,8 @@ class PaymentsTests(TestCase):
             order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}])  # no email
             shop.start_checkout(order, provider_key="manual")
             order.refresh_from_db()
-            self.assertFalse(order.confirmation_sent)           # honest: nothing sent
-            self.assertEqual(len(mail.outbox), 0)
+            self.assertFalse(order.confirmation_sent)           # honest: no buyer email sent
+            self.assertNotIn("buyer", "".join(r for m in mail.outbox for r in m.to))
             self.assertEqual(order.status, "awaiting_payment")  # order still stands
 
     def test_inventory_reserved_on_order(self):
@@ -1364,6 +1366,34 @@ class PaymentsTests(TestCase):
             order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}])
             self.assertEqual(order.tax_cents, 0)
             self.assertEqual(order.total_cents, 1000)
+
+    def test_merchant_notified_of_new_order(self):
+        from django.core import mail
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()   # project owner is self.user (owner@acme.com)
+            p = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}],
+                                      customer_email="buyer@x.com")
+            shop.start_checkout(order, provider_key="manual")
+            # Two emails: buyer confirmation + merchant new-order alert.
+            recipients = [r for m in mail.outbox for r in m.to]
+            self.assertIn("buyer@x.com", recipients)
+            self.assertIn("owner@acme.com", recipients)
+            merchant = next(m for m in mail.outbox if "owner@acme.com" in m.to)
+            self.assertIn(order.reference, merchant.subject)
+            self.assertIn("New order", merchant.subject)
+
+    def test_merchant_notified_even_without_buyer_email(self):
+        from django.core import mail
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}])  # no buyer email
+            shop.start_checkout(order, provider_key="manual")
+            recipients = [r for m in mail.outbox for r in m.to]
+            self.assertEqual(recipients, ["owner@acme.com"])   # only the merchant
 
     def test_store_page_renders(self):
         Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)

@@ -251,6 +251,7 @@ def start_checkout(order: Order, *, provider_key="manual") -> dict:
         body += f"\n{result['instructions']}\n"
     order.confirmation_sent = _email_buyer(order, f"Order {order.reference} received", body)
     order.save(update_fields=["confirmation_sent", "updated_at"])
+    _notify_merchant(order)
     audit("shop.checkout", organization=order.website.project.organization,
           target=f"order:{order.id}", summary=f"{provider_key} · {order.total_display}")
     return result
@@ -385,6 +386,25 @@ def _order_lines(order) -> str:
         f"  {it.quantity} × {it.name} — {order.currency} {it.line_total_cents / 100:.2f}"
         for it in order.items.all()
     )
+
+
+def _notify_merchant(order) -> bool:
+    """Tell the store owner a new order came in (best-effort). Sent to the project
+    owner's email; a failure or missing address never affects the order."""
+    owner = order.website.project.created_by
+    to = getattr(owner, "email", "") if owner else ""
+    if not to:
+        return False
+    try:
+        from apps.notifications.email import send_email
+        lines = _order_lines(order)
+        text = (f"New order {order.reference} on {order.website.project.name}.\n\n"
+                f"{lines}\nTotal: {order.total_display}\nStatus: {order.get_status_display()}\n\n"
+                f"Review it: /app/projects/{order.website.project_id}/store/orders/{order.id}/\n")
+        return bool(send_email(subject=f"New order {order.reference} · {order.website.project.name}",
+                               to=to, text=text))
+    except Exception:
+        return False
 
 
 def _email_buyer(order, subject: str, text: str) -> bool:
