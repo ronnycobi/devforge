@@ -9,6 +9,7 @@ genuine confirmation (spec §50).
 from __future__ import annotations
 
 import secrets
+from datetime import timedelta
 
 from django.db import transaction
 from django.db.models import F
@@ -317,23 +318,52 @@ def refund_order(order: Order, *, user, reason="") -> Order:
     return order
 
 
+def _release_reservations(order: Order) -> None:
+    """Return an incomplete order's reserved stock to inventory and give back the
+    discount-code use. Called for both manual cancels and automatic expiry."""
+    for it in order.items.select_related("product"):
+        if it.product and it.product.track_inventory:
+            Product.objects.filter(pk=it.product_id).update(stock=F("stock") + it.quantity)
+    if order.discount_code_id and order.discount_code and order.discount_code.max_uses:
+        DiscountCode.objects.filter(pk=order.discount_code_id, used_count__gt=0).update(
+            used_count=F("used_count") - 1)
+
+
 def cancel_order(order: Order, *, user=None) -> Order:
     if order.status in ("cancelled", "refunded"):
         return order
-    # Return reserved stock to inventory (only once, and only for tracked products),
-    # and release the discount-code use since the order never completed.
     with transaction.atomic():
-        for it in order.items.select_related("product"):
-            if it.product and it.product.track_inventory:
-                Product.objects.filter(pk=it.product_id).update(stock=F("stock") + it.quantity)
-        if order.discount_code_id and order.discount_code and order.discount_code.max_uses:
-            DiscountCode.objects.filter(pk=order.discount_code_id, used_count__gt=0).update(
-                used_count=F("used_count") - 1)
+        _release_reservations(order)
         order.status = "cancelled"
         order.save(update_fields=["status", "updated_at"])
     audit("shop.cancel", actor=user, organization=order.website.project.organization,
           target=f"order:{order.id}")
     return order
+
+
+def expire_stale_orders(*, older_than_minutes: int, website=None) -> int:
+    """Auto-cancel unpaid orders that have been holding reservations too long, freeing
+    their stock and discount uses (spec §32). This is the reservation-expiry job — run
+    it from cron/systemd (the scheduler is the OS), e.g.:
+
+        */15 * * * * python manage.py expire_orders
+
+    Only touches orders still pending/awaiting_payment past the cutoff; paid, refunded
+    and cancelled orders are never affected."""
+    cutoff = timezone.now() - timedelta(minutes=older_than_minutes)
+    qs = Order.objects.filter(status__in=["pending", "awaiting_payment"], created_at__lt=cutoff)
+    if website is not None:
+        qs = qs.filter(website=website)
+    expired = 0
+    for order in qs.select_related("website__project__organization"):
+        with transaction.atomic():
+            _release_reservations(order)
+            order.status = "cancelled"
+            order.save(update_fields=["status", "updated_at"])
+        audit("shop.expire", organization=order.website.project.organization,
+              target=f"order:{order.id}", summary=f"unpaid > {older_than_minutes}m")
+        expired += 1
+    return expired
 
 
 def sales_summary(website) -> dict:

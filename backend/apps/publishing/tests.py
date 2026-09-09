@@ -1412,6 +1412,69 @@ class PaymentsTests(TestCase):
             # The code works again for a real order.
             shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}], code="ONCE")
 
+    def test_expire_frees_reservations_after_ttl(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.publishing import ecommerce_service as shop
+        from apps.publishing.models import Order
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1000,
+                                    track_inventory=True, stock=5, user=self.user)
+            shop.create_discount(site, code="ONCE", kind="percent", percent_off=10,
+                                 max_uses=1, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 2}], code="ONCE")
+            shop.start_checkout(order, provider_key="manual")
+            p.refresh_from_db(); self.assertEqual(p.stock, 3)          # reserved
+            # Age the order past the TTL.
+            Order.objects.filter(pk=order.pk).update(created_at=timezone.now() - timedelta(hours=48))
+            n = shop.expire_stale_orders(older_than_minutes=1440)
+            self.assertEqual(n, 1)
+            order.refresh_from_db(); p.refresh_from_db()
+            self.assertEqual(order.status, "cancelled")
+            self.assertEqual(p.stock, 5)                              # stock freed
+            self.assertEqual(site.discount_codes.get(code="ONCE").used_count, 0)   # use freed
+
+    def test_expire_respects_cutoff_and_paid(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.publishing import ecommerce_service as shop
+        from apps.publishing.models import Order
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1000,
+                                    track_inventory=True, stock=5, user=self.user)
+            recent = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}])
+            shop.start_checkout(recent, provider_key="manual")
+            paid = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}])
+            shop.start_checkout(paid, provider_key="manual")
+            shop.confirm_manual_payment(paid, user=self.user)
+            Order.objects.filter(pk=paid.pk).update(created_at=timezone.now() - timedelta(hours=48))
+            n = shop.expire_stale_orders(older_than_minutes=1440)
+            self.assertEqual(n, 0)                       # recent one too new, paid one immune
+            recent.refresh_from_db(); paid.refresh_from_db()
+            self.assertEqual(recent.status, "awaiting_payment")
+            self.assertEqual(paid.status, "paid")
+
+    def test_expire_orders_command(self):
+        from datetime import timedelta
+        from io import StringIO
+        from django.core.management import call_command
+        from django.utils import timezone
+        from apps.publishing import ecommerce_service as shop
+        from apps.publishing.models import Order
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1000, user=self.user)
+            o = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}])
+            shop.start_checkout(o, provider_key="manual")
+            Order.objects.filter(pk=o.pk).update(created_at=timezone.now() - timedelta(hours=48))
+            out = StringIO()
+            call_command("expire_orders", "--minutes", "60", stdout=out)
+            self.assertIn("Expired 1", out.getvalue())
+            o.refresh_from_db()
+            self.assertEqual(o.status, "cancelled")
+
     def test_store_page_renders(self):
         Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
         with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):

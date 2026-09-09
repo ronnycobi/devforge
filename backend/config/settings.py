@@ -224,6 +224,10 @@ DEVFORGE_PREFER_QUALITY = env("DEVFORGE_PREFER_QUALITY", "true").lower() in ("1"
 DEVFORGE_BASE_DOMAIN = env("DEVFORGE_BASE_DOMAIN", "devforge.app")
 DEVFORGE_DOMAIN_TARGET = env("DEVFORGE_DOMAIN_TARGET", "hosting.devforge.app")
 
+# How long an unpaid order may hold its stock/discount reservations before the
+# expire_orders job auto-cancels it (minutes). Default 24h.
+DEVFORGE_ORDER_RESERVATION_TTL_MINUTES = int(env("DEVFORGE_ORDER_RESERVATION_TTL_MINUTES", "1440"))
+
 # Email. Real delivery when EMAIL_BACKEND points at SMTP and the host is set;
 # dev defaults to the console backend (prints emails) so nothing is faked and no
 # server is required. Tests capture via the locmem backend automatically.
