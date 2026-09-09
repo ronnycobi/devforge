@@ -1468,6 +1468,45 @@ class StoreManagementTests(TestCase):
             self.assertEqual(order.status, "paid")
 
 
+class StoreProvisionTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="owner@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Candle Shop",
+                                              description="An online store selling candles",
+                                              created_by=self.user)
+
+    def test_provision_sets_up_the_engine(self):
+        from apps.publishing.store_provision import provision_store
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            result = provision_store(self.project, "online store selling candles", user=self.user)
+            site = self.project.website
+            self.assertGreaterEqual(site.products.count(), 1)      # starter catalogue
+            self.assertTrue(site.shipping_rates.exists())          # default shipping
+            self.assertGreaterEqual(result["storefront_pages"], 1)  # /shop generated
+            self.assertIn("shop/index.html", repo_for_project(self.project).list_files())
+
+    def test_provision_is_idempotent(self):
+        from apps.publishing.store_provision import provision_store
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            provision_store(self.project, "store", user=self.user)
+            n = self.project.website.products.count()
+            self.assertIsNone(provision_store(self.project, "store", user=self.user))  # no-op
+            self.assertEqual(self.project.website.products.count(), n)   # no duplicates
+
+    def test_build_hook_provisions_only_for_stores(self):
+        from unittest import mock
+        from apps.dashboard import views
+        with mock.patch.object(views, "Orchestrator") as Orch, \
+             mock.patch("apps.publishing.store_provision.provision_store") as prov:
+            Orch.return_value.run_ready.return_value = []
+            views._start_build(self.project, "build me an online shop", self.user)
+            self.assertTrue(prov.called)                 # store brief → engine wired
+            prov.reset_mock()
+            views._start_build(self.project, "a personal blog about hiking", self.user)
+            self.assertFalse(prov.called)                # non-store brief → not wired
+
+
 class PublishUITests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="o@acme.com", password="x")

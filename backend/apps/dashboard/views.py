@@ -128,6 +128,16 @@ def _start_build(project, brief, user):
             t.depends_on.set([previous])
         previous = t
     orch.run_ready(project)
+    # If this is a store, wire the project to the e-commerce engine (starter catalogue
+    # + shipping + storefront), so a "build me a shop" actually produces a working
+    # store connected to the tested engine — not a bespoke hand-written one.
+    from apps.capabilities.infer import infer_capabilities
+    if any(c.id == "ecommerce" for c in infer_capabilities(brief)):
+        try:
+            from apps.publishing.store_provision import provision_store
+            provision_store(project, brief, user=user)
+        except Exception:
+            pass  # provisioning is best-effort; never break the build
 
 
 @login_required
