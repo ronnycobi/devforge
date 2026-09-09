@@ -121,6 +121,72 @@ class ReleaseFlowTests(TestCase):
             rel.set_identity(self.app, package_identifier="com.acme.somethingelse")
 
 
+class ListingGeneratorTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(email="o@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.owner)
+        self.project = Project.objects.create(
+            organization=self.org, name="Field CRM",
+            description="A CRM for construction teams with customers and invoices",
+            created_by=self.owner,
+        )
+        from apps.project_context.models import ContextKind
+        from apps.project_context.services import ProjectContext
+        ctx = ProjectContext(self.project)
+        for name in ["Customers", "Projects", "Invoices"]:
+            ctx.set(ContextKind.SCREEN, name.lower(), title=f"[mobile] {name}", content=name)
+        self.app = rel.create_mobile_application(project=self.project, name="Field CRM",
+                                                 package_identifier="com.acme.fieldcrm")
+
+    def test_detect_features_reads_real_screens(self):
+        from apps.release.listing import detect_features
+        features = detect_features(self.project)["features"]
+        self.assertIn("Customers", features)
+        self.assertIn("Invoices", features)
+
+    def test_offline_draft_only_uses_real_features(self):
+        from apps.release.listing import generate_listing
+        draft = generate_listing(self.project)
+        # Offline path is honest & deterministic — from detected features, not invented.
+        self.assertEqual(draft["source"], "detected-features")
+        self.assertIn("Customers", draft["full_description"])
+        self.assertLessEqual(len(draft["app_name"]), 30)
+        self.assertLessEqual(len(draft["short_description"]), 80)
+        # It must not fabricate a feature the app doesn't have.
+        self.assertNotIn("Bluetooth", draft["full_description"])
+
+    def test_generate_marks_draft_not_approved(self):
+        store_app = rel.ensure_store_application(self.app, "google_play")
+        md = rel.generate_store_listing(store_app, user=self.owner)
+        self.assertTrue(md.ai_generated)
+        self.assertFalse(md.approved)          # never auto-approved / auto-submitted
+        self.assertTrue(md.full_description)
+        self.assertEqual(md.generated["source"], "detected-features")
+
+    def test_approve_then_release_readiness_reflects_it(self):
+        store_app = rel.ensure_store_application(self.app, "google_play")
+        rel.generate_store_listing(store_app, user=self.owner)
+        rel.set_metadata(store_app, ai_generated=True, approved=False,
+                         privacy_url="https://acme.com/privacy",
+                         app_name="Field CRM", short_description="CRM",
+                         full_description="A CRM for field teams.")
+        rel.approve_metadata(store_app, user=self.owner)
+        release = rel.request_release(app=self.app, provider_key="google_play", user=self.owner)
+        keys = {c.key: c.status for c in release.checks.all()}
+        self.assertEqual(keys["metadata"], "ok")
+        self.assertEqual(keys["privacy"], "ok")
+
+    def test_ui_generate_and_approve(self):
+        Membership.objects.create(organization=self.org, user=self.owner, role=Role.OWNER)
+        self.client.force_login(self.owner)
+        self.client.post(reverse("dashboard:release_center", args=[self.project.id]),
+                         {"action": "create_app"})
+        self.client.post(reverse("dashboard:release_center", args=[self.project.id]),
+                         {"action": "generate_listing", "provider": "google_play"})
+        r = self.client.get(reverse("dashboard:release_center", args=[self.project.id]))
+        self.assertContains(r, "AI-generated draft")
+
+
 class CapabilityTests(TestCase):
     def test_mobile_publishing_is_planned_not_available(self):
         from apps.capabilities.registry import get

@@ -268,15 +268,41 @@ def release_center(request, pk):
             return redirect("dashboard:release_center", pk=pk)
         action = request.POST.get("action")
         if action == "create_app":
-            slug = (proj.slug or proj.name).lower().replace("-", "").replace(" ", "")
-            pkg = f"com.devforge.{slug}"[:250] or "com.devforge.app"
-            app = rel.create_mobile_application(
-                project=proj, name=proj.name, package_identifier=pkg, bundle_identifier=pkg,
-            )
+            # Idempotent: reuse an existing app rather than creating a duplicate.
+            if app is None:
+                slug = (proj.slug or proj.name).lower().replace("-", "").replace(" ", "")
+                pkg = f"com.devforge.{slug}"[:250] or "com.devforge.app"
+                app = rel.create_mobile_application(
+                    project=proj, name=proj.name, package_identifier=pkg, bundle_identifier=pkg,
+                )
+            from apps.release.models import StoreMetadata
             for prov in all_providers():
                 store_app = rel.ensure_store_application(app, prov.key)
-                rel.set_metadata(store_app, app_name=app.name)
-            messages.success(request, "Mobile application created. Connect your store accounts to publish.")
+                if not StoreMetadata.objects.filter(store_application=store_app).exists():
+                    rel.set_metadata(store_app, app_name=app.name)
+            messages.success(request, "Mobile application ready. Connect your store accounts to publish.")
+        elif action == "generate_listing" and app:
+            store_app = app.store_apps.filter(provider=request.POST.get("provider")).first()
+            if store_app:
+                rel.generate_store_listing(store_app, user=request.user)
+                messages.success(request, "Drafted an AI store listing from your app's "
+                                          "features — review and approve it below.")
+        elif action == "save_listing" and app:
+            store_app = app.store_apps.filter(provider=request.POST.get("provider")).first()
+            if store_app:
+                rel.set_metadata(
+                    store_app, ai_generated=False, approved=False,
+                    app_name=(request.POST.get("app_name") or "")[:255],
+                    short_description=(request.POST.get("short_description") or "")[:255],
+                    full_description=request.POST.get("full_description") or "",
+                    privacy_url=request.POST.get("privacy_url") or "",
+                )
+                messages.success(request, "Listing saved.")
+        elif action == "approve_listing" and app:
+            store_app = app.store_apps.filter(provider=request.POST.get("provider")).first()
+            if store_app:
+                rel.approve_metadata(store_app, user=request.user)
+                messages.success(request, "Listing approved.")
         elif action == "prepare_release" and app:
             provider_key = request.POST.get("provider")
             if get_provider(provider_key):

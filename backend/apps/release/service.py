@@ -143,6 +143,52 @@ def set_metadata(store_app: StoreApplication, *, ai_generated=False, approved=Fa
     return md
 
 
+def generate_store_listing(store_app: StoreApplication, *, user=None) -> StoreMetadata:
+    """Draft a store listing from the app's real features (spec §16). The result is
+    marked AI-generated and NOT approved — it is never auto-submitted."""
+    from apps.release.listing import generate_listing
+    project = store_app.mobile_application.project
+    draft = generate_listing(project)
+    md, _ = StoreMetadata.objects.get_or_create(store_application=store_app)
+    md.app_name = draft.get("app_name", "")[:255]
+    md.short_description = draft.get("short_description", "")[:255]
+    md.full_description = draft.get("full_description", "")
+    md.keywords = ", ".join(draft.get("keywords", []))[:500]
+    md.ai_generated = True
+    md.approved = False   # a human must review and approve before it can be submitted
+    md.generated = {
+        "feature_descriptions": draft.get("feature_descriptions", []),
+        "screenshot_captions": draft.get("screenshot_captions", []),
+        "features": draft.get("features", []),
+        "source": draft.get("source", ""),
+    }
+    md.save()
+    store_app.metadata_status = "draft"
+    store_app.save(update_fields=["metadata_status"])
+    from apps.release.models import Release
+    for release in Release.objects.filter(store_application=store_app):
+        evaluate_readiness(release)
+    audit("listing.generate", actor=user, organization=project.organization,
+          target=f"store_app:{store_app.id}", summary=f"AI draft ({draft.get('source', '')})")
+    return md
+
+
+def approve_metadata(store_app: StoreApplication, *, user=None) -> StoreMetadata:
+    """Human approval of a listing draft (spec §16 — no auto-approval of copy)."""
+    md, _ = StoreMetadata.objects.get_or_create(store_application=store_app)
+    md.approved = True
+    md.save(update_fields=["approved", "updated_at"])
+    store_app.metadata_status = "approved"
+    store_app.save(update_fields=["metadata_status"])
+    from apps.release.models import Release
+    for release in Release.objects.filter(store_application=store_app):
+        evaluate_readiness(release)
+    audit("listing.approve", actor=user,
+          organization=store_app.mobile_application.project.organization,
+          target=f"store_app:{store_app.id}")
+    return md
+
+
 # --- releases (spec §18, §21, §22) ---------------------------------------------
 def _state_from_checks(checks) -> str:
     if any(c.status == "fail" for c in checks):

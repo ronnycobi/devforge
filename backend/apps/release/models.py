@@ -222,6 +222,9 @@ class StoreMetadata(models.Model):
     privacy_url = models.URLField(blank=True)
     ai_generated = models.BooleanField(default=False)   # spec §16 — mark AI drafts
     approved = models.BooleanField(default=False)       # never auto-submit declarations
+    # Structured draft extras + provenance: feature_descriptions, screenshot_captions,
+    # the features it was built from, and the source (model name or "detected-features").
+    generated = models.JSONField(default=dict, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):

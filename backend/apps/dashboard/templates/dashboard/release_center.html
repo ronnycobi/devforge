@@ -53,6 +53,59 @@
     </p>
     {% endif %}
 
+    {% with md=s.store_app.metadata %}
+    <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <strong style="font-size:14px">Store listing</strong>
+        {% if md and md.ai_generated and not md.approved %}
+          <span class="chip" style="color:var(--brand)">AI-generated draft</span>
+        {% elif md and md.approved %}
+          <span class="ok">Approved</span>
+        {% endif %}
+      </div>
+      {% if can_manage %}
+      <form method="post" style="margin-top:8px">{% csrf_token %}
+        <input type="hidden" name="action" value="save_listing">
+        <input type="hidden" name="provider" value="{{ s.provider.key }}">
+        <label class="muted" style="font-size:12px">App name</label>
+        <input type="text" name="app_name" maxlength="30" value="{{ md.app_name|default:'' }}"
+               style="width:100%;margin:2px 0 8px">
+        <label class="muted" style="font-size:12px">Short description (max 80)</label>
+        <input type="text" name="short_description" maxlength="80" value="{{ md.short_description|default:'' }}"
+               style="width:100%;margin:2px 0 8px">
+        <label class="muted" style="font-size:12px">Full description</label>
+        <textarea name="full_description" rows="5" style="width:100%;margin:2px 0 8px">{{ md.full_description|default:'' }}</textarea>
+        <label class="muted" style="font-size:12px">Privacy policy URL (required by stores)</label>
+        <input type="url" name="privacy_url" value="{{ md.privacy_url|default:'' }}"
+               style="width:100%;margin:2px 0 8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="ghost" type="submit">Save</button>
+        </div>
+      </form>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        <form method="post" style="display:inline">{% csrf_token %}
+          <input type="hidden" name="action" value="generate_listing">
+          <input type="hidden" name="provider" value="{{ s.provider.key }}">
+          <button class="ghost" type="submit">✨ {% if md %}Regenerate{% else %}Generate{% endif %} with AI</button>
+        </form>
+        {% if md and md.short_description and md.full_description and not md.approved %}
+        <form method="post" style="display:inline">{% csrf_token %}
+          <input type="hidden" name="action" value="approve_listing">
+          <input type="hidden" name="provider" value="{{ s.provider.key }}">
+          <button class="btn" type="submit">Approve listing</button>
+        </form>
+        {% endif %}
+      </div>
+      {% if md and md.ai_generated %}
+      <p class="muted" style="font-size:11px;margin:8px 0 0">
+        Drafted from your app's detected features. Review and approve before
+        publishing — DevForge never submits copy for you.
+      </p>
+      {% endif %}
+      {% endif %}
+    </div>
+    {% endwith %}
+
     {% if s.release %}
     <div style="margin-top:10px">
       <div style="display:flex;justify-content:space-between;font-size:13px">
