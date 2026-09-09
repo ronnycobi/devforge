@@ -135,6 +135,42 @@ def confirm_manual_payment(order: Order, *, user) -> Order:
     return order
 
 
+def refund_order(order: Order, *, user, reason="") -> Order:
+    """Refund a paid order (spec §32). For manual payments this records that the seller
+    refunded the buyer off-platform (real, merchant-confirmed) — it restocks inventory
+    and emails the buyer. Card/gateway refunds need the gateway API and stay gated;
+    nothing here fabricates a refund it can't perform (spec §50)."""
+    if order.status == "refunded":
+        return order
+    if order.status != "paid":
+        raise EcommerceError("Only a paid order can be refunded.")
+    if order.provider != "manual":
+        raise EcommerceError(
+            f"Automatic refunds for {order.provider or 'this provider'} aren't enabled yet — "
+            "issue the refund from the gateway, then cancel the order."
+        )
+    payment = order.payments.filter(status="succeeded").first()
+    with transaction.atomic():
+        for it in order.items.select_related("product"):
+            if it.product and it.product.track_inventory:
+                Product.objects.filter(pk=it.product_id).update(stock=F("stock") + it.quantity)
+        if payment:
+            payment.status = "refunded"
+            payment.detail = (reason or "Refunded by the seller.")[:500]
+            payment.confirmed_by = user
+            payment.save(update_fields=["status", "detail", "confirmed_by"])
+        order.status = "refunded"
+        order.save(update_fields=["status", "updated_at"])
+    body = (f"Your order {order.reference} from {order.website.project.name} has been "
+            f"refunded ({order.total_display}).")
+    if reason:
+        body += f"\n\nNote: {reason}"
+    _email_buyer(order, f"Refund for order {order.reference}", body)
+    audit("shop.refund", actor=user, organization=order.website.project.organization,
+          target=f"order:{order.id}", summary=order.total_display)
+    return order
+
+
 def cancel_order(order: Order, *, user=None) -> Order:
     if order.status in ("cancelled", "refunded"):
         return order

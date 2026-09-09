@@ -1100,6 +1100,57 @@ class PaymentsTests(TestCase):
             self.assertIn("Out of stock", files["shop/index.html"])
             self.assertNotIn("/checkout", files["shop/index.html"])   # no buy form when out
 
+    def test_refund_paid_manual_order_restocks_and_emails(self):
+        from django.core import mail
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500,
+                                    track_inventory=True, stock=5, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 2}],
+                                      customer_email="buyer@x.com")
+            shop.start_checkout(order, provider_key="manual")
+            shop.confirm_manual_payment(order, user=self.user)
+            p.refresh_from_db(); self.assertEqual(p.stock, 3)   # sold, still reserved
+            mail.outbox.clear()
+            shop.refund_order(order, user=self.user, reason="Customer changed mind")
+            order.refresh_from_db(); p.refresh_from_db()
+            self.assertEqual(order.status, "refunded")
+            self.assertEqual(order.payments.filter(status="refunded").count(), 1)
+            self.assertEqual(p.stock, 5)                        # restocked
+            self.assertEqual(len(mail.outbox), 1)               # buyer emailed
+            self.assertIn("refunded", mail.outbox[0].body.lower())
+
+    def test_refund_requires_paid(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}])
+            with self.assertRaises(shop.EcommerceError):
+                shop.refund_order(order, user=self.user)        # not paid
+            shop.start_checkout(order, provider_key="manual")
+            shop.confirm_manual_payment(order, user=self.user)
+            shop.refund_order(order, user=self.user)
+            # Double refund is a no-op.
+            self.assertEqual(shop.refund_order(order, user=self.user).status, "refunded")
+
+    def test_gateway_refund_gated(self):
+        import os
+        from unittest import mock
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}])
+            # Pretend a gateway order reached 'paid' (provider stripe).
+            order.provider = "stripe"; order.status = "paid"; order.save()
+            with self.assertRaises(shop.EcommerceError) as ctx:
+                shop.refund_order(order, user=self.user)
+            self.assertIn("aren't enabled", str(ctx.exception))
+            order.refresh_from_db()
+            self.assertEqual(order.status, "paid")              # not falsely refunded
+
     def test_store_page_renders(self):
         Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
         with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):

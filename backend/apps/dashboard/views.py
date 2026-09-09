@@ -657,6 +657,12 @@ def store(request, pk):
                 if order:
                     shop.cancel_order(order, user=request.user)
                     messages.success(request, "Order cancelled.")
+            elif action == "refund_order":
+                order = Order.objects.filter(pk=request.POST.get("order", 0), website=website).first()
+                if order:
+                    shop.refund_order(order, user=request.user,
+                                      reason=(request.POST.get("reason") or "").strip())
+                    messages.success(request, f"Order {order.reference} refunded.")
             elif action == "generate_storefront":
                 from apps.publishing import storefront
                 try:

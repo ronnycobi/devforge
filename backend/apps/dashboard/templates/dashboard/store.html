@@ -74,13 +74,17 @@
         <td class="muted">{% for it in o.items.all %}{{ it.quantity }}×{{ it.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
         <td>{{ o.total_display }}</td>
         <td class="muted">{{ o.provider|default:"—" }}</td>
-        <td><span class="badge {% if o.status == 'paid' %}b-completed{% elif o.status == 'cancelled' or o.status == 'failed' %}b-failed{% else %}b-waiting_for_approval{% endif %}">{{ o.get_status_display }}</span></td>
+        <td><span class="badge {% if o.status == 'paid' %}b-completed{% elif o.status == 'cancelled' or o.status == 'failed' %}b-failed{% elif o.status == 'refunded' %}b-cancelled{% else %}b-waiting_for_approval{% endif %}">{{ o.get_status_display }}</span></td>
         <td>
           {% if can_manage and o.status == 'awaiting_payment' and o.provider == 'manual' %}
           <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="confirm_payment">
             <input type="hidden" name="order" value="{{ o.id }}"><button class="btn" type="submit" style="padding:4px 10px;font-size:12px">Mark paid</button></form>
           {% endif %}
-          {% if can_manage and o.status != 'paid' and o.status != 'cancelled' %}
+          {% if can_manage and o.status == 'paid' and o.provider == 'manual' %}
+          <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="refund_order">
+            <input type="hidden" name="order" value="{{ o.id }}"><button class="ghost" type="submit" style="padding:4px 10px;font-size:12px">Refund</button></form>
+          {% endif %}
+          {% if can_manage and o.status != 'paid' and o.status != 'cancelled' and o.status != 'refunded' %}
           <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="cancel_order">
             <input type="hidden" name="order" value="{{ o.id }}"><button class="ghost" type="submit" style="padding:4px 10px;font-size:12px">Cancel</button></form>
           {% endif %}
