@@ -320,11 +320,15 @@ def refund_order(order: Order, *, user, reason="") -> Order:
 def cancel_order(order: Order, *, user=None) -> Order:
     if order.status in ("cancelled", "refunded"):
         return order
-    # Return reserved stock to inventory (only once, and only for tracked products).
+    # Return reserved stock to inventory (only once, and only for tracked products),
+    # and release the discount-code use since the order never completed.
     with transaction.atomic():
         for it in order.items.select_related("product"):
             if it.product and it.product.track_inventory:
                 Product.objects.filter(pk=it.product_id).update(stock=F("stock") + it.quantity)
+        if order.discount_code_id and order.discount_code and order.discount_code.max_uses:
+            DiscountCode.objects.filter(pk=order.discount_code_id, used_count__gt=0).update(
+                used_count=F("used_count") - 1)
         order.status = "cancelled"
         order.save(update_fields=["status", "updated_at"])
     audit("shop.cancel", actor=user, organization=order.website.project.organization,
@@ -342,15 +346,17 @@ def sales_summary(website) -> dict:
     orders = website.orders.all()
     counts = {s: orders.filter(status=s).count() for s, _ in Order.STATUS}
 
-    paid_cents, refunded_cents = defaultdict(int), defaultdict(int)
-    for cur, cents in orders.filter(status="paid").values_list("currency", "total_cents"):
-        paid_cents[cur] += cents
+    # Gross = everything that was ever collected (orders that reached paid, incl. those
+    # later refunded); refunded is subtracted ONCE so net = money actually kept.
+    gross_cents, refunded_cents = defaultdict(int), defaultdict(int)
+    for cur, cents in orders.filter(status__in=["paid", "refunded"]).values_list("currency", "total_cents"):
+        gross_cents[cur] += cents
     for cur, cents in orders.filter(status="refunded").values_list("currency", "total_cents"):
         refunded_cents[cur] += cents
 
     revenue = []
-    for cur in sorted(set(paid_cents) | set(refunded_cents)):
-        gross, ref = paid_cents.get(cur, 0), refunded_cents.get(cur, 0)
+    for cur in sorted(set(gross_cents) | set(refunded_cents)):
+        gross, ref = gross_cents.get(cur, 0), refunded_cents.get(cur, 0)
         revenue.append({
             "currency": cur,
             "gross": f"{cur} {gross / 100:.2f}",
@@ -379,7 +385,12 @@ def sales_summary(website) -> dict:
 
 
 def _reference() -> str:
-    return "ORD-" + secrets.token_hex(4).upper()
+    # 40 bits of randomness; retry on the rare collision so a clash never 500s.
+    for _ in range(5):
+        ref = "ORD-" + secrets.token_hex(5).upper()
+        if not Order.objects.filter(reference=ref).exists():
+            return ref
+    return "ORD-" + secrets.token_hex(8).upper()
 
 
 def _order_lines(order) -> str:

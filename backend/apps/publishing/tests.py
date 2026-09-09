@@ -1187,9 +1187,11 @@ class PaymentsTests(TestCase):
             shop.refund_order(o2, user=self.user)                # refund the 1000 order
             s = shop.sales_summary(site)
             row = s["revenue"][0]
-            self.assertEqual(row["gross"], "USD 30.00")          # both paid at time of sale
+            # Gross = everything ever collected (30 + 10); refund subtracted ONCE →
+            # net = money actually kept = 30. (Refund must not be double-counted.)
+            self.assertEqual(row["gross"], "USD 40.00")
             self.assertEqual(row["refunded"], "USD 10.00")
-            self.assertEqual(row["net"], "USD 20.00")
+            self.assertEqual(row["net"], "USD 30.00")
 
     def test_percent_discount_applied(self):
         from apps.publishing import ecommerce_service as shop
@@ -1394,6 +1396,21 @@ class PaymentsTests(TestCase):
             shop.start_checkout(order, provider_key="manual")
             recipients = [r for m in mail.outbox for r in m.to]
             self.assertEqual(recipients, ["owner@acme.com"])   # only the merchant
+
+    def test_cancel_releases_limited_discount_use(self):
+        # Audit finding B: a cancelled (never-completed) order must return the code's use.
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1000, user=self.user)
+            shop.create_discount(site, code="ONCE", kind="percent", percent_off=10,
+                                 max_uses=1, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}], code="ONCE")
+            self.assertEqual(site.discount_codes.get(code="ONCE").used_count, 1)
+            shop.cancel_order(order, user=self.user)
+            self.assertEqual(site.discount_codes.get(code="ONCE").used_count, 0)   # released
+            # The code works again for a real order.
+            shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}], code="ONCE")
 
     def test_store_page_renders(self):
         Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
