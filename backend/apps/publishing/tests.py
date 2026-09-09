@@ -369,6 +369,105 @@ class FormsAndLeadsTests(TestCase):
             self.assertContains(r, "jo@x.com")
 
 
+def _png_bytes(w=100, h=60, color=(200, 40, 40)):
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (w, h), color).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+class AssetManagementTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="owner@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Acme Site", created_by=self.user)
+
+    def _site(self):
+        return pub.get_or_create_website(self.project)
+
+    def test_upload_stores_real_image_with_dims(self):
+        from apps.publishing import assets_service as a
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            asset = a.store_asset(self._site(), filename="Logo File.png", data=_png_bytes(120, 80),
+                                  content_type="image/png", user=self.user)
+            self.assertEqual(asset.kind, "image")
+            self.assertEqual((asset.width, asset.height), (120, 80))
+            self.assertEqual(asset.path, "assets/Logo-File.png")   # sanitized
+            # It's really in the repo (so it publishes with the site).
+            self.assertIn("assets/Logo-File.png", repo_for_project(self.project).list_files())
+
+    def test_rejects_bad_extension_and_oversize(self):
+        from apps.publishing import assets_service as a
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            with self.assertRaises(a.AssetError):
+                a.store_asset(site, filename="evil.php", data=b"<?php ?>", user=self.user)
+            with self.assertRaises(a.AssetError):
+                a.store_asset(site, filename="huge.png", data=b"x" * (a.MAX_SIZE + 1), user=self.user)
+
+    def test_rejects_fake_image(self):
+        from apps.publishing import assets_service as a
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            with self.assertRaises(a.AssetError):   # .png that isn't an image
+                a.store_asset(self._site(), filename="notreally.png", data=b"not an image",
+                              user=self.user)
+
+    def test_resize_is_real(self):
+        from apps.publishing import assets_service as a
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            asset = a.store_asset(self._site(), filename="pic.png", data=_png_bytes(200, 100),
+                                  user=self.user)
+            a.resize_image(asset, width=100, user=self.user)
+            self.assertEqual((asset.width, asset.height), (100, 50))   # aspect preserved
+            from PIL import Image
+            import io
+            with Image.open(io.BytesIO(a.read_bytes(asset))) as im:
+                self.assertEqual(im.size, (100, 50))                   # the file really changed
+
+    def test_compress_reduces_or_keeps_and_delete(self):
+        from apps.publishing import assets_service as a
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            asset = a.store_asset(site, filename="pic.jpg", data=_jpeg_bytes(), user=self.user)
+            before = asset.size
+            a.compress_image(asset, quality=40, user=self.user)
+            self.assertLessEqual(asset.size, before)
+            a.delete_asset(asset, user=self.user)
+            self.assertFalse(site.assets.filter(pk=asset.pk).exists())
+
+    def test_non_image_cannot_be_resized(self):
+        from apps.publishing import assets_service as a
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            asset = a.store_asset(self._site(), filename="doc.pdf", data=b"%PDF-1.4 fake",
+                                  kind="document", user=self.user)
+            with self.assertRaises(a.AssetError):
+                a.resize_image(asset, width=100)
+
+    def test_asset_raw_view_scoped_and_serves(self):
+        from apps.publishing import assets_service as a
+        Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            asset = a.store_asset(self._site(), filename="pic.png", data=_png_bytes(), user=self.user)
+            self.client.force_login(self.user)
+            r = self.client.get(reverse("dashboard:asset_raw", args=[self.project.id, asset.id]))
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r["Content-Type"], "image/png")
+            # A user from another org cannot fetch it.
+            other = User.objects.create_user(email="x@y.com", password="x")
+            self.client.force_login(other)
+            r2 = self.client.get(reverse("dashboard:asset_raw", args=[self.project.id, asset.id]))
+            self.assertEqual(r2.status_code, 404)
+
+
+def _jpeg_bytes(w=200, h=200):
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (w, h), (120, 120, 120)).save(buf, format="JPEG", quality=95)
+    return buf.getvalue()
+
+
 class PublishUITests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="o@acme.com", password="x")

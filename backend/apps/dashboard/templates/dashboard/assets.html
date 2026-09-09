@@ -1,0 +1,66 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Assets · {{ project.name }}{% endblock %}
+{% block crumb %}Build / Projects / {{ project.name }} / Assets{% endblock %}
+{% block content %}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+    <h1>Assets</h1>
+    <a class="btn ghost" href="{% url 'dashboard:publish_center' project.id %}">← Release Center</a>
+  </div>
+  <p class="sub">{{ project.name }} · images, logos, documents and fonts for your site.</p>
+
+  {% if can_manage %}
+  <div class="card">
+    <form method="post" enctype="multipart/form-data" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">{% csrf_token %}
+      <input type="hidden" name="action" value="upload">
+      <input type="file" name="file" required style="flex:1;min-width:220px">
+      <button class="btn" type="submit">Upload</button>
+    </form>
+    <p class="muted" style="font-size:11px;margin:8px 0 0">
+      Images, video (mp4/webm), PDF, fonts (woff/woff2/ttf/otf), SVG/ICO. Max 25 MB.
+      Files are validated on upload.
+    </p>
+  </div>
+  {% endif %}
+
+  {% if assets %}
+  <div class="cards" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+    {% for a in assets %}
+    <div class="card">
+      <div style="height:120px;display:flex;align-items:center;justify-content:center;background:var(--panel2);border-radius:8px;overflow:hidden">
+        {% if a.is_image %}
+          <img src="{% url 'dashboard:asset_raw' project.id a.id %}" alt="{{ a.original_name }}" style="max-height:120px;max-width:100%">
+        {% else %}
+          <span class="muted" style="font-size:12px">{{ a.kind }}</span>
+        {% endif %}
+      </div>
+      <div style="margin-top:8px;font-size:13px;word-break:break-all"><strong>{{ a.original_name }}</strong></div>
+      <div class="muted" style="font-size:11px">
+        {{ a.kind }}{% if a.width %} · {{ a.width }}×{{ a.height }}{% endif %} · {{ a.size|filesizeformat }}
+      </div>
+      <div class="muted" style="font-size:10px;word-break:break-all">/{{ a.path }}</div>
+      {% if can_manage %}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        {% if a.is_image %}
+        <form method="post" style="display:flex;gap:4px">{% csrf_token %}
+          <input type="hidden" name="action" value="resize"><input type="hidden" name="asset" value="{{ a.id }}">
+          <input type="number" name="width" placeholder="width" min="1" max="8000" style="width:80px;padding:5px" required>
+          <button class="ghost" type="submit" style="padding:5px 8px;font-size:12px">Resize</button>
+        </form>
+        <form method="post" style="display:inline">{% csrf_token %}
+          <input type="hidden" name="action" value="compress"><input type="hidden" name="asset" value="{{ a.id }}">
+          <button class="ghost" type="submit" style="padding:5px 8px;font-size:12px">Compress</button>
+        </form>
+        {% endif %}
+        <form method="post" style="display:inline">{% csrf_token %}
+          <input type="hidden" name="action" value="delete"><input type="hidden" name="asset" value="{{ a.id }}">
+          <button class="ghost" type="submit" style="padding:5px 8px;font-size:12px">Delete</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card"><p class="empty">No assets yet. Upload your logo, images or documents above.</p></div>
+  {% endif %}
+{% endblock %}

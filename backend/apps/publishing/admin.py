@@ -1,7 +1,8 @@
 from django.contrib import admin
 
 from apps.publishing.models import (
-    CustomDomain, Form, FormSubmission, Lead, PageSeo, PublishVersion, SeoConfig, Website,
+    Asset, CustomDomain, Form, FormSubmission, Lead, PageSeo, PublishVersion,
+    SeoConfig, Website,
 )
 
 
@@ -44,3 +45,9 @@ class LeadAdmin(admin.ModelAdmin):
 
 
 admin.site.register(FormSubmission)
+
+
+@admin.register(Asset)
+class AssetAdmin(admin.ModelAdmin):
+    list_display = ("path", "website", "kind", "size", "width", "height", "created_at")
+    list_filter = ("kind",)

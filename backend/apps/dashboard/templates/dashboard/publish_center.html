@@ -90,7 +90,10 @@
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <h2 style="margin:0">Forms &amp; leads</h2>
-      {% if lead_count %}<a class="ghost" href="{% url 'dashboard:leads' project.id %}" style="display:inline-block;padding:7px 12px;border:1px solid var(--line2);border-radius:9px">Leads inbox ({{ lead_count }}) →</a>{% endif %}
+      <span style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="ghost" href="{% url 'dashboard:assets' project.id %}" style="display:inline-block;padding:7px 12px;border:1px solid var(--line2);border-radius:9px">Assets →</a>
+        {% if lead_count %}<a class="ghost" href="{% url 'dashboard:leads' project.id %}" style="display:inline-block;padding:7px 12px;border:1px solid var(--line2);border-radius:9px">Leads inbox ({{ lead_count }}) →</a>{% endif %}
+      </span>
     </div>
     <p class="muted" style="font-size:12px;margin-top:6px">
       Add a form, paste its snippet into your site, and submissions become leads in your inbox —

@@ -520,6 +520,82 @@ def _seo_context(website):
 
 
 @login_required
+def assets(request, pk):
+    """Asset manager for a website (spec §26): upload/resize/compress/replace/delete."""
+    from apps.publishing import assets_service as assets_svc
+    from apps.publishing import service as pub
+    proj = get_object_or_404(
+        Project.objects.filter(organization__in=organizations_for(request.user)), pk=pk
+    )
+    can_manage = proj.organization_id in _manageable_ids(request.user)
+    website = getattr(proj, "website", None)
+
+    if request.method == "POST":
+        if not can_manage:
+            messages.error(request, "Owner or admin required.")
+            return redirect("dashboard:assets", pk=pk)
+        if website is None:
+            website = pub.get_or_create_website(proj)
+        action = request.POST.get("action")
+        try:
+            if action == "upload":
+                f = request.FILES.get("file")
+                if not f:
+                    messages.error(request, "Choose a file to upload.")
+                else:
+                    assets_svc.store_asset(website, filename=f.name, data=f.read(),
+                                           content_type=f.content_type or "", user=request.user)
+                    messages.success(request, "Asset uploaded.")
+            else:
+                asset = website.assets.filter(pk=request.POST.get("asset", 0)).first()
+                if asset is None:
+                    messages.error(request, "No such asset.")
+                elif action == "resize":
+                    assets_svc.resize_image(asset, width=int(request.POST.get("width") or 0),
+                                            user=request.user)
+                    messages.success(request, "Image resized.")
+                elif action == "compress":
+                    assets_svc.compress_image(asset, user=request.user)
+                    messages.success(request, "Image compressed.")
+                elif action == "replace":
+                    f = request.FILES.get("file")
+                    if f:
+                        assets_svc.replace_asset(asset, data=f.read(), user=request.user)
+                        messages.success(request, "Asset replaced.")
+                elif action == "delete":
+                    assets_svc.delete_asset(asset, user=request.user)
+                    messages.success(request, "Asset deleted.")
+        except (assets_svc.AssetError, ValueError) as exc:
+            messages.error(request, str(exc))
+        return redirect("dashboard:assets", pk=pk)
+
+    rows = list(website.assets.all()) if website else []
+    return render(request, "dashboard/assets.html", {
+        "active": "projects", "project": proj, "can_manage": can_manage,
+        "website": website, "assets": rows,
+    })
+
+
+@login_required
+def asset_raw(request, pk, asset_id):
+    """Serve an asset from the repo working tree for in-dashboard preview. Org-scoped."""
+    import mimetypes
+    from django.http import FileResponse, Http404
+    from apps.publishing import assets_service as assets_svc
+    from apps.publishing.models import Asset
+    proj = get_object_or_404(
+        Project.objects.filter(organization__in=organizations_for(request.user)), pk=pk
+    )
+    asset = get_object_or_404(Asset, pk=asset_id, website__project=proj)
+    try:
+        data = assets_svc.read_bytes(asset)
+    except Exception:
+        raise Http404("Asset file missing.")
+    ctype = asset.content_type or mimetypes.guess_type(asset.path)[0] or "application/octet-stream"
+    return FileResponse(iter([data]), content_type=ctype)
+
+
+@login_required
 def leads(request, pk):
     """Leads inbox — the CRM surface for a website's captured leads (spec §23)."""
     from apps.publishing.models import Lead

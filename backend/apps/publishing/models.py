@@ -239,6 +239,45 @@ class Lead(models.Model):
         return f"{self.name or self.email or 'Lead'} ({self.status})"
 
 
+class Asset(models.Model):
+    """A media asset for a website (spec §26). Stored inside the project's repo under
+    assets/ so it publishes and is served with the site. Uploads are validated and
+    filenames sanitized (file-upload safety, spec §31)."""
+
+    KIND_IMAGE = "image"
+    KIND_VIDEO = "video"
+    KIND_DOCUMENT = "document"
+    KIND_FONT = "font"
+    KIND_ICON = "icon"
+
+    website = models.ForeignKey(Website, on_delete=models.CASCADE, related_name="assets")
+    path = models.CharField(max_length=512)          # repo-relative, e.g. assets/logo.png
+    original_name = models.CharField(max_length=255)
+    kind = models.CharField(max_length=16, default=KIND_IMAGE)
+    content_type = models.CharField(max_length=128, blank=True)
+    size = models.PositiveIntegerField(default=0)
+    width = models.PositiveIntegerField(null=True, blank=True)
+    height = models.PositiveIntegerField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="uploaded_assets",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["website", "path"], name="uniq_asset_path")
+        ]
+
+    def __str__(self):
+        return f"{self.path} ({self.website.subdomain})"
+
+    @property
+    def is_image(self) -> bool:
+        return self.kind in (self.KIND_IMAGE, self.KIND_ICON)
+
+
 class PublishCheck(models.Model):
     """One publish-readiness check result (spec §12, §41)."""
 
