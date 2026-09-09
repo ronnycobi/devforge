@@ -107,15 +107,29 @@ def checkout(request, subdomain):
     website = Website.objects.filter(subdomain=subdomain).first()
     if website is None:
         raise Http404("No such site.")
-    product_id = request.POST.get("product_id")
-    try:
-        qty = max(1, int(request.POST.get("quantity", "1")))
-    except (TypeError, ValueError):
-        qty = 1
     provider_key = request.POST.get("provider", "manual")
+    # Multi-item cart: repeated `line` fields "<product_id>:<qty>". Falls back to a
+    # single product_id/quantity (a direct "buy now").
+    items = []
+    for raw in request.POST.getlist("line"):
+        pid, _, q = raw.partition(":")
+        pid = pid.strip()
+        if not pid:
+            continue
+        try:
+            qty = max(1, int(q or 1))
+        except ValueError:
+            qty = 1
+        items.append({"product_id": pid, "quantity": qty})
+    if not items:
+        try:
+            qty = max(1, int(request.POST.get("quantity", "1")))
+        except (TypeError, ValueError):
+            qty = 1
+        items = [{"product_id": request.POST.get("product_id"), "quantity": qty}]
     try:
         order = shop.create_order(
-            website, items=[{"product_id": product_id, "quantity": qty}],
+            website, items=items,
             customer_name=request.POST.get("name", ""),
             customer_email=request.POST.get("email", ""),
         )

@@ -1183,6 +1183,33 @@ class StorefrontTests(TestCase):
             self.assertIn(f'name="product_id" value="{p.id}"', index)
             self.assertIn('lang="en"', index)                                    # accessible
 
+    def test_storefront_has_cart_page_and_add_buttons(self):
+        from apps.publishing import ecommerce_service as shop
+        from apps.publishing import storefront
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = pub.get_or_create_website(self.project)
+            shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            files = storefront.render_storefront(site)
+            self.assertIn("shop/cart.html", files)
+            self.assertIn("devforgeAdd(this)", files["shop/index.html"])       # add-to-cart button
+            self.assertIn("devforge-checkout", files["shop/cart.html"])        # checkout form
+            self.assertIn("i.name='line'", files["shop/cart.html"])            # JS posts line items
+            self.assertIn(f'action="/sites/{site.subdomain}/checkout"', files["shop/cart.html"])
+
+    def test_checkout_endpoint_multi_item(self):
+        from apps.publishing import ecommerce_service as shop
+        from apps.publishing.models import Order
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = pub.get_or_create_website(self.project)
+            a = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            b = shop.create_product(site, name="Cap", price_cents=2000, user=self.user)
+            r = self.client.post(reverse("publishing:checkout", args=[site.subdomain]),
+                                  {"line": [f"{a.id}:2", f"{b.id}:1"], "email": "b@x.com"})
+            self.assertEqual(r.status_code, 200)
+            order = Order.objects.get(website=site)
+            self.assertEqual(order.items.count(), 2)
+            self.assertEqual(order.subtotal_cents, 1500 * 2 + 2000)   # 5000, one order
+
     def test_no_products_no_storefront(self):
         from apps.publishing import storefront
         with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
