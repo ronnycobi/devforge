@@ -1,8 +1,8 @@
 from django.contrib import admin
 
 from apps.publishing.models import (
-    Asset, CustomDomain, Form, FormSubmission, Lead, PageSeo, PublishVersion,
-    SeoConfig, Website,
+    Asset, CustomDomain, Form, FormSubmission, HealthCheck, Lead, PageSeo,
+    PublishVersion, SeoConfig, Website,
 )
 
 
@@ -51,3 +51,9 @@ admin.site.register(FormSubmission)
 class AssetAdmin(admin.ModelAdmin):
     list_display = ("path", "website", "kind", "size", "width", "height", "created_at")
     list_filter = ("kind",)
+
+
+@admin.register(HealthCheck)
+class HealthCheckAdmin(admin.ModelAdmin):
+    list_display = ("website", "status", "response_ms", "checked_at")
+    list_filter = ("status",)

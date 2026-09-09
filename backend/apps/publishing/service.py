@@ -118,6 +118,9 @@ def publish(website: Website, *, user=None, host="devforge_local", environment="
         version.is_current = True
         version.save(update_fields=["is_current"])
 
+    # Record the first monitoring datapoint for this live version.
+    from apps.publishing import monitor
+    monitor.run_check(website)
     audit("website.published", actor=user, organization=website.project.organization,
           target=f"website:{website.id}", summary=f"{version.version} · {status}",
           metadata={"url": url})
@@ -131,6 +134,9 @@ def health_check(version: PublishVersion) -> PublishVersion:
     if version.is_current and status == "down":
         version.state = PublishState.NEEDS_ATTENTION
     version.save(update_fields=["health", "health_detail", "state"])
+    # Record a monitoring datapoint too.
+    from apps.publishing import monitor
+    monitor.run_check(version.website)
     return version
 
 

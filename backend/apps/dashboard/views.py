@@ -520,6 +520,33 @@ def _seo_context(website):
 
 
 @login_required
+def monitoring(request, pk):
+    """Health monitoring for the published site (spec §36). Real serve-health probes;
+    remote-server resource metrics are honestly marked not-monitored."""
+    from apps.publishing import monitor
+    proj = get_object_or_404(
+        Project.objects.filter(organization__in=organizations_for(request.user)), pk=pk
+    )
+    can_manage = proj.organization_id in _manageable_ids(request.user)
+    website = getattr(proj, "website", None)
+
+    if request.method == "POST" and website and can_manage:
+        if request.POST.get("action") == "run_check":
+            if monitor.run_check(website) is None:
+                messages.error(request, "Publish the site before running a health check.")
+            else:
+                messages.success(request, "Health check recorded.")
+        return redirect("dashboard:monitoring", pk=pk)
+
+    summary = monitor.uptime_summary(website, days=7) if website else None
+    domains = list(website.domains.all()) if website else []
+    return render(request, "dashboard/monitoring.html", {
+        "active": "projects", "project": proj, "can_manage": can_manage,
+        "website": website, "summary": summary, "domains": domains,
+    })
+
+
+@login_required
 def accessibility(request, pk):
     """Automated accessibility checks on the built site (spec §30). Reports actual
     findings — never claims guaranteed compliance."""

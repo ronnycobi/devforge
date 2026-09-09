@@ -623,6 +623,71 @@ class AccessibilityTests(TestCase):
             self.assertContains(r, "does not guarantee full accessibility compliance")
 
 
+class MonitoringTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="owner@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Acme Site", created_by=self.user)
+
+    def _published(self):
+        repo = repo_for_project(self.project); repo.init()
+        repo.write_files({"index.html": PAGE}); repo.commit("seed")
+        site = pub.get_or_create_website(self.project)
+        pub.publish(site, user=self.user)
+        return site
+
+    def test_publish_records_a_health_check(self):
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._published()
+            self.assertEqual(site.health_checks.filter(status="up").count(), 1)
+
+    def test_run_check_probes_real_serve_health(self):
+        from apps.publishing import monitor
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._published()
+            check = monitor.run_check(site)
+            self.assertEqual(check.status, "up")            # snapshot present + readable
+            self.assertGreaterEqual(check.response_ms, 0)
+
+    def test_down_when_artifact_missing(self):
+        import shutil
+        from apps.publishing import monitor
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._published()
+            shutil.rmtree(site.current.artifact_dir)        # simulate the served files vanishing
+            check = monitor.run_check(site)
+            self.assertEqual(check.status, "down")
+
+    def test_uptime_summary_and_incidents(self):
+        from apps.publishing import monitor
+        from apps.publishing.models import HealthCheck
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._published()             # 1 up check from publish
+            HealthCheck.objects.create(website=site, status="down")
+            HealthCheck.objects.create(website=site, status="up")
+            s = monitor.uptime_summary(site, days=7)
+            self.assertEqual(s["checks"], 3)
+            self.assertEqual(s["uptime_pct"], round(100 * 2 / 3, 2))
+            self.assertEqual(s["incidents"], 1)   # one transition into down
+            self.assertEqual(s["current"], "up")  # most recent
+
+    def test_run_check_none_without_publish(self):
+        from apps.publishing import monitor
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = pub.get_or_create_website(self.project)
+            self.assertIsNone(monitor.run_check(site))   # nothing published to probe
+
+    def test_monitoring_page_renders_with_honest_scope(self):
+        Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            self._published()
+            self.client.force_login(self.user)
+            r = self.client.get(reverse("dashboard:monitoring", args=[self.project.id]))
+            self.assertEqual(r.status_code, 200)
+            self.assertContains(r, "Uptime")
+            self.assertContains(r, "Not monitored on DevForge hosting yet")
+
+
 class PublishUITests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="o@acme.com", password="x")

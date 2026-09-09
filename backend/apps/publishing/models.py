@@ -302,6 +302,30 @@ class PageView(models.Model):
         return f"{self.website.subdomain}{self.path} @ {self.day}"
 
 
+class HealthCheck(models.Model):
+    """One recorded health probe of a published site (spec §36).
+
+    HONEST SCOPE: this probes the site DevForge actually serves — is the current
+    published snapshot present and readable, and how long did serving it take. Remote
+    server metrics (CPU/memory/traffic of a box DevForge doesn't run) are not
+    monitored here and are shown as such, never faked."""
+
+    website = models.ForeignKey(Website, on_delete=models.CASCADE, related_name="health_checks")
+    version = models.ForeignKey(PublishVersion, on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name="health_checks")
+    status = models.CharField(max_length=8, default="up")   # up / down
+    detail = models.CharField(max_length=255, blank=True)
+    response_ms = models.PositiveIntegerField(default=0)
+    checked_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-checked_at"]
+        indexes = [models.Index(fields=["website", "checked_at"])]
+
+    def __str__(self):
+        return f"{self.website.subdomain} {self.status} @ {self.checked_at:%Y-%m-%d %H:%M}"
+
+
 class PublishCheck(models.Model):
     """One publish-readiness check result (spec §12, §41)."""
 

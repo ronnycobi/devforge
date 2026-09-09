@@ -1,0 +1,85 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Monitoring · {{ project.name }}{% endblock %}
+{% block crumb %}Build / Projects / {{ project.name }} / Monitoring{% endblock %}
+{% block content %}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+    <h1>Monitoring</h1>
+    <a class="btn ghost" href="{% url 'dashboard:publish_center' project.id %}">← Release Center</a>
+  </div>
+  <p class="sub">{{ project.name }} · health of your published site.</p>
+
+  {% if not website %}
+  <div class="card"><p class="empty">Publish the site to start monitoring it.</p></div>
+  {% else %}
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div>
+        <span style="font-size:20px;font-weight:800">
+          {% if summary.current == 'up' %}<span class="ok">● Healthy</span>
+          {% elif summary.current == 'down' %}<span class="fail">● Down</span>
+          {% else %}<span class="muted">○ Not checked yet</span>{% endif %}
+        </span>
+        <span class="muted" style="font-size:13px">· {{ summary.current_detail }}</span>
+      </div>
+      {% if can_manage %}
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="run_check">
+        <button class="ghost" type="submit">Run health check</button></form>
+      {% endif %}
+    </div>
+    {% if summary.last_checked %}<p class="muted" style="font-size:12px;margin:8px 0 0">Last checked {{ summary.last_checked|date:"M j, H:i" }}.</p>{% endif %}
+  </div>
+
+  <div class="cards" style="margin-bottom:16px">
+    <div class="card stat"><div class="k">Uptime (7d)</div><div class="v grad">{% if summary.uptime_pct != None %}{{ summary.uptime_pct }}%{% else %}—{% endif %}</div></div>
+    <div class="card stat"><div class="k">Avg response</div><div class="v">{% if summary.avg_response_ms != None %}{{ summary.avg_response_ms }}ms{% else %}—{% endif %}</div></div>
+    <div class="card stat"><div class="k">Checks (7d)</div><div class="v">{{ summary.checks }}</div></div>
+    <div class="card stat"><div class="k">Incidents</div><div class="v">{{ summary.incidents }}</div></div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h2 style="margin-top:0">Recent checks</h2>
+      {% if summary.recent %}
+      <table>
+        <tr><th>When</th><th>Status</th><th class="num">Response</th><th>Detail</th></tr>
+        {% for c in summary.recent %}
+        <tr>
+          <td class="muted">{{ c.checked_at|date:"M j, H:i:s" }}</td>
+          <td>{% if c.status == 'up' %}<span class="ok">up</span>{% else %}<span class="fail">down</span>{% endif %}</td>
+          <td class="num muted">{{ c.response_ms }}ms</td>
+          <td class="muted">{{ c.detail }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}<p class="empty">No checks yet — run one above.</p>{% endif %}
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0">Domain &amp; SSL</h2>
+      {% if domains %}
+      <table>
+        {% for d in domains %}
+        <tr>
+          <td class="strong">{{ d.hostname }}</td>
+          <td>{% if d.verification_status == 'verified' %}<span class="ok">verified</span>{% else %}<span class="muted">{{ d.verification_status }}</span>{% endif %}</td>
+          <td>{% if d.ssl_status == 'active' %}<span class="ok">SSL active</span>{% else %}<span class="muted">SSL {{ d.ssl_status }}</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}<p class="muted" style="font-size:13px">No custom domain connected.</p>{% endif %}
+
+      <h2>Server resources</h2>
+      <p class="muted" style="font-size:12px">
+        CPU, memory, bandwidth and error-rate monitoring become available once your site
+        runs on a connected server. Not monitored on DevForge hosting yet.
+      </p>
+    </div>
+  </div>
+
+  <p class="muted" style="font-size:11px;margin-top:8px">
+    Checks run when you publish and when you click “Run health check”. Continuous
+    background monitoring arrives with connected hosting — DevForge doesn’t pretend to
+    probe on a schedule it isn’t running.
+  </p>
+  {% endif %}
+{% endblock %}
