@@ -95,3 +95,12 @@ class PaymentAdmin(admin.ModelAdmin):
 
 
 admin.site.register(OrderItem)
+
+
+from apps.publishing.models import DiscountCode  # noqa: E402
+
+
+@admin.register(DiscountCode)
+class DiscountCodeAdmin(admin.ModelAdmin):
+    list_display = ("code", "website", "kind", "percent_off", "amount_off_cents", "active", "used_count")
+    list_filter = ("kind", "active")

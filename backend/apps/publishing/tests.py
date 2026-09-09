@@ -1189,6 +1189,45 @@ class PaymentsTests(TestCase):
             self.assertEqual(row["refunded"], "USD 10.00")
             self.assertEqual(row["net"], "USD 20.00")
 
+    def test_percent_discount_applied(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            shop.create_discount(site, code="save10", kind="percent", percent_off=10, user=self.user)
+            p = shop.create_product(site, name="Mug", price_cents=5000, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}], code="SAVE10")
+            self.assertEqual(order.subtotal_cents, 5000)
+            self.assertEqual(order.discount_cents, 500)
+            self.assertEqual(order.total_cents, 4500)
+            self.assertEqual(order.discount_code.used_count, 1)
+
+    def test_fixed_discount_currency_must_match(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            shop.create_discount(site, code="EUR5", kind="fixed", amount_off_cents=500,
+                                 currency="EUR", user=self.user)
+            p = shop.create_product(site, name="Mug", price_cents=5000, currency="USD", user=self.user)
+            with self.assertRaises(shop.DiscountError):
+                shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}], code="EUR5")
+
+    def test_min_order_and_unknown_and_maxuses(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1000, user=self.user)
+            shop.create_discount(site, code="BIG", kind="percent", percent_off=10,
+                                 min_subtotal_cents=5000, user=self.user)
+            with self.assertRaises(shop.DiscountError):     # below minimum
+                shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}], code="BIG")
+            with self.assertRaises(shop.DiscountError):     # unknown code
+                shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}], code="NOPE")
+            shop.create_discount(site, code="ONCE", kind="percent", percent_off=5,
+                                 max_uses=1, user=self.user)
+            shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}], code="ONCE")
+            with self.assertRaises(shop.DiscountError):     # usage limit reached
+                shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}], code="ONCE")
+
     def test_store_page_renders(self):
         Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
         with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
@@ -1278,6 +1317,62 @@ class StorefrontTests(TestCase):
             order = Order.objects.get(website=site)
             self.assertEqual(order.subtotal_cents, 3000)
             self.assertEqual(order.status, "awaiting_payment")
+
+
+class StoreManagementTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="owner@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
+        self.project = Project.objects.create(organization=self.org, name="Acme Site", created_by=self.user)
+        self.client.force_login(self.user)
+
+    def test_edit_and_deactivate_product(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = pub.get_or_create_website(self.project)
+            p = shop.create_product(site, name="Mug", price_cents=1000, user=self.user)
+            url = reverse("dashboard:store", args=[self.project.id])
+            self.client.post(url, {"action": "edit_product", "product": p.id,
+                                   "name": "Blue Mug", "price": "12.50", "stock": "0"})
+            p.refresh_from_db()
+            self.assertEqual(p.name, "Blue Mug")
+            self.assertEqual(p.price_cents, 1250)          # units → cents
+            self.client.post(url, {"action": "toggle_product", "product": p.id})
+            p.refresh_from_db()
+            self.assertFalse(p.active)                     # deactivated
+
+    def test_add_and_toggle_discount_via_ui(self):
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            pub.get_or_create_website(self.project)
+            url = reverse("dashboard:store", args=[self.project.id])
+            self.client.post(url, {"action": "add_discount", "code": "welcome", "kind": "percent",
+                                   "percent_off": "15"})
+            site = self.project.website
+            dc = site.discount_codes.get()
+            self.assertEqual(dc.code, "WELCOME")           # uppercased
+            self.assertEqual(dc.percent_off, 15)
+            self.client.post(url, {"action": "toggle_discount", "discount": dc.id})
+            dc.refresh_from_db()
+            self.assertFalse(dc.active)
+
+    def test_order_detail_view(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = pub.get_or_create_website(self.project)
+            p = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 2}],
+                                      customer_email="b@x.com")
+            shop.start_checkout(order, provider_key="manual")
+            url = reverse("dashboard:order_detail", args=[self.project.id, order.id])
+            r = self.client.get(url)
+            self.assertEqual(r.status_code, 200)
+            self.assertContains(r, order.reference)
+            self.assertContains(r, "Mug")
+            # Mark paid from the detail page.
+            self.client.post(url, {"action": "confirm_payment"})
+            order.refresh_from_db()
+            self.assertEqual(order.status, "paid")
 
 
 class PublishUITests(TestCase):

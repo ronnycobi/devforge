@@ -663,6 +663,39 @@ def store(request, pk):
                     shop.refund_order(order, user=request.user,
                                       reason=(request.POST.get("reason") or "").strip())
                     messages.success(request, f"Order {order.reference} refunded.")
+            elif action == "edit_product":
+                product = website.products.filter(pk=request.POST.get("product", 0)).first()
+                if product:
+                    product.name = (request.POST.get("name") or product.name).strip()
+                    product.price_cents = int(round(float(request.POST.get("price") or 0) * 100))
+                    product.description = (request.POST.get("description") or "").strip()
+                    product.track_inventory = bool(request.POST.get("track_inventory"))
+                    product.stock = max(0, int(request.POST.get("stock") or 0))
+                    product.save()
+                    messages.success(request, "Product updated.")
+            elif action == "toggle_product":
+                product = website.products.filter(pk=request.POST.get("product", 0)).first()
+                if product:
+                    product.active = not product.active
+                    product.save(update_fields=["active"])
+                    messages.success(request, f"Product {'activated' if product.active else 'deactivated'}.")
+            elif action == "add_discount":
+                shop.create_discount(
+                    website, code=request.POST.get("code", ""),
+                    kind=request.POST.get("kind", "percent"),
+                    percent_off=int(request.POST.get("percent_off") or 0),
+                    amount_off_cents=int(round(float(request.POST.get("amount_off") or 0) * 100)),
+                    currency=(request.POST.get("currency") or "USD").strip().upper()[:3],
+                    min_subtotal_cents=int(round(float(request.POST.get("min_subtotal") or 0) * 100)),
+                    max_uses=int(request.POST.get("max_uses") or 0), user=request.user)
+                messages.success(request, "Discount code created.")
+            elif action == "toggle_discount":
+                from apps.publishing.models import DiscountCode
+                dc = DiscountCode.objects.filter(pk=request.POST.get("discount", 0), website=website).first()
+                if dc:
+                    dc.active = not dc.active
+                    dc.save(update_fields=["active"])
+                    messages.success(request, f"Code {'activated' if dc.active else 'deactivated'}.")
             elif action == "generate_storefront":
                 from apps.publishing import storefront
                 try:
@@ -682,6 +715,40 @@ def store(request, pk):
         "orders": list(website.orders.prefetch_related("items")[:50]) if website else [],
         "providers": payments.provider_status(),
         "summary": shop.sales_summary(website) if website else None,
+        "discounts": list(website.discount_codes.all()) if website else [],
+    })
+
+
+@login_required
+def order_detail(request, pk, order_id):
+    """Full order view for the merchant (spec §32): items, totals, payments, and the
+    lifecycle actions (confirm / refund / cancel)."""
+    from apps.publishing import ecommerce_service as shop
+    from apps.publishing.models import Order
+    proj = get_object_or_404(
+        Project.objects.filter(organization__in=organizations_for(request.user)), pk=pk
+    )
+    can_manage = proj.organization_id in _manageable_ids(request.user)
+    order = get_object_or_404(Order, pk=order_id, website__project=proj)
+
+    if request.method == "POST" and can_manage:
+        action = request.POST.get("action")
+        try:
+            if action == "confirm_payment":
+                shop.confirm_manual_payment(order, user=request.user)
+                messages.success(request, "Marked paid.")
+            elif action == "refund_order":
+                shop.refund_order(order, user=request.user, reason=(request.POST.get("reason") or "").strip())
+                messages.success(request, "Order refunded.")
+            elif action == "cancel_order":
+                shop.cancel_order(order, user=request.user)
+                messages.success(request, "Order cancelled.")
+        except shop.EcommerceError as exc:
+            messages.error(request, str(exc))
+        return redirect("dashboard:order_detail", pk=pk, order_id=order_id)
+
+    return render(request, "dashboard/order_detail.html", {
+        "active": "projects", "project": proj, "can_manage": can_manage, "order": order,
     })
 
 

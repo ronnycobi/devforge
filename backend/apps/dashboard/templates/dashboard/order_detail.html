@@ -1,0 +1,63 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}{{ order.reference }} · {{ project.name }}{% endblock %}
+{% block crumb %}Build / Projects / {{ project.name }} / Store / {{ order.reference }}{% endblock %}
+{% block content %}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+    <h1>{{ order.reference }}
+      <span class="badge {% if order.status == 'paid' %}b-completed{% elif order.status == 'cancelled' or order.status == 'failed' %}b-failed{% elif order.status == 'refunded' %}b-cancelled{% else %}b-waiting_for_approval{% endif %}" style="font-size:12px;vertical-align:middle">{{ order.get_status_display }}</span>
+    </h1>
+    <a class="btn ghost" href="{% url 'dashboard:store' project.id %}">← Store</a>
+  </div>
+  <p class="sub">Placed {{ order.created_at|date:"M j, Y H:i" }} · {{ order.provider|default:"no payment method" }}</p>
+
+  <div class="row">
+    <div class="card">
+      <h2 style="margin-top:0">Items</h2>
+      <table>
+        <tr><th>Item</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Line</th></tr>
+        {% for it in order.items.all %}
+        <tr><td class="strong">{{ it.name }}</td><td class="num">{{ it.quantity }}</td>
+          <td class="num muted">{{ order.currency }} {{ it.unit_price_cents|floatformat:0 }}c</td>
+          <td class="num">{{ order.currency }} {{ it.line_total_cents|floatformat:0 }}c</td></tr>
+        {% endfor %}
+      </table>
+      <table style="margin-top:8px">
+        <tr><td>Subtotal</td><td class="num">{{ order.subtotal_display }}</td></tr>
+        {% if order.discount_cents %}
+        <tr><td>Discount {% if order.discount_code %}({{ order.discount_code.code }}){% endif %}</td>
+          <td class="num">-{{ order.discount_display }}</td></tr>
+        {% endif %}
+        <tr><td class="strong">Total</td><td class="num strong">{{ order.total_display }}</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">Customer</h2>
+      <p style="margin:0">{{ order.customer_name|default:"—" }}<br>
+        <span class="muted">{{ order.customer_email|default:"no email" }}</span></p>
+      <h2>Payments</h2>
+      {% if order.payments.all %}
+      <table>
+        {% for p in order.payments.all %}
+        <tr><td>{{ p.provider }}</td><td>{{ p.get_status_display }}</td>
+          <td class="num muted">{{ order.currency }} {{ p.amount_cents|floatformat:0 }}c</td></tr>
+        {% endfor %}
+      </table>
+      {% else %}<p class="muted">No payment yet.</p>{% endif %}
+
+      {% if can_manage %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+        {% if order.status == 'awaiting_payment' and order.provider == 'manual' %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="confirm_payment"><button class="btn" type="submit">Mark paid</button></form>
+        {% endif %}
+        {% if order.status == 'paid' and order.provider == 'manual' %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="refund_order"><button class="ghost" type="submit">Refund</button></form>
+        {% endif %}
+        {% if order.status != 'paid' and order.status != 'cancelled' and order.status != 'refunded' %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="cancel_order"><button class="ghost" type="submit">Cancel</button></form>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

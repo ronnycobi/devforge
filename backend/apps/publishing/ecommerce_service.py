@@ -16,12 +16,61 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from apps.audit.service import record as audit
-from apps.publishing.models import Order, OrderItem, Payment, Product
+from apps.publishing.models import DiscountCode, Order, OrderItem, Payment, Product
 from apps.publishing.payments import PaymentError, get_provider
 
 
 class EcommerceError(Exception):
     pass
+
+
+class DiscountError(EcommerceError):
+    pass
+
+
+def create_discount(website, *, code, kind="percent", percent_off=0, amount_off_cents=0,
+                    currency="USD", min_subtotal_cents=0, max_uses=0, expires_at=None,
+                    user=None) -> DiscountCode:
+    code = (code or "").strip().upper()
+    if not code:
+        raise DiscountError("A code is required.")
+    if website.discount_codes.filter(code=code).exists():
+        raise DiscountError(f"Code {code} already exists.")
+    if kind == DiscountCode.PERCENT and not (1 <= int(percent_off) <= 100):
+        raise DiscountError("Percentage must be between 1 and 100.")
+    if kind == DiscountCode.FIXED and int(amount_off_cents) <= 0:
+        raise DiscountError("Fixed amount must be greater than zero.")
+    dc = DiscountCode.objects.create(
+        website=website, code=code, kind=kind,
+        percent_off=int(percent_off or 0), amount_off_cents=int(amount_off_cents or 0),
+        currency=currency, min_subtotal_cents=int(min_subtotal_cents or 0),
+        max_uses=int(max_uses or 0),
+    )
+    audit("shop.discount", actor=user, organization=website.project.organization,
+          target=f"discount:{dc.id}", summary=f"{code} · {dc.summary}")
+    return dc
+
+
+def _discount_for(code_obj: DiscountCode, subtotal_cents: int, currency: str) -> int:
+    """Compute the discount in cents, or raise DiscountError explaining why not."""
+    from django.utils import timezone
+    if not code_obj.active:
+        raise DiscountError("That code is no longer active.")
+    if code_obj.expires_at and code_obj.expires_at < timezone.now():
+        raise DiscountError("That code has expired.")
+    if code_obj.max_uses and code_obj.used_count >= code_obj.max_uses:
+        raise DiscountError("That code has reached its usage limit.")
+    if subtotal_cents < code_obj.min_subtotal_cents:
+        raise DiscountError(
+            f"That code needs a minimum order of "
+            f"{currency} {code_obj.min_subtotal_cents / 100:.2f}.")
+    if code_obj.kind == DiscountCode.PERCENT:
+        discount = subtotal_cents * code_obj.percent_off // 100
+    else:
+        if code_obj.currency != currency:
+            raise DiscountError("That code can't be used in this currency.")
+        discount = code_obj.amount_off_cents
+    return min(discount, subtotal_cents)   # never below zero total
 
 
 def create_product(website, *, name, price_cents, currency="USD", description="",
@@ -43,9 +92,10 @@ def create_product(website, *, name, price_cents, currency="USD", description=""
     return product
 
 
-def create_order(website, *, items, customer_name="", customer_email="") -> Order:
+def create_order(website, *, items, customer_name="", customer_email="", code="") -> Order:
     """items: list of {product_id or product, quantity}. Totals are computed from the
-    products' real prices — never trusted from the client."""
+    products' real prices — never trusted from the client. An optional discount `code`
+    is validated and applied server-side."""
     if not items:
         raise EcommerceError("An order needs at least one item.")
     # Resolve products + quantities first (outside the transaction).
@@ -59,12 +109,18 @@ def create_order(website, *, items, customer_name="", customer_email="") -> Orde
         resolved.append((product, max(1, int(row.get("quantity", 1)))))
     if not resolved:
         raise EcommerceError("None of the requested products are available.")
+    currency = resolved[-1][0].currency
+
+    code = (code or "").strip().upper()
+    code_obj = website.discount_codes.filter(code=code).first() if code else None
+    if code and code_obj is None:
+        raise DiscountError("That discount code isn't recognised.")
 
     with transaction.atomic():
         order = Order.objects.create(
             website=website, reference=_reference(),
             customer_name=customer_name.strip(), customer_email=customer_email.strip(),
-            currency=resolved[0][0].currency, status="pending",
+            currency=currency, status="pending",
         )
         subtotal = 0
         for product, qty in resolved:
@@ -80,9 +136,28 @@ def create_order(website, *, items, customer_name="", customer_email="") -> Orde
                 unit_price_cents=product.price_cents, quantity=qty,
             )
             subtotal += product.price_cents * qty
+
+        discount = 0
+        if code_obj is not None:
+            discount = _discount_for(code_obj, subtotal, currency)   # raises DiscountError
+            # Atomic usage-limit guard (like stock): only claim a use if one remains.
+            if code_obj.max_uses:
+                claimed = DiscountCode.objects.filter(
+                    pk=code_obj.pk, used_count__lt=code_obj.max_uses
+                ).update(used_count=F("used_count") + 1)
+                if not claimed:
+                    raise DiscountError("That code has reached its usage limit.")
+            else:
+                DiscountCode.objects.filter(pk=code_obj.pk).update(used_count=F("used_count") + 1)
+            code_obj.refresh_from_db(fields=["used_count"])
+            order.discount_code = code_obj
+
         order.subtotal_cents = subtotal
-        order.currency = resolved[-1][0].currency
-        order.save(update_fields=["subtotal_cents", "currency"])
+        order.discount_cents = discount
+        order.total_cents = subtotal - discount
+        order.currency = currency
+        order.save(update_fields=["subtotal_cents", "discount_cents", "total_cents",
+                                  "discount_code", "currency"])
     return order
 
 
@@ -96,13 +171,15 @@ def start_checkout(order: Order, *, provider_key="manual") -> dict:
     order.save(update_fields=["provider", "status", "updated_at"])
     Payment.objects.create(
         order=order, provider=provider_key, method=result.get("mode", ""),
-        amount_cents=order.subtotal_cents, currency=order.currency, status="pending",
+        amount_cents=order.total_cents, currency=order.currency, status="pending",
         detail=result.get("instructions", "")[:500],
     )
     # Confirmation email to the buyer (best-effort, only if they gave an address).
     body = (f"Thanks for your order {order.reference} from "
-            f"{order.website.project.name}.\n\n{_order_lines(order)}\n"
-            f"Total: {order.total_display}\n")
+            f"{order.website.project.name}.\n\n{_order_lines(order)}\n")
+    if order.discount_cents:
+        body += f"Subtotal: {order.subtotal_display}\nDiscount: -{order.discount_display}\n"
+    body += f"Total: {order.total_display}\n"
     if result.get("instructions"):
         body += f"\n{result['instructions']}\n"
     order.confirmation_sent = _email_buyer(order, f"Order {order.reference} received", body)
@@ -197,9 +274,9 @@ def sales_summary(website) -> dict:
     counts = {s: orders.filter(status=s).count() for s, _ in Order.STATUS}
 
     paid_cents, refunded_cents = defaultdict(int), defaultdict(int)
-    for cur, cents in orders.filter(status="paid").values_list("currency", "subtotal_cents"):
+    for cur, cents in orders.filter(status="paid").values_list("currency", "total_cents"):
         paid_cents[cur] += cents
-    for cur, cents in orders.filter(status="refunded").values_list("currency", "subtotal_cents"):
+    for cur, cents in orders.filter(status="refunded").values_list("currency", "total_cents"):
         refunded_cents[cur] += cents
 
     revenue = []

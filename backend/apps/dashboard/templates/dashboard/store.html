@@ -50,11 +50,26 @@
     <h2 style="margin-top:0">Products</h2>
     {% if products %}
     <table>
-      <tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th></tr>
+      <tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr>
       {% for p in products %}
       <tr><td class="strong">{{ p.name }}</td><td>{{ p.price_display }}</td>
         <td>{% if p.track_inventory %}{% if p.stock > 0 %}{{ p.stock }}{% else %}<span class="fail">0 (out)</span>{% endif %}{% else %}<span class="muted">untracked</span>{% endif %}</td>
-        <td>{% if p.active %}<span class="ok">active</span>{% else %}<span class="muted">inactive</span>{% endif %}</td></tr>
+        <td>{% if p.active %}<span class="ok">active</span>{% else %}<span class="muted">inactive</span>{% endif %}</td>
+        <td>{% if can_manage %}
+          <details><summary style="cursor:pointer;font-size:12px;color:var(--brand)">Edit</summary>
+            <form method="post" style="display:grid;gap:5px;max-width:360px;margin:8px 0">{% csrf_token %}
+              <input type="hidden" name="action" value="edit_product"><input type="hidden" name="product" value="{{ p.id }}">
+              <input type="text" name="name" value="{{ p.name }}" required>
+              <input type="number" name="price" step="0.01" min="0" value="{{ p.price_units }}">
+              <label style="font-size:12px"><input type="checkbox" name="track_inventory" {% if p.track_inventory %}checked{% endif %} style="width:auto"> Track stock
+                <input type="number" name="stock" value="{{ p.stock }}" min="0" style="width:100px"></label>
+              <textarea name="description" rows="2">{{ p.description }}</textarea>
+              <button class="ghost" type="submit" style="justify-self:start;padding:5px 10px;font-size:12px">Save</button>
+            </form>
+          </details>
+          <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="toggle_product">
+            <input type="hidden" name="product" value="{{ p.id }}"><button class="ghost" type="submit" style="padding:4px 9px;font-size:12px">{% if p.active %}Deactivate{% else %}Activate{% endif %}</button></form>
+        {% endif %}</td></tr>
       {% endfor %}
     </table>
     {% else %}<p class="empty">No products yet.</p>{% endif %}
@@ -84,13 +99,49 @@
   </div>
 
   <div class="card">
+    <h2 style="margin-top:0">Discount codes</h2>
+    {% if discounts %}
+    <table>
+      <tr><th>Code</th><th>Discount</th><th>Min order</th><th>Uses</th><th>Status</th><th></th></tr>
+      {% for d in discounts %}
+      <tr>
+        <td class="strong">{{ d.code }}</td>
+        <td>{{ d.summary }}</td>
+        <td class="muted">{% if d.min_subtotal_cents %}{{ d.currency }} {{ d.min_subtotal_cents|floatformat:0 }}c{% else %}—{% endif %}</td>
+        <td class="muted">{{ d.used_count }}{% if d.max_uses %}/{{ d.max_uses }}{% endif %}</td>
+        <td>{% if d.active %}<span class="ok">active</span>{% else %}<span class="muted">off</span>{% endif %}</td>
+        <td>{% if can_manage %}<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="toggle_discount">
+          <input type="hidden" name="discount" value="{{ d.id }}"><button class="ghost" type="submit" style="padding:4px 9px;font-size:12px">{% if d.active %}Disable{% else %}Enable{% endif %}</button></form>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No discount codes yet.</p>{% endif %}
+    {% if can_manage %}
+    <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">{% csrf_token %}
+      <input type="hidden" name="action" value="add_discount">
+      <input type="text" name="code" placeholder="CODE" required style="width:120px">
+      <select name="kind" style="width:auto">
+        <option value="percent">% off</option>
+        <option value="fixed">fixed off</option>
+      </select>
+      <input type="number" name="percent_off" placeholder="% (1-100)" min="1" max="100" style="width:110px">
+      <input type="number" name="amount_off" placeholder="fixed amount" step="0.01" min="0" style="width:120px">
+      <input type="text" name="currency" value="USD" maxlength="3" style="width:70px">
+      <input type="number" name="min_subtotal" placeholder="min order" step="0.01" min="0" style="width:110px">
+      <input type="number" name="max_uses" placeholder="max uses (0=∞)" min="0" style="width:130px">
+      <button class="ghost" type="submit">Add code</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="card">
     <h2 style="margin-top:0">Orders</h2>
     {% if orders %}
     <table>
       <tr><th>Reference</th><th>Customer</th><th>Items</th><th>Total</th><th>Method</th><th>Status</th><th></th></tr>
       {% for o in orders %}
       <tr>
-        <td class="strong">{{ o.reference }}</td>
+        <td class="strong"><a href="{% url 'dashboard:order_detail' project.id o.id %}">{{ o.reference }}</a></td>
         <td class="muted">{{ o.customer_email|default:o.customer_name|default:"—" }}
           {% if o.confirmation_sent %}<span class="chip" title="Confirmation emailed" style="font-size:10px">✉ confirmed</span>{% endif %}
           {% if o.receipt_sent %}<span class="chip" title="Receipt emailed" style="font-size:10px">✉ receipt</span>{% endif %}</td>

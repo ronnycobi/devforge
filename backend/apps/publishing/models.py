@@ -429,6 +429,46 @@ class Product(models.Model):
     def in_stock(self) -> bool:
         return (not self.track_inventory) or self.stock > 0
 
+    @property
+    def price_units(self) -> str:
+        return f"{self.price_cents / 100:.2f}"
+
+
+class DiscountCode(models.Model):
+    """A discount code a store honors (spec §32). Percentage or fixed amount, with
+    optional expiry, usage cap and minimum order. Enforced server-side at checkout —
+    the discount is computed from real values, never trusted from the client."""
+
+    PERCENT = "percent"
+    FIXED = "fixed"
+
+    website = models.ForeignKey(Website, on_delete=models.CASCADE, related_name="discount_codes")
+    code = models.CharField(max_length=40)                 # stored uppercased
+    kind = models.CharField(max_length=8, default=PERCENT)
+    percent_off = models.PositiveSmallIntegerField(default=0)   # 1..100 for percent
+    amount_off_cents = models.PositiveIntegerField(default=0)   # for fixed
+    currency = models.CharField(max_length=3, default="USD")    # fixed must match order
+    min_subtotal_cents = models.PositiveIntegerField(default=0)
+    max_uses = models.PositiveIntegerField(default=0)      # 0 = unlimited
+    used_count = models.PositiveIntegerField(default=0)
+    active = models.BooleanField(default=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["code"]
+        constraints = [
+            models.UniqueConstraint(fields=["website", "code"], name="uniq_discount_code")
+        ]
+
+    def __str__(self):
+        return self.code
+
+    @property
+    def summary(self) -> str:
+        return f"{self.percent_off}% off" if self.kind == self.PERCENT \
+            else f"{self.currency} {self.amount_off_cents / 100:.2f} off"
+
 
 class Order(models.Model):
     """A customer order (spec §32). Status reflects the REAL payment state — it only
@@ -445,7 +485,13 @@ class Order(models.Model):
     reference = models.CharField(max_length=32, unique=True)
     customer_name = models.CharField(max_length=255, blank=True)
     customer_email = models.EmailField(blank=True)
-    subtotal_cents = models.PositiveIntegerField(default=0)
+    subtotal_cents = models.PositiveIntegerField(default=0)   # before discount
+    discount_cents = models.PositiveIntegerField(default=0)
+    total_cents = models.PositiveIntegerField(default=0)      # what is actually charged
+    discount_code = models.ForeignKey(
+        "publishing.DiscountCode", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="orders",
+    )
     currency = models.CharField(max_length=3, default="USD")
     status = models.CharField(max_length=20, choices=STATUS, default="pending")
     provider = models.CharField(max_length=32, blank=True)
@@ -463,7 +509,15 @@ class Order(models.Model):
 
     @property
     def total_display(self) -> str:
+        return f"{self.currency} {self.total_cents / 100:.2f}"
+
+    @property
+    def subtotal_display(self) -> str:
         return f"{self.currency} {self.subtotal_cents / 100:.2f}"
+
+    @property
+    def discount_display(self) -> str:
+        return f"{self.currency} {self.discount_cents / 100:.2f}"
 
 
 class OrderItem(models.Model):

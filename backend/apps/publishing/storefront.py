@@ -117,6 +117,7 @@ def render_storefront(website) -> dict:
         f'<form id="devforge-checkout" method="post" action="/sites/{website.subdomain}/checkout">'
         '<label>Your name <input type="text" name="name"></label>'
         '<label>Email <input type="email" name="email" required></label>'
+        '<label>Discount code <input type="text" name="code"></label>'
         '<button type="submit">Checkout</button></form>'
     )
     files["shop/cart.html"] = _doc(website, "Your cart", cart_main)
