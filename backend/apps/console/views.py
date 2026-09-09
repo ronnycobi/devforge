@@ -238,6 +238,30 @@ def mobile_releases(request):
 
 
 @staff_required
+def skills(request):
+    """Skills library (Control Center). Lists the built-in global playbooks and any
+    DB-authored ones; staff can add a global skill."""
+    from django.utils.text import slugify
+    from apps.skills.builtins import BUILTIN_SKILLS
+    from apps.skills.models import Skill
+    if request.method == "POST":
+        name = (request.POST.get("name") or "").strip()
+        kws = [k.strip() for k in (request.POST.get("keywords") or "").split(",") if k.strip()]
+        body = (request.POST.get("body") or "").strip()
+        if name and body:
+            Skill.objects.create(
+                name=name, slug=slugify(name)[:64] or "skill", keywords=kws, body=body,
+                scope=Skill.SCOPE_GLOBAL, created_by=request.user)
+        from django.shortcuts import redirect
+        return redirect("console:skills")
+    return render(request, "console/skills.html", {
+        "active": "skills",
+        "builtins": BUILTIN_SKILLS,
+        "authored": Skill.objects.select_related("organization", "project"),
+    })
+
+
+@staff_required
 def connectors(request):
     """External connectors inventory (spec: MCP-style layer). Honest: shows each
     connector and whether it's configured — never the credential value."""

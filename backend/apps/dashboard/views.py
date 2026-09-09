@@ -120,11 +120,23 @@ def _name_from_brief(brief: str) -> str:
 
 
 def _start_build(project, brief, user):
+    # Reusable playbooks (skills) matching this brief are applied as guidance the
+    # agents receive — generalizing one-off triggers into an authorable mechanism.
+    effective_brief = brief
+    try:
+        from apps.skills.service import apply_to_project, guidance_for
+        _skills, guidance = guidance_for(brief, organization=project.organization, project=project)
+        if guidance:
+            effective_brief = f"{brief}\n\nApplied playbooks (guidance):\n{guidance}"
+            apply_to_project(project, brief, user=user)
+    except Exception:
+        pass  # skills are additive guidance; never block a build
+
     orch = Orchestrator()
     previous = None
     for key in _BUILD_PIPELINE:
         t = orch.create_task(project=project, agent_key=key,
-                             input={"brief": brief}, created_by=user)
+                             input={"brief": effective_brief}, created_by=user)
         if previous is not None:
             t.depends_on.set([previous])
         previous = t

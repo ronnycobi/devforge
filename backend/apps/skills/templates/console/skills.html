@@ -1,0 +1,44 @@
+{% extends "console/base_console.html" %}
+{% block title %}Skills · Control Center{% endblock %}
+{% block crumb %}Platform / Skills{% endblock %}
+{% block content %}
+  <h1>Skills library</h1>
+  <p class="sub">Reusable playbooks the build flow applies as guidance when a brief
+    matches their keywords. Built-ins ship with DevForge; add your own below.</p>
+
+  <div class="card">
+    <h2 style="margin-top:0">Built-in (global)</h2>
+    <table>
+      <tr><th>Skill</th><th>Triggers on</th></tr>
+      {% for b in builtins %}
+      <tr><td class="strong">{{ b.name }}</td>
+        <td class="muted">{% for k in b.keywords %}<span class="chip">{{ k }}</span>{% endfor %}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Authored</h2>
+    {% if authored %}
+    <table>
+      <tr><th>Skill</th><th>Scope</th><th>Triggers</th><th>Status</th></tr>
+      {% for s in authored %}
+      <tr>
+        <td class="strong">{{ s.name }}</td>
+        <td class="muted">{{ s.scope }}{% if s.organization %} · {{ s.organization.name }}{% endif %}</td>
+        <td class="muted">{% for k in s.keywords %}<span class="chip">{{ k }}</span>{% endfor %}</td>
+        <td>{% if s.enabled %}<span class="ok">enabled</span>{% else %}<span class="muted">off</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No authored skills yet.</p>{% endif %}
+
+    <h2>Add a global skill</h2>
+    <form method="post" style="display:grid;gap:8px;max-width:620px">{% csrf_token %}
+      <input type="text" name="name" placeholder="Skill name (e.g. Restaurant menu)" required>
+      <input type="text" name="keywords" placeholder="Trigger keywords, comma-separated (menu, restaurant, food)">
+      <textarea name="body" rows="4" placeholder="Guidance the agents should follow when this skill applies" required></textarea>
+      <button class="btn" type="submit" style="justify-self:start">Add skill</button>
+    </form>
+  </div>
+{% endblock %}

@@ -85,6 +85,7 @@ INSTALLED_APPS = [
     "apps.release",
     "apps.publishing",
     "apps.support",
+    "apps.skills",
     "apps.marketing",
     "apps.notifications",
 ]
