@@ -1,0 +1,33 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}{{ ticket.number }} · Support{% endblock %}
+{% block crumb %}Help & Support / {{ ticket.number }}{% endblock %}
+{% block content %}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+    <h1>{{ ticket.subject }}
+      <span class="badge {% if ticket.is_open %}b-waiting_for_approval{% else %}b-completed{% endif %}" style="font-size:12px;vertical-align:middle">{{ ticket.get_status_display }}</span>
+    </h1>
+    <a class="btn ghost" href="{% url 'support:mine' %}">← All requests</a>
+  </div>
+  <p class="sub">{{ ticket.number }} · {{ ticket.get_category_display }} · opened {{ ticket.created_at|date:"M j, Y" }}</p>
+
+  <div class="card">
+    {% for m in messages_list %}
+    <div style="padding:10px 0;border-bottom:1px solid var(--line)">
+      <div class="muted" style="font-size:12px">{{ m.author.email|default:"Support" }} · {{ m.created_at|date:"M j, H:i" }}</div>
+      <div style="white-space:pre-line;margin-top:3px">{{ m.body }}</div>
+    </div>
+    {% empty %}<p class="empty">No messages.</p>{% endfor %}
+  </div>
+
+  {% if ticket.is_open %}
+  <div class="card">
+    <h2 style="margin-top:0">Reply</h2>
+    <form method="post">{% csrf_token %}
+      <textarea name="body" rows="3" placeholder="Add a reply" required style="width:100%"></textarea>
+      <button class="btn" type="submit" style="margin-top:6px">Send reply</button>
+    </form>
+  </div>
+  {% else %}
+  <p class="muted">This request is {{ ticket.get_status_display|lower }}. Log a new request if you need more help.</p>
+  {% endif %}
+{% endblock %}

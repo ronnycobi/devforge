@@ -7,6 +7,7 @@
     <a href="{% url 'dashboard:deployments' %}" class="{% if active == 'deployments' %}on{% endif %}">Deploy</a>
     <a href="{% url 'dashboard:tasks' %}" class="{% if active == 'tasks' or active == 'activity' %}on{% endif %}">Activity</a>
     <a href="{% url 'dashboard:people' %}" class="{% if active == 'people' %}on{% endif %}">Team</a>
+    <a href="{% url 'support:mine' %}" class="{% if active == 'support' %}on{% endif %}">Help &amp; Support</a>
     <a href="{% url 'dashboard:settings' %}" class="{% if active == 'settings' %}on{% endif %}">Settings</a>
   </div>
 </div>

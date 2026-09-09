@@ -1,0 +1,42 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Help & Support · DevForge{% endblock %}
+{% block crumb %}Help & Support{% endblock %}
+{% block content %}
+  <h1>Help &amp; Support</h1>
+  <p class="sub">Log a request and we'll reply here and by email.</p>
+
+  <div class="card">
+    <h2 style="margin-top:0">Log a request</h2>
+    <form method="post" style="display:grid;gap:8px;max-width:560px">{% csrf_token %}
+      <input type="text" name="subject" placeholder="Subject" required>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select name="category" style="width:auto">
+          {% for k, label in categories %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
+        </select>
+        <select name="priority" style="width:auto">
+          {% for k, label in priorities %}<option value="{{ k }}" {% if k == 'normal' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <textarea name="body" rows="4" placeholder="Describe your question or problem"></textarea>
+      <button class="btn" type="submit" style="justify-self:start">Submit request</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Your requests</h2>
+    {% if tickets %}
+    <table>
+      <tr><th>Ref</th><th>Subject</th><th>Category</th><th>Status</th><th>Updated</th></tr>
+      {% for t in tickets %}
+      <tr>
+        <td class="strong"><a href="{% url 'support:ticket' t.id %}">{{ t.number }}</a></td>
+        <td>{{ t.subject }}</td>
+        <td class="muted">{{ t.get_category_display }}</td>
+        <td><span class="badge {% if t.is_open %}b-waiting_for_approval{% else %}b-completed{% endif %}">{{ t.get_status_display }}</span></td>
+        <td class="muted">{{ t.updated_at|date:"M j, H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No requests yet.</p>{% endif %}
+  </div>
+{% endblock %}

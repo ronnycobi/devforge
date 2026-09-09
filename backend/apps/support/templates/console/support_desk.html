@@ -1,0 +1,34 @@
+{% extends "console/base_console.html" %}
+{% block title %}Support desk · Control Center{% endblock %}
+{% block crumb %}Support / Desk{% endblock %}
+{% block content %}
+  <h1>Support desk</h1>
+  <p class="sub">{{ open_count }} open ticket(s) across all tenants.</p>
+
+  <div class="filters">
+    <a href="{% url 'support:desk' %}" class="{% if not current %}on{% endif %}">All</a>
+    {% for value, label in statuses %}
+    <a href="?status={{ value }}" class="{% if current == value %}on{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    {% if tickets %}
+    <table>
+      <tr><th>Ref</th><th>Subject</th><th>Tenant</th><th>Category</th><th>Priority</th><th>Status</th><th>Assignee</th><th>Updated</th></tr>
+      {% for t in tickets %}
+      <tr>
+        <td class="strong"><a href="{% url 'support:desk_ticket' t.id %}">{{ t.number }}</a></td>
+        <td>{{ t.subject }}</td>
+        <td class="muted">{{ t.organization.name }}</td>
+        <td class="muted">{{ t.get_category_display }}</td>
+        <td>{% if t.priority == 'urgent' or t.priority == 'high' %}<span class="fail">{{ t.get_priority_display }}</span>{% else %}<span class="muted">{{ t.get_priority_display }}</span>{% endif %}</td>
+        <td><span class="badge b-{{ t.status }}">{{ t.get_status_display }}</span></td>
+        <td class="muted">{{ t.assigned_to.email|default:"—" }}</td>
+        <td class="muted">{{ t.updated_at|date:"M j, H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No tickets.</p>{% endif %}
+  </div>
+{% endblock %}

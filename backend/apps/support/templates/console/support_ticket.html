@@ -1,0 +1,45 @@
+{% extends "console/base_console.html" %}
+{% block title %}{{ ticket.number }} · Support{% endblock %}
+{% block crumb %}Support / {{ ticket.number }}{% endblock %}
+{% block content %}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+    <h1>{{ ticket.subject }} <span class="badge b-{{ ticket.status }}" style="font-size:12px;vertical-align:middle">{{ ticket.get_status_display }}</span></h1>
+    <a class="btn ghost" href="{% url 'support:desk' %}">← Desk</a>
+  </div>
+  <p class="sub">{{ ticket.number }} · {{ ticket.organization.name }} · {{ ticket.get_category_display }} ·
+    {{ ticket.get_priority_display }} priority · from {{ ticket.created_by.email|default:"—" }}</p>
+
+  <div class="row">
+    <div class="card">
+      <h2 style="margin-top:0">Conversation</h2>
+      {% for m in messages_list %}
+      <div style="padding:10px 0;border-bottom:1px solid var(--line){% if m.internal %};background:var(--waitbg);border-radius:8px;padding-left:8px{% endif %}">
+        <div class="muted" style="font-size:12px">{{ m.author.email|default:"—" }} · {{ m.created_at|date:"M j, H:i" }}{% if m.internal %} · <span style="color:var(--wait)">internal note</span>{% endif %}</div>
+        <div style="white-space:pre-line;margin-top:3px">{{ m.body }}</div>
+      </div>
+      {% empty %}<p class="empty">No messages.</p>{% endfor %}
+
+      <form method="post" style="margin-top:12px">{% csrf_token %}
+        <input type="hidden" name="action" value="reply">
+        <textarea name="body" rows="3" placeholder="Reply to the customer, or tick internal note" required style="width:100%"></textarea>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:6px 0"><input type="checkbox" name="internal" style="width:auto"> Internal note (customer can't see this)</label>
+        <button class="btn" type="submit">Post</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">Manage</h2>
+      <form method="post" style="margin-bottom:10px">{% csrf_token %}
+        <input type="hidden" name="action" value="status">
+        <select name="status" onchange="this.form.submit()" style="width:100%">
+          {% for value, label in statuses %}<option value="{{ value }}" {% if ticket.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </form>
+      <form method="post">{% csrf_token %}
+        <input type="hidden" name="action" value="assign">
+        <button class="ghost" type="submit">Assign to me</button>
+      </form>
+      <p class="muted" style="font-size:12px;margin-top:10px">Assignee: {{ ticket.assigned_to.email|default:"unassigned" }}</p>
+    </div>
+  </div>
+{% endblock %}

@@ -22,6 +22,7 @@ urlpatterns = [
     path("app/", include("apps.dashboard.urls")),
     # Internal staff console (cross-tenant operations cockpit) — staff-only.
     path("staff/", include("apps.console.urls")),
+    path("", include("apps.support.urls")),
     # Published customer websites, served by DevForge at /sites/<subdomain>/.
     path("", include("apps.publishing.urls")),
     path("", include("apps.marketing.urls")),
