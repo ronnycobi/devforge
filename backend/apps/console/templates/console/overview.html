@@ -16,6 +16,10 @@
       <div class="sm">{{ stats.credits_charged|floatformat:0 }} credits charged</div></div>
     <div class="card stat"><div class="k">Deployments</div><div class="v">{{ stats.deployments }}</div></div>
     <div class="card stat"><div class="k">Leads</div><div class="v">{{ stats.open_leads }}</div></div>
+    <a class="card stat" href="{% url 'support:desk' %}" style="text-decoration:none;color:inherit">
+      <div class="k">Open tickets</div>
+      <div class="v {% if stats.open_tickets %}fail{% endif %}">{{ stats.open_tickets }}</div>
+      <div class="sm">Support desk →</div></a>
   </div>
 
   <div class="row" style="margin-top:22px">

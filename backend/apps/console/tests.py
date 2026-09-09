@@ -100,6 +100,16 @@ class ControlCenterTests(TestCase):
         self.assertContains(r, "Success rate")
         self.assertContains(r, "Live activity")
 
+    def test_overview_shows_open_ticket_count(self):
+        from apps.organizations.models import Organization
+        from apps.support import service
+        org = Organization.objects.create(name="Acme", created_by=self.staff)
+        service.create_ticket(organization=org, user=self.staff, subject="Help", body="x")
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse("console:overview"))
+        self.assertContains(r, "Open tickets")
+        self.assertEqual(r.context["stats"]["open_tickets"], 1)
+
     def test_health_probes_are_honest(self):
         from apps.console.health import system_health
         checks = {c["name"]: c for c in system_health()}

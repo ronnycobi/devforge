@@ -41,6 +41,11 @@ def _usage_totals(qs=None):
     return agg
 
 
+def _open_ticket_count() -> int:
+    from apps.support.models import OPEN_STATUSES, SupportTicket
+    return SupportTicket.objects.filter(status__in=OPEN_STATUSES).count()
+
+
 @staff_required
 def overview(request):
     active_statuses = [s for s in TaskStatus.values if s not in TERMINAL_STATUSES]
@@ -62,6 +67,7 @@ def overview(request):
         "cost_usd": totals["cost"],
         "credits_charged": totals["credits"],
         "open_leads": ContactMessage.objects.count(),
+        "open_tickets": _open_ticket_count(),
     }
 
     from apps.console.health import all_ok, system_health
