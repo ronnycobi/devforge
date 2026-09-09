@@ -232,6 +232,24 @@ def mobile_releases(request):
 
 
 @staff_required
+def websites(request):
+    """Admin view of the Website Publishing platform (spec §43). Read-only, honest:
+    host availability, every website, and its publish versions across tenants."""
+    from apps.publishing.hosting import host_status
+    from apps.publishing.models import PublishVersion, Website
+    sites = (
+        Website.objects.select_related("project", "project__organization").order_by("-created_at")[:100]
+    )
+    versions = (
+        PublishVersion.objects.select_related("website", "website__project__organization")
+        .order_by("-created_at")[:200]
+    )
+    return render(request, "console/websites.html", {
+        "active": "websites", "hosts": host_status(), "sites": sites, "versions": versions,
+    })
+
+
+@staff_required
 def audit(request):
     from apps.audit.models import AuditEvent
     action = request.GET.get("action") or ""

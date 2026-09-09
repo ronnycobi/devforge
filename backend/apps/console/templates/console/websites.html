@@ -1,0 +1,61 @@
+{% extends "console/base_console.html" %}
+{% block title %}Websites · Control Center{% endblock %}
+{% block crumb %}Platform / Websites{% endblock %}
+{% block content %}
+  <h1>Websites</h1>
+  <p class="sub">Hosting availability, published sites and versions across every tenant.</p>
+
+  <div class="card">
+    <h2 style="margin-top:0">Hosting targets</h2>
+    <table>
+      <tr><th>Host</th><th>Available here</th></tr>
+      {% for h in hosts %}
+      <tr>
+        <td class="strong">{{ h.name }}</td>
+        <td>{% if h.available %}<span class="ok">● Available</span>{% else %}<span class="muted">○ Not configured</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p class="muted" style="font-size:12px;margin-bottom:0">
+      DevForge hosting serves published static sites locally. Cloud hosts report
+      "not configured" until real credentials/integration exist — never faked.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Published websites</h2>
+    {% if sites %}
+    <table>
+      <tr><th>Subdomain</th><th>Tenant</th><th>Type</th><th>Created</th></tr>
+      {% for s in sites %}
+      <tr>
+        <td class="strong">{{ s.subdomain }}</td>
+        <td class="muted">{{ s.project.organization.name }}</td>
+        <td class="muted">{{ s.site_type }}</td>
+        <td class="muted">{{ s.created_at|date:"M j, Y" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No websites yet.</p>{% endif %}
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Publish versions</h2>
+    {% if versions %}
+    <table>
+      <tr><th>Site</th><th>Tenant</th><th>Version</th><th>Env</th><th>State</th><th>Health</th><th>When</th></tr>
+      {% for v in versions %}
+      <tr>
+        <td class="strong">{{ v.website.subdomain }}</td>
+        <td class="muted">{{ v.website.project.organization.name }}</td>
+        <td>{{ v.version }}{% if v.is_current %} <span class="chip">current</span>{% endif %}</td>
+        <td class="muted">{{ v.environment }}</td>
+        <td><span class="badge b-{{ v.state }}">{{ v.get_state_display }}</span></td>
+        <td class="muted">{{ v.health }}</td>
+        <td class="muted">{{ v.created_at|date:"M j, H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No publishes yet.</p>{% endif %}
+  </div>
+{% endblock %}

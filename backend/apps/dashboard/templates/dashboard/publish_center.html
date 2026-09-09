@@ -1,0 +1,109 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Publish · {{ project.name }}{% endblock %}
+{% block crumb %}Build / Projects / {{ project.name }} / Publish{% endblock %}
+{% block content %}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+    <h1>Release Center</h1>
+    <a class="btn ghost" href="{% url 'dashboard:project' project.id %}">← Back to project</a>
+  </div>
+  <p class="sub">{{ project.name }} · build, publish and operate your website.</p>
+
+  {% if not website %}
+  <div class="card">
+    <h2 style="margin-top:0">Publish {{ project.name }}</h2>
+    <p class="muted" style="font-size:13px">
+      DevForge builds your site, runs checks, and publishes it to a working DevForge
+      URL — no servers, DNS or SSL to configure. A custom domain comes later.
+    </p>
+    {% if can_manage %}
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="action" value="enable_website">
+      <button class="btn" type="submit">Set up publishing</button>
+    </form>
+    {% else %}<p class="muted">Owner or admin required.</p>{% endif %}
+  </div>
+  {% else %}
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div>
+        <strong>{{ website.subdomain }}</strong>
+        <span class="chip">{{ website.site_type }}</span>
+      </div>
+      {% if current %}
+        <span class="badge b-{{ current.state }}">{{ current.get_state_display }}</span>
+      {% endif %}
+    </div>
+    {% if current and current.url %}
+    <p style="margin:10px 0 0">
+      <a href="{{ current.url }}" target="_blank" rel="noopener">{{ current.url }}</a>
+      <span class="muted" style="font-size:12px">· {{ current.version }} ·
+      {% if current.health == 'healthy' %}<span class="ok">healthy</span>
+      {% else %}<span class="fail">{{ current.health }}</span>{% endif %}</span>
+    </p>
+    {% endif %}
+    <p class="muted" style="font-size:11px;margin:8px 0 0">
+      Served by DevForge. A public custom domain (yourname.com) with SSL is coming soon —
+      it isn't active yet, so it isn't shown as connected.
+    </p>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;font-size:13px">
+      <span>Publish readiness</span><span class="strong">{{ score }}%</span>
+    </div>
+    <div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:4px 0 10px">
+      <div style="height:100%;width:{{ score }}%;background:var(--brand)"></div>
+    </div>
+    <table>
+      {% for c in checks %}
+      <tr>
+        <td style="width:20px">{% if c.status == 'ok' %}✓{% elif c.status == 'fail' %}<span class="fail">✕</span>{% else %}<span style="color:#d08">⚠</span>{% endif %}</td>
+        <td>{{ c.label }}</td>
+        <td class="muted">{{ c.detail }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% if can_manage %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <form method="post" style="display:inline">{% csrf_token %}
+        <input type="hidden" name="action" value="publish">
+        <button class="btn" type="submit" {% if not can_publish %}disabled title="Build the site first"{% endif %}>Publish</button>
+      </form>
+      <a class="ghost" href="{% url 'dashboard:preview' project.id %}" style="display:inline-block;padding:9px 14px;border:1px solid var(--line2);border-radius:9px">Preview</a>
+      {% if versions|length > 1 %}
+      <form method="post" style="display:inline">{% csrf_token %}
+        <input type="hidden" name="action" value="rollback">
+        <button class="ghost" type="submit">Rollback</button>
+      </form>
+      {% endif %}
+      {% if current %}
+      <form method="post" style="display:inline">{% csrf_token %}
+        <input type="hidden" name="action" value="health_check">
+        <button class="ghost" type="submit">Health check</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if versions %}
+  <div class="card">
+    <h2 style="margin-top:0">Versions</h2>
+    <table>
+      <tr><th>Version</th><th>Environment</th><th>State</th><th>Health</th><th>When</th><th></th></tr>
+      {% for v in versions %}
+      <tr>
+        <td class="strong">{{ v.version }}{% if v.is_current %} <span class="chip" style="color:var(--brand)">current</span>{% endif %}</td>
+        <td class="muted">{{ v.environment }}</td>
+        <td><span class="badge b-{{ v.state }}">{{ v.get_state_display }}</span></td>
+        <td class="muted">{{ v.health }}</td>
+        <td class="muted">{{ v.created_at|date:"M j, H:i" }}</td>
+        <td>{% if v.url and v.is_current %}<a href="{{ v.url }}" target="_blank" rel="noopener">open</a>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+  {% endif %}
+{% endblock %}

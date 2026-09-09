@@ -387,6 +387,57 @@ def release_center(request, pk):
 
 
 @login_required
+def publish_center(request, pk):
+    """Website Release Center (spec §41): Publish → Live URL, with an honest publish
+    checklist, versioned publishes served by DevForge, health, and rollback. Public
+    custom domains + SSL are a Phase-2 gated path, shown as not-yet-available."""
+    from apps.publishing import readiness as pub_readiness
+    from apps.publishing import service as pub
+    proj = get_object_or_404(
+        Project.objects.filter(organization__in=organizations_for(request.user)), pk=pk
+    )
+    can_manage = proj.organization_id in _manageable_ids(request.user)
+    website = getattr(proj, "website", None)
+
+    if request.method == "POST":
+        if not can_manage:
+            messages.error(request, "Owner or admin required for this action.")
+            return redirect("dashboard:publish_center", pk=pk)
+        action = request.POST.get("action")
+        if action == "enable_website":
+            website = pub.get_or_create_website(proj)
+            messages.success(request, "Website publishing enabled.")
+        elif action == "publish" and website:
+            version = pub.publish(website, user=request.user)
+            if version.state == "live":
+                messages.success(request, f"Published {version.version} — your site is live.")
+            elif version.state == "needs_attention":
+                messages.warning(request, f"Published {version.version}, but the health check "
+                                          f"flagged an issue: {version.health_detail}")
+            else:
+                messages.error(request, version.log or "Publish failed.")
+        elif action == "rollback" and website:
+            try:
+                target = pub.rollback(website, user=request.user)
+                messages.success(request, f"Rolled back to {target.version}.")
+            except pub.PublishError as exc:
+                messages.error(request, str(exc))
+        elif action == "health_check" and website and website.current:
+            pub.health_check(website.current)
+        return redirect("dashboard:publish_center", pk=pk)
+
+    checks = pub.evaluate(website) if website else []
+    current = website.current if website else None
+    return render(request, "dashboard/publish_center.html", {
+        "active": "projects", "project": proj, "can_manage": can_manage,
+        "website": website, "current": current, "checks": checks,
+        "score": pub_readiness.score(checks) if checks else 0,
+        "versions": website.versions.all()[:10] if website else [],
+        "can_publish": pub_readiness.can_publish(checks) if checks else False,
+    })
+
+
+@login_required
 def preview(request, pk):
     """Two-pane preview: chat (change requests) + a visual view of the app.
 

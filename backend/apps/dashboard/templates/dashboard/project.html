@@ -6,7 +6,8 @@
   <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
     <h1>{{ project.name }} <span class="badge b-{{ state|lower }}" style="font-size:12px;vertical-align:middle">{{ state }}</span></h1>
     <div style="display:flex;gap:8px">
-      <a class="btn ghost" href="{% url 'dashboard:release_center' project.id %}">Release Center →</a>
+      <a class="btn" href="{% url 'dashboard:publish_center' project.id %}">Publish →</a>
+      <a class="btn ghost" href="{% url 'dashboard:release_center' project.id %}">Mobile release →</a>
       <a class="btn ghost" href="{% url 'dashboard:preview' project.id %}">Open preview →</a>
     </div>
   </div>
