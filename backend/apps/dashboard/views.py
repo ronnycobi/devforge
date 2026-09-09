@@ -655,6 +655,14 @@ def store(request, pk):
                 if order:
                     shop.cancel_order(order, user=request.user)
                     messages.success(request, "Order cancelled.")
+            elif action == "generate_storefront":
+                from apps.publishing import storefront
+                try:
+                    result = storefront.generate_storefront(website, user=request.user)
+                    messages.success(request, f"Generated {result['pages']} storefront page(s). "
+                                              "Publish to make the shop live.")
+                except storefront.StorefrontError as exc:
+                    messages.error(request, str(exc))
         except (shop.EcommerceError, ValueError) as exc:
             messages.error(request, str(exc))
         return redirect("dashboard:store", pk=pk)

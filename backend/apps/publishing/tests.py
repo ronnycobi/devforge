@@ -1019,6 +1019,60 @@ class PaymentsTests(TestCase):
             self.assertContains(r, "Not configured")   # card gateways honest
 
 
+class StorefrontTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="owner@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Acme Site", created_by=self.user)
+
+    def test_generate_emits_shop_pages_with_buy_form(self):
+        from apps.publishing import ecommerce_service as shop
+        from apps.publishing import storefront
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = pub.get_or_create_website(self.project)
+            p = shop.create_product(site, name="Blue Mug", price_cents=1500, user=self.user)
+            result = storefront.generate_storefront(site, user=self.user)
+            self.assertIn("shop/index.html", result["paths"])
+            self.assertIn(f"shop/{p.slug}.html", result["paths"])
+            repo = repo_for_project(self.project)
+            index = (repo.path / "shop/index.html").read_text()
+            self.assertIn("Blue Mug", index)
+            self.assertIn(f'action="/sites/{site.subdomain}/checkout"', index)   # real endpoint
+            self.assertIn(f'name="product_id" value="{p.id}"', index)
+            self.assertIn('lang="en"', index)                                    # accessible
+
+    def test_no_products_no_storefront(self):
+        from apps.publishing import storefront
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = pub.get_or_create_website(self.project)
+            with self.assertRaises(storefront.StorefrontError):
+                storefront.generate_storefront(site, user=self.user)
+
+    def test_end_to_end_generate_publish_buy(self):
+        from apps.publishing import ecommerce_service as shop
+        from apps.publishing import storefront
+        from apps.publishing.models import Order
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = pub.get_or_create_website(self.project)
+            # A home page so the site has something, plus a product + storefront.
+            repo = repo_for_project(self.project); repo.init()
+            repo.write_files({"index.html": PAGE}); repo.commit("seed")
+            p = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            storefront.generate_storefront(site, user=self.user)
+            pub.publish(site, user=self.user)
+            # The published shop page really serves, and its form targets checkout.
+            r = self.client.get(f"/sites/{site.subdomain}/shop/index.html")
+            self.assertEqual(r.status_code, 200)
+            self.assertIn(b"/checkout", b"".join(r.streaming_content))
+            # Posting the buy form to the real endpoint creates an order.
+            r2 = self.client.post(reverse("publishing:checkout", args=[site.subdomain]),
+                                  {"product_id": p.id, "quantity": "2", "email": "b@x.com"})
+            self.assertEqual(r2.status_code, 200)
+            order = Order.objects.get(website=site)
+            self.assertEqual(order.subtotal_cents, 3000)
+            self.assertEqual(order.status, "awaiting_payment")
+
+
 class PublishUITests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="o@acme.com", password="x")

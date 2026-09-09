@@ -45,6 +45,13 @@
       <textarea name="description" rows="2" placeholder="Description (optional)"></textarea>
       <button class="ghost" type="submit" style="justify-self:start">Add product</button>
     </form>
+    {% if products %}
+    <form method="post" style="margin-top:10px">{% csrf_token %}
+      <input type="hidden" name="action" value="generate_storefront">
+      <button class="btn" type="submit">Generate storefront pages</button>
+      <span class="muted" style="font-size:11px;margin-left:8px">Creates /shop with a buy button per product — then publish.</span>
+    </form>
+    {% endif %}
     {% endif %}
   </div>
 
