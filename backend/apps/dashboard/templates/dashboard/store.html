@@ -8,6 +8,29 @@
   </div>
   <p class="sub">{{ project.name }} · products, orders and payments.</p>
 
+  {% if summary and summary.paid_orders %}
+  <div class="card">
+    <h2 style="margin-top:0">Sales</h2>
+    <div class="cards" style="margin-bottom:6px">
+      <div class="card stat"><div class="k">Paid orders</div><div class="v grad">{{ summary.paid_orders }}</div></div>
+      <div class="card stat"><div class="k">Units sold</div><div class="v">{{ summary.units_sold }}</div></div>
+      {% for r in summary.revenue %}
+      <div class="card stat"><div class="k">Net revenue ({{ r.currency }})</div><div class="v">{{ r.net }}</div>
+        <div class="muted" style="font-size:11px">gross {{ r.gross }} · refunded {{ r.refunded }}</div></div>
+      {% endfor %}
+    </div>
+    {% if summary.top_products %}
+    <table>
+      <tr><th>Top product</th><th class="num">Units</th><th class="num">Revenue (cents)</th></tr>
+      {% for t in summary.top_products %}
+      <tr><td class="strong">{{ t.name }}</td><td class="num">{{ t.units }}</td><td class="num muted">{{ t.revenue_cents }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+    <p class="muted" style="font-size:11px;margin-bottom:0">Revenue counts paid orders only, grouped by currency — figures are never summed across currencies.</p>
+  </div>
+  {% endif %}
+
   <div class="card">
     <h2 style="margin-top:0">Payment methods</h2>
     <table>

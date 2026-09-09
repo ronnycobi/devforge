@@ -681,6 +681,7 @@ def store(request, pk):
         "products": list(website.products.all()) if website else [],
         "orders": list(website.orders.prefetch_related("items")[:50]) if website else [],
         "providers": payments.provider_status(),
+        "summary": shop.sales_summary(website) if website else None,
     })
 
 

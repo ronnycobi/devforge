@@ -1151,6 +1151,44 @@ class PaymentsTests(TestCase):
             order.refresh_from_db()
             self.assertEqual(order.status, "paid")              # not falsely refunded
 
+    def test_sales_summary_counts_paid_only_and_by_currency(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            mug = shop.create_product(site, name="Mug", price_cents=1500, currency="USD", user=self.user)
+            cap = shop.create_product(site, name="Cap", price_cents=2000, currency="USD", user=self.user)
+            # Paid order: 2 mugs + 1 cap = 5000.
+            paid = shop.create_order(site, items=[{"product_id": mug.id, "quantity": 2},
+                                                  {"product_id": cap.id, "quantity": 1}],
+                                     customer_email="b@x.com")
+            shop.start_checkout(paid, provider_key="manual")
+            shop.confirm_manual_payment(paid, user=self.user)
+            # An unpaid order that must NOT count as revenue.
+            shop.create_order(site, items=[{"product_id": mug.id, "quantity": 5}])
+
+            s = shop.sales_summary(site)
+            self.assertEqual(s["paid_orders"], 1)
+            self.assertEqual(s["units_sold"], 3)                 # only the paid order's units
+            self.assertEqual(len(s["revenue"]), 1)
+            self.assertEqual(s["revenue"][0]["net"], "USD 50.00")
+            self.assertEqual(s["top_products"][0]["name"], "Mug")   # 2 units, most
+
+    def test_sales_summary_nets_refunds(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1000, currency="USD", user=self.user)
+            o1 = shop.create_order(site, items=[{"product_id": p.id, "quantity": 3}], customer_email="b@x.com")
+            shop.start_checkout(o1, provider_key="manual"); shop.confirm_manual_payment(o1, user=self.user)
+            o2 = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}], customer_email="b@x.com")
+            shop.start_checkout(o2, provider_key="manual"); shop.confirm_manual_payment(o2, user=self.user)
+            shop.refund_order(o2, user=self.user)                # refund the 1000 order
+            s = shop.sales_summary(site)
+            row = s["revenue"][0]
+            self.assertEqual(row["gross"], "USD 30.00")          # both paid at time of sale
+            self.assertEqual(row["refunded"], "USD 10.00")
+            self.assertEqual(row["net"], "USD 20.00")
+
     def test_store_page_renders(self):
         Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
         with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):

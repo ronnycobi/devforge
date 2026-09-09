@@ -186,6 +186,52 @@ def cancel_order(order: Order, *, user=None) -> Order:
     return order
 
 
+def sales_summary(website) -> dict:
+    """Real sales figures from actual orders (spec §32). Revenue is grouped BY CURRENCY
+    — never summed across currencies — so the numbers are honest. Only paid orders
+    count as revenue; refunded orders are reported separately and netted per currency."""
+    from collections import defaultdict
+    from django.db.models import F, Sum
+
+    orders = website.orders.all()
+    counts = {s: orders.filter(status=s).count() for s, _ in Order.STATUS}
+
+    paid_cents, refunded_cents = defaultdict(int), defaultdict(int)
+    for cur, cents in orders.filter(status="paid").values_list("currency", "subtotal_cents"):
+        paid_cents[cur] += cents
+    for cur, cents in orders.filter(status="refunded").values_list("currency", "subtotal_cents"):
+        refunded_cents[cur] += cents
+
+    revenue = []
+    for cur in sorted(set(paid_cents) | set(refunded_cents)):
+        gross, ref = paid_cents.get(cur, 0), refunded_cents.get(cur, 0)
+        revenue.append({
+            "currency": cur,
+            "gross": f"{cur} {gross / 100:.2f}",
+            "refunded": f"{cur} {ref / 100:.2f}",
+            "net": f"{cur} {(gross - ref) / 100:.2f}",
+        })
+
+    top = list(
+        OrderItem.objects.filter(order__website=website, order__status="paid")
+        .values("name")
+        .annotate(units=Sum("quantity"), revenue_cents=Sum(F("unit_price_cents") * F("quantity")))
+        .order_by("-units")[:8]
+    )
+    units_sold = (
+        OrderItem.objects.filter(order__website=website, order__status="paid")
+        .aggregate(n=Sum("quantity"))["n"] or 0
+    )
+
+    return {
+        "counts": counts,
+        "paid_orders": counts.get("paid", 0),
+        "revenue": revenue,
+        "top_products": top,
+        "units_sold": units_sold,
+    }
+
+
 def _reference() -> str:
     return "ORD-" + secrets.token_hex(4).upper()
 
