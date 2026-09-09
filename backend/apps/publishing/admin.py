@@ -1,8 +1,8 @@
 from django.contrib import admin
 
 from apps.publishing.models import (
-    Asset, CustomDomain, Form, FormSubmission, HealthCheck, Lead, PageSeo,
-    PublishVersion, SeoConfig, Website,
+    Asset, ContentCollection, ContentItem, CustomDomain, Form, FormSubmission,
+    HealthCheck, Lead, PageSeo, PublishVersion, SeoConfig, Website,
 )
 
 
@@ -57,3 +57,15 @@ class AssetAdmin(admin.ModelAdmin):
 class HealthCheckAdmin(admin.ModelAdmin):
     list_display = ("website", "status", "response_ms", "checked_at")
     list_filter = ("status",)
+
+
+@admin.register(ContentCollection)
+class ContentCollectionAdmin(admin.ModelAdmin):
+    list_display = ("name", "website", "kind", "created_at")
+    list_filter = ("kind",)
+
+
+@admin.register(ContentItem)
+class ContentItemAdmin(admin.ModelAdmin):
+    list_display = ("title", "collection", "published", "order")
+    list_filter = ("published",)

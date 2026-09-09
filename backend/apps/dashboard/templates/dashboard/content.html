@@ -1,0 +1,69 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Content · {{ project.name }}{% endblock %}
+{% block crumb %}Build / Projects / {{ project.name }} / Content{% endblock %}
+{% block content %}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+    <h1>Content</h1>
+    <a class="btn ghost" href="{% url 'dashboard:publish_center' project.id %}">← Release Center</a>
+  </div>
+  <p class="sub">{{ project.name }} · editable content that generates real pages on your site.</p>
+
+  {% if can_manage %}
+  <div class="card">
+    <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">{% csrf_token %}
+      <input type="hidden" name="action" value="add_collection">
+      <select name="kind" style="width:auto">
+        {% for k, label in kinds %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
+      </select>
+      <button class="ghost" type="submit">Add collection</button>
+      {% if collections %}
+      <span style="margin-left:auto"></span>
+      {% endif %}
+    </form>
+    {% if collections %}
+    <form method="post" style="margin-top:8px">{% csrf_token %}
+      <input type="hidden" name="action" value="generate">
+      <button class="btn" type="submit">Generate pages</button>
+      <span class="muted" style="font-size:11px;margin-left:8px">Writes the content into your site — then publish to make it live.</span>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% for group in collections %}
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <h2 style="margin:0">{{ group.c.name }} <span class="chip">{{ group.c.get_kind_display }}</span></h2>
+      <span class="muted" style="font-size:12px">/{{ group.c.slug }}</span>
+    </div>
+
+    {% if group.items %}
+    <table style="margin-top:8px">
+      <tr><th>Title</th><th>Subtitle</th><th>Status</th><th></th></tr>
+      {% for it in group.items %}
+      <tr>
+        <td class="strong">{{ it.title }}</td>
+        <td class="muted">{{ it.subtitle|default:"—" }}</td>
+        <td>{% if it.published %}<span class="ok">published</span>{% else %}<span class="muted">draft</span>{% endif %}</td>
+        <td>{% if can_manage %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="delete_item">
+          <input type="hidden" name="item" value="{{ it.id }}"><button class="ghost" type="submit" style="padding:4px 9px;font-size:12px">Delete</button></form>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="muted" style="font-size:13px;margin:8px 0 0">No items yet.</p>{% endif %}
+
+    {% if can_manage %}
+    <form method="post" style="margin-top:10px;display:grid;gap:6px;max-width:520px">{% csrf_token %}
+      <input type="hidden" name="action" value="add_item">
+      <input type="hidden" name="collection" value="{{ group.c.id }}">
+      <input type="text" name="title" placeholder="Title" required>
+      <input type="text" name="subtitle" placeholder="Subtitle / role / author (optional)">
+      <textarea name="body" rows="3" placeholder="Body"></textarea>
+      <button class="ghost" type="submit" style="justify-self:start">Add item</button>
+    </form>
+    {% endif %}
+  </div>
+  {% empty %}
+  <div class="card"><p class="empty">No collections yet. Add one above if your site needs a blog, FAQs, services or similar. Simple sites don't need a CMS.</p></div>
+  {% endfor %}
+{% endblock %}

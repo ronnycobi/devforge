@@ -326,6 +326,56 @@ class HealthCheck(models.Model):
         return f"{self.website.subdomain} {self.status} @ {self.checked_at:%Y-%m-%d %H:%M}"
 
 
+class ContentCollection(models.Model):
+    """An editable content collection for a website (spec §25). Opt-in — a CMS is
+    only added to sites that need one, never forced onto a simple static site."""
+
+    KINDS = [
+        ("blog", "Blog"), ("article", "Articles"), ("faq", "FAQs"),
+        ("service", "Services"), ("team", "Team"), ("testimonial", "Testimonials"),
+        ("product", "Products"), ("project", "Projects"), ("page", "Pages"),
+    ]
+
+    website = models.ForeignKey(Website, on_delete=models.CASCADE, related_name="collections")
+    slug = models.SlugField(max_length=64)
+    name = models.CharField(max_length=120)
+    kind = models.CharField(max_length=20, choices=KINDS, default="blog")
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["website", "slug"], name="uniq_collection_slug")
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.website.subdomain})"
+
+
+class ContentItem(models.Model):
+    """One entry in a collection (spec §25)."""
+
+    collection = models.ForeignKey(ContentCollection, on_delete=models.CASCADE, related_name="items")
+    slug = models.SlugField(max_length=80)
+    title = models.CharField(max_length=200)
+    subtitle = models.CharField(max_length=255, blank=True)   # role, author, tagline…
+    body = models.TextField(blank=True)
+    image = models.CharField(max_length=1024, blank=True)     # asset path/url, optional
+    published = models.BooleanField(default=True)
+    order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order", "-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["collection", "slug"], name="uniq_item_slug")
+        ]
+
+    def __str__(self):
+        return self.title
+
+
 class PublishCheck(models.Model):
     """One publish-readiness check result (spec §12, §41)."""
 

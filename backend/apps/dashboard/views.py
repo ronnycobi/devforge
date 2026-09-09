@@ -615,6 +615,64 @@ def analytics(request, pk):
 
 
 @login_required
+def content(request, pk):
+    """Content management (spec §25): opt-in collections that generate real pages."""
+    from apps.publishing import cms_service as cms
+    from apps.publishing import service as pub
+    from apps.publishing.models import ContentCollection
+    proj = get_object_or_404(
+        Project.objects.filter(organization__in=organizations_for(request.user)), pk=pk
+    )
+    can_manage = proj.organization_id in _manageable_ids(request.user)
+    website = getattr(proj, "website", None)
+
+    if request.method == "POST":
+        if not can_manage:
+            messages.error(request, "Owner or admin required.")
+            return redirect("dashboard:content", pk=pk)
+        if website is None:
+            website = pub.get_or_create_website(proj)
+        action = request.POST.get("action")
+        try:
+            if action == "add_collection":
+                cms.create_collection(website, kind=request.POST.get("kind", "blog"),
+                                      user=request.user)
+                messages.success(request, "Collection added.")
+            elif action == "add_item":
+                coll = website.collections.filter(pk=request.POST.get("collection", 0)).first()
+                if coll and (request.POST.get("title") or "").strip():
+                    cms.add_item(coll, title=request.POST["title"].strip(),
+                                 subtitle=request.POST.get("subtitle", "").strip(),
+                                 body=request.POST.get("body", "").strip(), user=request.user)
+                    messages.success(request, "Item added.")
+                else:
+                    messages.error(request, "A title is required.")
+            elif action == "delete_item":
+                from apps.publishing.models import ContentItem
+                item = ContentItem.objects.filter(pk=request.POST.get("item", 0),
+                                                  collection__website=website).first()
+                if item:
+                    item.delete()
+                    messages.success(request, "Item deleted.")
+            elif action == "generate":
+                result = cms.generate(website, user=request.user)
+                messages.success(request, f"Generated {result['pages']} content page(s). "
+                                          "Publish to make them live.")
+        except cms.CmsError as exc:
+            messages.error(request, str(exc))
+        return redirect("dashboard:content", pk=pk)
+
+    collections = []
+    if website:
+        for c in website.collections.all():
+            collections.append({"c": c, "items": list(c.items.all())})
+    return render(request, "dashboard/content.html", {
+        "active": "projects", "project": proj, "can_manage": can_manage,
+        "website": website, "collections": collections, "kinds": ContentCollection.KINDS,
+    })
+
+
+@login_required
 def assets(request, pk):
     """Asset manager for a website (spec §26): upload/resize/compress/replace/delete."""
     from apps.publishing import assets_service as assets_svc

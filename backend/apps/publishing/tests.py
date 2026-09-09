@@ -779,6 +779,78 @@ class OperationsAdvisorTests(TestCase):
             self.assertContains(r, "nothing is applied automatically")
 
 
+class CmsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="owner@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Acme Site", created_by=self.user)
+
+    def _site(self):
+        return pub.get_or_create_website(self.project)
+
+    def test_blog_generates_index_and_detail_pages(self):
+        from apps.publishing import cms_service as cms
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            blog = cms.create_collection(site, kind="blog", name="Blog", user=self.user)
+            cms.add_item(blog, title="First Post", subtitle="hello", body="Line one.\n\nLine two.")
+            result = cms.generate(site, user=self.user)
+            paths = result["paths"]
+            self.assertIn("blog/index.html", paths)
+            self.assertIn("blog/first-post.html", paths)
+            repo = repo_for_project(self.project)
+            detail = (repo.path / "blog/first-post.html").read_text()
+            self.assertIn("<h1>First Post</h1>", detail)
+            self.assertIn("<p>Line one.</p>", detail)     # paragraphs rendered
+            self.assertIn('lang="en"', detail)            # accessible output
+
+    def test_faq_generates_single_page(self):
+        from apps.publishing import cms_service as cms
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            faq = cms.create_collection(site, kind="faq", name="FAQs", user=self.user)
+            cms.add_item(faq, title="How much?", body="It depends.")
+            result = cms.generate(site, user=self.user)
+            self.assertEqual(result["paths"], ["faqs.html"])
+            html = (repo_for_project(self.project).path / "faqs.html").read_text()
+            self.assertIn("How much?", html)
+
+    def test_unpublished_items_excluded(self):
+        from apps.publishing import cms_service as cms
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            blog = cms.create_collection(site, kind="blog", user=self.user)
+            cms.add_item(blog, title="Draft", body="x", published=False)
+            with self.assertRaises(cms.CmsError):   # only a draft → nothing to generate
+                cms.generate(site, user=self.user)
+
+    def test_generated_content_escapes_html(self):
+        from apps.publishing import cms_service as cms
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            page = cms.create_collection(site, kind="page", name="Pages", user=self.user)
+            cms.add_item(page, title="About", body="<script>alert(1)</script>")
+            cms.generate(site, user=self.user)
+            html = (repo_for_project(self.project).path / "about.html").read_text()
+            self.assertNotIn("<script>alert(1)</script>", html)   # escaped, not injected
+            self.assertIn("&lt;script&gt;", html)
+
+    def test_cms_ui_flow(self):
+        Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            url = reverse("dashboard:content", args=[self.project.id])
+            self.client.force_login(self.user)
+            self.client.post(url, {"action": "add_collection", "kind": "service"})
+            site = pub.get_or_create_website(self.project)
+            coll = site.collections.first()
+            self.client.post(url, {"action": "add_item", "collection": coll.id,
+                                   "title": "Consulting", "subtitle": "Expert help", "body": "We help."})
+            self.client.post(url, {"action": "generate"})
+            r = self.client.get(url)
+            self.assertContains(r, "Consulting")
+            self.assertIn(f"{coll.slug}.html", repo_for_project(self.project).list_files())
+
+
 class PublishUITests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="o@acme.com", password="x")
