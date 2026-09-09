@@ -92,6 +92,7 @@
       <h2 style="margin:0">Forms &amp; leads</h2>
       <span style="display:flex;gap:8px;flex-wrap:wrap">
         <a class="ghost" href="{% url 'dashboard:analytics' project.id %}" style="display:inline-block;padding:7px 12px;border:1px solid var(--line2);border-radius:9px">Analytics →</a>
+        <a class="ghost" href="{% url 'dashboard:accessibility' project.id %}" style="display:inline-block;padding:7px 12px;border:1px solid var(--line2);border-radius:9px">Accessibility →</a>
         <a class="ghost" href="{% url 'dashboard:assets' project.id %}" style="display:inline-block;padding:7px 12px;border:1px solid var(--line2);border-radius:9px">Assets →</a>
         {% if lead_count %}<a class="ghost" href="{% url 'dashboard:leads' project.id %}" style="display:inline-block;padding:7px 12px;border:1px solid var(--line2);border-radius:9px">Leads inbox ({{ lead_count }}) →</a>{% endif %}
       </span>

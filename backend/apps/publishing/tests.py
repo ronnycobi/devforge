@@ -550,6 +550,79 @@ class AnalyticsTests(TestCase):
             self.assertContains(r, "Do-Not-Track")
 
 
+BAD_A11Y = (
+    "<html><head><title>x</title></head><body>"
+    "<div>menu</div><h1>Hi</h1><h3>Skipped</h3>"
+    "<img src='a.png'>"
+    "<input type='text' name='email'>"
+    "<a href='/x'><img src='i.png'></a>"
+    "<button></button>"
+    "<span tabindex='3'>x</span>"
+    "<p style='color:#777;background:#888'>low</p>"
+    "<style>a:focus{outline:none}</style>"
+    "</body></html>"
+)
+GOOD_A11Y = (
+    "<html lang='en'><head><title>x</title></head><body>"
+    "<nav>menu</nav><main><h1>Hi</h1><h2>Sub</h2>"
+    "<img src='a.png' alt='A logo'>"
+    "<label for='e'>Email</label><input type='text' id='e' name='email'>"
+    "<button>Send</button></main></body></html>"
+)
+
+
+class AccessibilityTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="owner@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Acme Site", created_by=self.user)
+
+    def _site(self, files):
+        repo = repo_for_project(self.project); repo.init()
+        repo.write_files(files); repo.commit("seed")
+        return pub.get_or_create_website(self.project)
+
+    def _status(self, html):
+        from apps.publishing import accessibility as a11y
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site({"index.html": html})
+            audit = a11y.audit_pages(site)[0]
+            return {f["key"]: f["status"] for f in audit.findings}
+
+    def test_flags_real_problems(self):
+        s = self._status(BAD_A11Y)
+        self.assertEqual(s["lang"], "fail")        # no <html lang>
+        self.assertEqual(s["alt"], "fail")         # img without alt
+        self.assertEqual(s["labels"], "fail")      # input with no label
+        self.assertEqual(s["headings"], "warn")    # h1 → h3 skip
+        self.assertEqual(s["landmarks"], "warn")   # no main/nav
+        self.assertEqual(s["tabindex"], "warn")    # positive tabindex
+        self.assertEqual(s["focus"], "warn")       # outline:none
+        self.assertEqual(s["contrast"], "warn")    # #777 on #888 is low
+
+    def test_clean_page_passes_detectable_checks(self):
+        s = self._status(GOOD_A11Y)
+        for key in ("lang", "alt", "labels", "headings", "landmarks"):
+            self.assertEqual(s[key], "ok", key)
+
+    def test_contrast_is_manual_without_inline_colors(self):
+        s = self._status("<html lang='en'><body><main><nav>x</nav><h1>Hi</h1></main></body></html>")
+        self.assertEqual(s["contrast"], "manual")  # honest — can't verify statically
+
+    def test_empty_icon_link_flagged(self):
+        s = self._status("<html lang='en'><body><a href='/'><svg></svg></a></body></html>")
+        self.assertEqual(s["controls"], "warn")
+
+    def test_page_renders_with_no_compliance_claim(self):
+        Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            self._site({"index.html": GOOD_A11Y})
+            self.client.force_login(self.user)
+            r = self.client.get(reverse("dashboard:accessibility", args=[self.project.id]))
+            self.assertEqual(r.status_code, 200)
+            self.assertContains(r, "does not guarantee full accessibility compliance")
+
+
 class PublishUITests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="o@acme.com", password="x")

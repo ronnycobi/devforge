@@ -1,0 +1,50 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Accessibility · {{ project.name }}{% endblock %}
+{% block crumb %}Build / Projects / {{ project.name }} / Accessibility{% endblock %}
+{% block content %}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+    <h1>Accessibility</h1>
+    <a class="btn ghost" href="{% url 'dashboard:publish_center' project.id %}">← Release Center</a>
+  </div>
+  <p class="sub">{{ project.name }} · automated checks on your built pages.</p>
+
+  {% if not audits %}
+  <div class="card"><p class="empty">No HTML pages to check yet — build the site first.</p></div>
+  {% else %}
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;font-size:13px">
+      <span>Accessibility checks ({{ audits|length }} page{{ audits|length|pluralize }})</span>
+      <span class="strong">{{ score }}%</span>
+    </div>
+    <div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:4px 0 10px">
+      <div style="height:100%;width:{{ score }}%;background:var(--brand)"></div>
+    </div>
+  </div>
+
+  {% for a in audits %}
+  <div class="card">
+    <h2 style="margin-top:0">{{ a.path }}</h2>
+    <table>
+      {% for f in a.findings %}
+      <tr>
+        <td style="width:22px">
+          {% if f.status == 'ok' %}✓
+          {% elif f.status == 'fail' %}<span class="fail">✕</span>
+          {% elif f.status == 'manual' %}<span class="muted">○</span>
+          {% else %}<span style="color:#d08">⚠</span>{% endif %}
+        </td>
+        <td style="white-space:nowrap">{{ f.label }}</td>
+        <td class="muted">{{ f.detail }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endfor %}
+
+  <p class="muted" style="font-size:11px;margin-top:8px">
+    These are automated static checks — they catch common issues but can't verify everything.
+    Colour contrast and keyboard navigation need a manual review on the rendered page.
+    Passing here does not guarantee full accessibility compliance.
+  </p>
+  {% endif %}
+{% endblock %}

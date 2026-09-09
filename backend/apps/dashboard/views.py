@@ -520,6 +520,22 @@ def _seo_context(website):
 
 
 @login_required
+def accessibility(request, pk):
+    """Automated accessibility checks on the built site (spec §30). Reports actual
+    findings — never claims guaranteed compliance."""
+    from apps.publishing import accessibility as a11y
+    proj = get_object_or_404(
+        Project.objects.filter(organization__in=organizations_for(request.user)), pk=pk
+    )
+    website = getattr(proj, "website", None)
+    audits = a11y.audit_pages(website) if website else []
+    return render(request, "dashboard/accessibility.html", {
+        "active": "projects", "project": proj, "website": website,
+        "audits": audits, "score": a11y.score(audits) if audits else 0,
+    })
+
+
+@login_required
 def analytics(request, pk):
     """Website analytics (spec §28) — real page views of the published site."""
     from apps.publishing import analytics as an
