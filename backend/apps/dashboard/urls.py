@@ -15,6 +15,7 @@ urlpatterns = [
     path("projects/<int:pk>/analytics/", views.analytics, name="analytics"),
     path("projects/<int:pk>/accessibility/", views.accessibility, name="accessibility"),
     path("projects/<int:pk>/monitoring/", views.monitoring, name="monitoring"),
+    path("projects/<int:pk>/operations/", views.site_operations, name="operations"),
     path("projects/<int:pk>/assets/", views.assets, name="assets"),
     path("projects/<int:pk>/assets/<int:asset_id>/raw", views.asset_raw, name="asset_raw"),
     path("projects/<int:pk>/preview/", views.preview, name="preview"),

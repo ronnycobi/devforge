@@ -520,6 +520,38 @@ def _seo_context(website):
 
 
 @login_required
+def site_operations(request, pk):
+    """AI operations advisor (spec §37): inspect real signals → explain → recommend →
+    fix (via the approval-gated change loop). BUILD → OPERATE → IMPROVE."""
+    from apps.publishing import operations as ops
+    proj = get_object_or_404(
+        Project.objects.filter(organization__in=organizations_for(request.user)), pk=pk
+    )
+    can_manage = proj.organization_id in _manageable_ids(request.user)
+    website = getattr(proj, "website", None)
+
+    if request.method == "POST" and website and can_manage:
+        if request.POST.get("action") == "create_fix":
+            key = request.POST.get("finding")
+            finding = next((f for f in ops.analyze(website) if f.key == key
+                            and f.action.get("type") == "change"), None)
+            if finding:
+                change = changes_service.create_change(
+                    proj, f"Operations fix — {finding.title}.\n\n{finding.recommendation}",
+                    request.user)
+                changes_service.build_plan(change)
+                return redirect("dashboard:change", pk=change.id)
+        return redirect("dashboard:operations", pk=pk)
+
+    findings = ops.analyze(website) if website else []
+    return render(request, "dashboard/site_operations.html", {
+        "active": "projects", "project": proj, "can_manage": can_manage,
+        "website": website, "findings": findings,
+        "summary": ops.summary_line(findings) if website else "",
+    })
+
+
+@login_required
 def monitoring(request, pk):
     """Health monitoring for the published site (spec §36). Real serve-health probes;
     remote-server resource metrics are honestly marked not-monitored."""

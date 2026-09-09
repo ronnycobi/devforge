@@ -1,0 +1,53 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Operations · {{ project.name }}{% endblock %}
+{% block crumb %}Build / Projects / {{ project.name }} / Operations{% endblock %}
+{% block content %}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+    <h1>Operations</h1>
+    <a class="btn ghost" href="{% url 'dashboard:publish_center' project.id %}">← Release Center</a>
+  </div>
+  <p class="sub">{{ project.name }} · DevForge watches your live site and suggests improvements.</p>
+
+  {% if not website %}
+  <div class="card"><p class="empty">Publish your site to get operational insights.</p></div>
+  {% else %}
+
+  <div class="card">
+    <p style="margin:0;font-size:15px">{{ summary }}</p>
+  </div>
+
+  {% if findings %}
+  {% for f in findings %}
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+      <div>
+        <span class="badge {% if f.severity == 'high' %}b-failed{% elif f.severity == 'medium' %}b-waiting_for_approval{% else %}b-queued{% endif %}">{{ f.severity }}</span>
+        <strong style="margin-left:6px">{{ f.title }}</strong>
+        <span class="chip" style="margin-left:6px">{{ f.area }}</span>
+      </div>
+    </div>
+    <p class="muted" style="font-size:13px;margin:8px 0 4px">{{ f.explanation }}</p>
+    <p style="font-size:13px;margin:4px 0 8px"><strong>Recommended:</strong> {{ f.recommendation }}</p>
+    {% if can_manage %}
+      {% if f.action.type == 'change' %}
+      <form method="post" style="display:inline">{% csrf_token %}
+        <input type="hidden" name="action" value="create_fix">
+        <input type="hidden" name="finding" value="{{ f.key }}">
+        <button class="btn" type="submit">{{ f.action.label }}</button>
+      </form>
+      {% else %}
+      <a class="ghost" href="{% url f.action.url_name project.id %}" style="display:inline-block;padding:9px 14px;border:1px solid var(--line2);border-radius:9px">{{ f.action.label }} →</a>
+      {% endif %}
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="card"><p class="empty">No issues detected. DevForge will flag things here as your site runs.</p></div>
+  {% endif %}
+
+  <p class="muted" style="font-size:11px;margin-top:8px">
+    These insights come from your site's real monitoring, analytics and audit data.
+    Fixes that change code are proposed for your review and approval — nothing is applied automatically.
+  </p>
+  {% endif %}
+{% endblock %}

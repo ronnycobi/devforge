@@ -688,6 +688,97 @@ class MonitoringTests(TestCase):
             self.assertContains(r, "Not monitored on DevForge hosting yet")
 
 
+CLEAN_PAGE = (
+    "<html lang='en'><head><title>Acme</title>"
+    "<meta name='description' content='Acme builds things.'></head><body>"
+    "<nav>menu</nav><main><h1>Acme</h1>"
+    "<img src='a.png' alt='logo'>"
+    "<label for='e'>Email</label><input id='e' name='email'>"
+    "<button>Send</button></main></body></html>"
+)
+
+
+class OperationsAdvisorTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="owner@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Acme Site", created_by=self.user)
+
+    def _publish(self, page=CLEAN_PAGE, extra=None):
+        files = {"index.html": page}
+        if extra:
+            files.update(extra)
+        repo = repo_for_project(self.project); repo.init()
+        repo.write_files(files); repo.commit("seed")
+        site = pub.get_or_create_website(self.project)
+        pub.publish(site, user=self.user)
+        return site
+
+    def _keys(self, site):
+        from apps.publishing import operations as ops
+        return {f.key for f in ops.analyze(site)}
+
+    def test_clean_site_is_healthy(self):
+        from apps.publishing import operations as ops
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._publish()
+            findings = ops.analyze(site)
+            self.assertEqual(findings, [])
+            self.assertIn("healthy", ops.summary_line(findings).lower())
+
+    def test_flags_large_image(self):
+        from apps.publishing.models import Asset
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._publish()
+            Asset.objects.create(website=site, path="assets/huge.png", original_name="huge.png",
+                                 kind="image", size=3 * 1024 * 1024, width=4000, height=3000)
+            keys = self._keys(site)
+            self.assertIn("large_images", keys)
+
+    def test_flags_missing_seo(self):
+        # A page with no title/description.
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._publish(page="<html lang='en'><body><main><nav>x</nav><h1>Hi</h1></main></body></html>")
+            self.assertIn("seo_gaps", self._keys(site))
+
+    def test_flags_accessibility(self):
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._publish(page="<html><head><title>x</title><meta name='description' content='y'></head><body><img src='a.png'></body></html>")
+            self.assertIn("a11y", self._keys(site))   # missing lang + alt
+
+    def test_conversion_finding_when_traffic_and_no_form(self):
+        from apps.publishing.models import PageView
+        from django.utils import timezone
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._publish()
+            today = timezone.now().date()
+            for i in range(25):
+                PageView.objects.create(website=site, path="/", device="desktop",
+                                        session_key=f"sess{i:03d}", day=today)
+            self.assertIn("no_capture", self._keys(site))
+
+    def test_page_weight_creates_change_request(self):
+        Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._publish(extra={"heavy.html": "<html lang='en'><body>" + "x" * 300000 + "</body></html>"})
+            self.assertIn("page_weight", self._keys(site))
+            self.client.force_login(self.user)
+            r = self.client.post(reverse("dashboard:operations", args=[self.project.id]),
+                                  {"action": "create_fix", "finding": "page_weight"})
+            self.assertEqual(r.status_code, 302)
+            self.assertIn("/changes/", r.headers["Location"])   # routed to approval-gated change
+            self.assertEqual(self.project.changes.count(), 1)
+
+    def test_operations_page_renders(self):
+        Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            self._publish()
+            self.client.force_login(self.user)
+            r = self.client.get(reverse("dashboard:operations", args=[self.project.id]))
+            self.assertEqual(r.status_code, 200)
+            self.assertContains(r, "nothing is applied automatically")
+
+
 class PublishUITests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="o@acme.com", password="x")
