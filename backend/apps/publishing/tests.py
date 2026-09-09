@@ -1607,6 +1607,68 @@ class StoreProvisionTests(TestCase):
             self.assertFalse(prov.called)                # non-store brief → not wired
 
 
+class CommerceApiTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="owner@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Acme Shop", created_by=self.user)
+
+    def _store_with_product(self, tmp, **pk):
+        from apps.publishing import ecommerce_service as shop
+        site = pub.get_or_create_website(self.project)
+        product = shop.create_product(site, name="Mug", price_cents=1500, user=self.user, **pk)
+        return site, product
+
+    def test_products_api_lists_active_products(self):
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site, p = self._store_with_product(tmp)
+            r = self.client.get(reverse("commerce_api:products", args=[site.subdomain]))
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()["products"][0]["name"], "Mug")
+
+    def test_checkout_api_records_channel_and_shares_inventory(self):
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site, p = self._store_with_product(tmp, track_inventory=True, stock=20)
+            # A purchase on iOS via the API.
+            r = self.client.post(
+                reverse("commerce_api:checkout", args=[site.subdomain]),
+                {"items": [{"product_id": p.id, "quantity": 1}], "channel": "ios",
+                 "email": "b@x.com"},
+                content_type="application/json")
+            self.assertEqual(r.status_code, 201)
+            body = r.json()
+            self.assertEqual(body["order"]["channel"], "ios")
+            # The SAME inventory the web/android read is now 19 — one source of truth.
+            p.refresh_from_db()
+            self.assertEqual(p.stock, 19)
+            web_view = self.client.get(reverse("commerce_api:products", args=[site.subdomain]))
+            self.assertEqual(web_view.json()["products"][0]["stock"], 19)
+
+    def test_order_status_api(self):
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site, p = self._store_with_product(tmp)
+            r = self.client.post(
+                reverse("commerce_api:checkout", args=[site.subdomain]),
+                {"items": [{"product_id": p.id, "quantity": 2}], "channel": "android"},
+                content_type="application/json")
+            ref = r.json()["order"]["reference"]
+            s = self.client.get(reverse("commerce_api:order", args=[site.subdomain, ref]))
+            self.assertEqual(s.status_code, 200)
+            self.assertEqual(s.json()["total_cents"], 3000)
+            self.assertEqual(s.json()["channel"], "android")
+
+    def test_web_and_api_orders_share_one_admin(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site, p = self._store_with_product(tmp)
+            web = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}], channel="web")
+            self.client.post(reverse("commerce_api:checkout", args=[site.subdomain]),
+                             {"items": [{"product_id": p.id, "quantity": 1}], "channel": "ios"},
+                             content_type="application/json")
+            channels = set(site.orders.values_list("channel", flat=True))
+            self.assertEqual(channels, {"web", "ios"})   # one order table, all channels
+
+
 class PublishUITests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="o@acme.com", password="x")

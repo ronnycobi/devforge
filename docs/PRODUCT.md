@@ -281,3 +281,26 @@ source. Internal work is translated to outcomes via `apps/dashboard/labels.py`
 
 Advanced (technical) users may see technical artifacts — repository, database,
 APIs, tests, logs — but still never the proprietary engine internals above.
+
+## Unified Commerce Principle (architectural rule)
+
+Every e-commerce project DevForge creates MUST use the shared commerce engine
+(`apps/publishing` — `ecommerce_service`, models, `payments`) as the single source of
+truth for products, variants, pricing, inventory, carts, discounts, coupons,
+shipping, checkout, payments, refunds, orders, customers, taxes, currency, order
+status, notifications and sales reporting.
+
+**One engine, multiple experiences.** Web, Android and iOS consume the SAME commerce
+services and the SAME API layer (`apps/publishing/api.py`, mounted at
+`/api/v1/stores/<subdomain>/…`: products, checkout, orders). Platform-specific
+frontends may differ in UI/UX but MUST NOT duplicate core commerce business logic or
+keep an independent commerce database. Every order records its `channel`
+(web/android/ios/api/pos/whatsapp/admin) so one DevForge admin shows all channels.
+
+A transaction on one channel is immediately reflected on the others because they all
+read/write the one order/inventory database (e.g. an inventory decrement from an iOS
+purchase is visible to Web and Android on their next read). New channels are added by
+building another experience against the same API — never by rebuilding the engine.
+
+Money logic (totals, tax, discounts, inventory reservation) is deterministic and
+lives only in the engine; the AI generates the *experience*, not the ledger.

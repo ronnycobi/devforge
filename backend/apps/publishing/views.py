@@ -194,6 +194,7 @@ def checkout(request, subdomain):
             code=request.POST.get("code", ""),
             shipping_rate_id=request.POST.get("shipping_rate", ""),
             shipping_address=request.POST.get("shipping_address", ""),
+            channel="web",
         )
         result = shop.start_checkout(order, provider_key=provider_key)
     except (shop.EcommerceError, PaymentError) as exc:

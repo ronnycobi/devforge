@@ -200,10 +200,11 @@
     <h2 style="margin-top:0">Orders</h2>
     {% if orders %}
     <table>
-      <tr><th>Reference</th><th>Customer</th><th>Items</th><th>Total</th><th>Method</th><th>Status</th><th></th></tr>
+      <tr><th>Reference</th><th>Channel</th><th>Customer</th><th>Items</th><th>Total</th><th>Method</th><th>Status</th><th></th></tr>
       {% for o in orders %}
       <tr>
         <td class="strong"><a href="{% url 'dashboard:order_detail' project.id o.id %}">{{ o.reference }}</a></td>
+        <td><span class="chip">{{ o.get_channel_display }}</span></td>
         <td class="muted">{{ o.customer_email|default:o.customer_name|default:"—" }}
           {% if o.confirmation_sent %}<span class="chip" title="Confirmation emailed" style="font-size:10px">✉ confirmed</span>{% endif %}
           {% if o.receipt_sent %}<span class="chip" title="Receipt emailed" style="font-size:10px">✉ receipt</span>{% endif %}</td>

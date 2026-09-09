@@ -8,7 +8,7 @@
     </h1>
     <a class="btn ghost" href="{% url 'dashboard:store' project.id %}">← Store</a>
   </div>
-  <p class="sub">Placed {{ order.created_at|date:"M j, Y H:i" }} · {{ order.provider|default:"no payment method" }}</p>
+  <p class="sub">Placed {{ order.created_at|date:"M j, Y H:i" }} · via {{ order.get_channel_display }} · {{ order.provider|default:"no payment method" }}</p>
 
   <div class="row">
     <div class="card">

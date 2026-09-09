@@ -543,8 +543,12 @@ class Order(models.Model):
         ("refunded", "Refunded"), ("cancelled", "Cancelled"),
     ]
 
+    CHANNELS = [("web", "Web"), ("android", "Android"), ("ios", "iOS"),
+                ("api", "API"), ("pos", "POS"), ("whatsapp", "WhatsApp"), ("admin", "Admin")]
+
     website = models.ForeignKey(Website, on_delete=models.CASCADE, related_name="orders")
     reference = models.CharField(max_length=32, unique=True)
+    channel = models.CharField(max_length=16, choices=CHANNELS, default="web")
     customer_name = models.CharField(max_length=255, blank=True)
     customer_email = models.EmailField(blank=True)
     subtotal_cents = models.PositiveIntegerField(default=0)   # before discount

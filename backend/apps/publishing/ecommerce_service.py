@@ -133,7 +133,7 @@ def set_tax_rate(website, *, name, percent, user=None) -> TaxRate:
 
 
 def create_order(website, *, items, customer_name="", customer_email="", code="",
-                 shipping_rate_id="", shipping_address="") -> Order:
+                 shipping_rate_id="", shipping_address="", channel="web") -> Order:
     """items: list of {product_id or product, quantity}. Totals are computed from the
     products' real prices — never trusted from the client. An optional discount `code`
     is validated and applied server-side."""
@@ -166,8 +166,9 @@ def create_order(website, *, items, customer_name="", customer_email="", code=""
             raise EcommerceError("That shipping option can't be used in this currency.")
 
     with transaction.atomic():
+        channel = channel if channel in dict(Order.CHANNELS) else "web"
         order = Order.objects.create(
-            website=website, reference=_reference(),
+            website=website, reference=_reference(), channel=channel,
             customer_name=customer_name.strip(), customer_email=customer_email.strip(),
             currency=currency, status="pending",
         )
