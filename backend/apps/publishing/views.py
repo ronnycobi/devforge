@@ -40,6 +40,10 @@ def serve_published(request, subdomain, path=""):
         raise Http404("Not found.")
 
     content_type, _ = mimetypes.guess_type(str(target))
+    # Count real HTML page views (not assets) — privacy-first, honors Do-Not-Track.
+    if (content_type or "").startswith("text/html"):
+        from apps.publishing import analytics
+        analytics.record_view(website, request)
     return FileResponse(open(target, "rb"), content_type=content_type or "application/octet-stream")
 
 

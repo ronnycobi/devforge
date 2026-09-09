@@ -1,0 +1,70 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Analytics · {{ project.name }}{% endblock %}
+{% block crumb %}Build / Projects / {{ project.name }} / Analytics{% endblock %}
+{% block content %}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+    <h1>Website analytics</h1>
+    <a class="btn ghost" href="{% url 'dashboard:publish_center' project.id %}">← Release Center</a>
+  </div>
+  <p class="sub">{{ project.name }} · real visits to your published site over the last {{ days }} days.</p>
+
+  {% if not website %}
+  <div class="card"><p class="empty">Set up publishing to start collecting analytics.</p></div>
+  {% else %}
+
+  <div style="margin-bottom:14px">
+    <a class="chip" href="?days=7">7d</a>
+    <a class="chip" href="?days=30">30d</a>
+    <a class="chip" href="?days=90">90d</a>
+  </div>
+
+  <div class="cards" style="margin-bottom:16px">
+    <div class="card stat"><div class="k">Visitors</div><div class="v grad">{{ data.visitors }}</div></div>
+    <div class="card stat"><div class="k">Sessions</div><div class="v">{{ data.sessions }}</div></div>
+    <div class="card stat"><div class="k">Page views</div><div class="v">{{ data.pageviews }}</div></div>
+    <div class="card stat"><div class="k">Leads</div><div class="v">{{ data.leads }}</div></div>
+    <div class="card stat"><div class="k">Conversion</div><div class="v">{{ data.conversion }}%</div></div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Page views per day</h2>
+    <div style="display:flex;align-items:flex-end;gap:2px;height:120px;overflow-x:auto">
+      {% for p in data.series %}
+      <div title="{{ p.day|date:'M j' }}: {{ p.views }}"
+           style="flex:1;min-width:4px;background:var(--grad);border-radius:2px 2px 0 0;
+                  height:{% widthratio p.views peak 100 %}%;min-height:1px"></div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h2 style="margin-top:0">Top pages</h2>
+      {% if data.top_pages %}
+      <table>{% for p in data.top_pages %}
+        <tr><td class="muted" style="word-break:break-all">{{ p.path }}</td><td class="num strong">{{ p.n }}</td></tr>
+      {% endfor %}</table>
+      {% else %}<p class="empty">No views yet.</p>{% endif %}
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0">Traffic sources</h2>
+      {% if data.sources %}
+      <table>{% for s in data.sources %}
+        <tr><td class="muted">{{ s.referrer_host }}</td><td class="num strong">{{ s.n }}</td></tr>
+      {% endfor %}</table>
+      {% else %}<p class="empty">Mostly direct visits so far.</p>{% endif %}
+      <h2>Devices</h2>
+      {% if data.devices %}
+      <table>{% for d in data.devices %}
+        <tr><td class="muted">{{ d.device|title }}</td><td class="num strong">{{ d.n }}</td></tr>
+      {% endfor %}</table>
+      {% else %}<p class="empty">—</p>{% endif %}
+    </div>
+  </div>
+
+  <p class="muted" style="font-size:11px;margin-top:8px">
+    Privacy-first: no IP addresses or personal data are stored, sessions are counted with a
+    one-way daily hash, and Do-Not-Track is respected. Bot traffic ({{ data.bot_views }} view{{ data.bot_views|pluralize }}) is excluded.
+  </p>
+  {% endif %}
+{% endblock %}

@@ -520,6 +520,26 @@ def _seo_context(website):
 
 
 @login_required
+def analytics(request, pk):
+    """Website analytics (spec §28) — real page views of the published site."""
+    from apps.publishing import analytics as an
+    proj = get_object_or_404(
+        Project.objects.filter(organization__in=organizations_for(request.user)), pk=pk
+    )
+    website = getattr(proj, "website", None)
+    try:
+        days = max(7, min(90, int(request.GET.get("days", 30))))
+    except (TypeError, ValueError):
+        days = 30
+    data = an.summary(website, days=days) if website else None
+    peak = max((p["views"] for p in data["series"]), default=0) if data else 0
+    return render(request, "dashboard/analytics.html", {
+        "active": "projects", "project": proj, "website": website,
+        "data": data, "days": days, "peak": peak or 1,
+    })
+
+
+@login_required
 def assets(request, pk):
     """Asset manager for a website (spec §26): upload/resize/compress/replace/delete."""
     from apps.publishing import assets_service as assets_svc

@@ -278,6 +278,30 @@ class Asset(models.Model):
         return self.kind in (self.KIND_IMAGE, self.KIND_ICON)
 
 
+class PageView(models.Model):
+    """One real page view of a published site (spec §28).
+
+    PRIVACY: no raw IP or PII is stored. `session_key` is a one-way daily-salted hash
+    of IP+User-Agent, so sessions can be counted without identifying or tracking a
+    person across days. Do-Not-Track is honored (no row is written). Referrer is
+    reduced to its host only."""
+
+    website = models.ForeignKey(Website, on_delete=models.CASCADE, related_name="page_views")
+    path = models.CharField(max_length=512)
+    referrer_host = models.CharField(max_length=255, blank=True)
+    device = models.CharField(max_length=16, default="desktop")   # desktop / mobile / bot
+    session_key = models.CharField(max_length=32)
+    day = models.DateField()
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["website", "day"])]
+
+    def __str__(self):
+        return f"{self.website.subdomain}{self.path} @ {self.day}"
+
+
 class PublishCheck(models.Model):
     """One publish-readiness check result (spec §12, §41)."""
 

@@ -468,6 +468,88 @@ def _jpeg_bytes(w=200, h=200):
     return buf.getvalue()
 
 
+class AnalyticsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="owner@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Acme Site", created_by=self.user)
+
+    def _published(self):
+        repo = repo_for_project(self.project); repo.init()
+        repo.write_files({"index.html": PAGE}); repo.commit("seed")
+        site = pub.get_or_create_website(self.project)
+        pub.publish(site, user=self.user)
+        return site
+
+    def test_record_stores_no_pii_and_hashes_session(self):
+        from apps.publishing import analytics
+        from django.test import RequestFactory
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = pub.get_or_create_website(self.project)
+            req = RequestFactory().get("/sites/x/", HTTP_USER_AGENT="Mozilla/5.0 iPhone",
+                                       REMOTE_ADDR="203.0.113.9")
+            view = analytics.record_view(site, req)
+            self.assertIsNotNone(view)
+            self.assertEqual(view.device, "mobile")
+            self.assertEqual(len(view.session_key), 32)
+            self.assertNotIn("203.0.113.9", view.session_key)   # IP never stored
+            # No model field holds the raw IP.
+            self.assertFalse(any("203.0.113.9" in str(v) for v in view.__dict__.values()))
+
+    def test_do_not_track_records_nothing(self):
+        from apps.publishing import analytics
+        from django.test import RequestFactory
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = pub.get_or_create_website(self.project)
+            req = RequestFactory().get("/", HTTP_DNT="1", REMOTE_ADDR="203.0.113.9")
+            self.assertIsNone(analytics.record_view(site, req))
+            self.assertEqual(site.page_views.count(), 0)
+
+    def test_serving_a_page_records_a_view(self):
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._published()
+            self.assertEqual(site.page_views.count(), 0)
+            self.client.get(f"/sites/{site.subdomain}/", HTTP_USER_AGENT="Mozilla/5.0")
+            self.assertEqual(site.page_views.filter(device="desktop").count(), 1)
+
+    def test_summary_aggregates_and_excludes_bots(self):
+        from apps.publishing import analytics
+        from django.test import RequestFactory
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = pub.get_or_create_website(self.project)
+            rf = RequestFactory()
+            analytics.record_view(site, rf.get("/a", HTTP_USER_AGENT="Mozilla/5.0", REMOTE_ADDR="1.1.1.1"))
+            analytics.record_view(site, rf.get("/a", HTTP_USER_AGENT="Mozilla/5.0", REMOTE_ADDR="2.2.2.2"))
+            analytics.record_view(site, rf.get("/", HTTP_USER_AGENT="Googlebot/2.1", REMOTE_ADDR="3.3.3.3"))
+            data = analytics.summary(site, days=30)
+            self.assertEqual(data["pageviews"], 2)          # bot excluded
+            self.assertEqual(data["sessions"], 2)           # two distinct sessions
+            self.assertEqual(data["bot_views"], 1)
+            self.assertEqual(data["top_pages"][0]["path"], "/a")
+
+    def test_conversion_from_leads(self):
+        from apps.publishing import analytics, forms_service as forms
+        from django.test import RequestFactory
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = pub.get_or_create_website(self.project)
+            analytics.record_view(site, RequestFactory().get("/", HTTP_USER_AGENT="Mozilla/5.0", REMOTE_ADDR="1.1.1.1"))
+            form = forms.create_form(site, kind="contact", user=self.user)
+            forms.submit(form, {"name": "Jo", "email": "jo@x.com", "message": "Hi"})
+            data = analytics.summary(site, days=30)
+            self.assertEqual(data["leads"], 1)
+            self.assertEqual(data["conversion"], 100.0)     # 1 lead / 1 session
+
+    def test_analytics_page_renders(self):
+        Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            self._published()
+            self.client.force_login(self.user)
+            r = self.client.get(reverse("dashboard:analytics", args=[self.project.id]))
+            self.assertEqual(r.status_code, 200)
+            self.assertContains(r, "Website analytics")
+            self.assertContains(r, "Do-Not-Track")
+
+
 class PublishUITests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="o@acme.com", password="x")

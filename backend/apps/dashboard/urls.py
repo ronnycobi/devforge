@@ -12,6 +12,7 @@ urlpatterns = [
     path("projects/<int:pk>/release/", views.release_center, name="release_center"),
     path("projects/<int:pk>/publish/", views.publish_center, name="publish_center"),
     path("projects/<int:pk>/leads/", views.leads, name="leads"),
+    path("projects/<int:pk>/analytics/", views.analytics, name="analytics"),
     path("projects/<int:pk>/assets/", views.assets, name="assets"),
     path("projects/<int:pk>/assets/<int:asset_id>/raw", views.asset_raw, name="asset_raw"),
     path("projects/<int:pk>/preview/", views.preview, name="preview"),
