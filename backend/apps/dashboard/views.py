@@ -14,6 +14,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib import messages
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -138,6 +139,21 @@ def _start_build(project, brief, user):
             provision_store(project, brief, user=user)
         except Exception:
             pass  # provisioning is best-effort; never break the build
+
+
+class DevForgeLoginView(auth_views.LoginView):
+    """After login, platform staff land on the Control Center; customers land on the
+    builder. An explicit ?next= is always honored (so deep links still work)."""
+    template_name = "dashboard/login.html"
+    redirect_authenticated_user = True
+
+    def get_success_url(self):
+        explicit = self.get_redirect_url()   # a validated ?next=, or ""
+        if explicit:
+            return explicit
+        if self.request.user.is_staff:
+            return reverse("console:overview")
+        return reverse("dashboard:home")
 
 
 @login_required

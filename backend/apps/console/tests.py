@@ -106,3 +106,27 @@ class ControlCenterTests(TestCase):
         self.assertEqual(checks["Database"]["status"], "ok")       # a real SELECT 1
         self.assertEqual(checks["Storage"]["status"], "ok")        # workspaces writable
         self.assertEqual(checks["Deployment"]["status"], "unknown")  # no live target — honest
+
+
+class LoginRedirectTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(email="owner@devforge.local", password="pw12345!", is_staff=True)
+        self.customer = User.objects.create_user(email="cust@acme.com", password="pw12345!")
+
+    def _login(self, email, data_extra=None):
+        return self.client.post(reverse("dashboard:login"),
+                                {"username": email, "password": "pw12345!", **(data_extra or {})})
+
+    def test_staff_land_on_control_center(self):
+        r = self._login("owner@devforge.local")
+        self.assertRedirects(r, reverse("console:overview"), fetch_redirect_response=False)
+
+    def test_customer_lands_on_builder(self):
+        r = self._login("cust@acme.com")
+        self.assertRedirects(r, reverse("dashboard:home"), fetch_redirect_response=False)
+
+    def test_explicit_next_is_honored_for_staff(self):
+        target = reverse("dashboard:home")
+        r = self.client.post(reverse("dashboard:login") + f"?next={target}",
+                             {"username": "owner@devforge.local", "password": "pw12345!"})
+        self.assertRedirects(r, target, fetch_redirect_response=False)

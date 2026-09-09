@@ -39,12 +39,6 @@ urlpatterns = [
     path("settings/", views.settings_page, name="settings"),
     path("ops/<slug:area>/", views.operations, name="ops"),
     path("soon/<slug:slug>/", views.soon, name="soon"),
-    path(
-        "login/",
-        auth_views.LoginView.as_view(
-            template_name="dashboard/login.html", redirect_authenticated_user=True
-        ),
-        name="login",
-    ),
+    path("login/", views.DevForgeLoginView.as_view(), name="login"),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
 ]
