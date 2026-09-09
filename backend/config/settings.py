@@ -97,6 +97,10 @@ LOGOUT_REDIRECT_URL = "dashboard:login"
 AUTH_USER_MODEL = "accounts.User"
 
 MIDDLEWARE = [
+    # Serve verified custom domains by Host header (real virtual hosting). Outermost
+    # so a customer domain is served from our controlled allowlist before host
+    # validation rejects it as an unknown ALLOWED_HOST.
+    "apps.publishing.middleware.CustomDomainMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",

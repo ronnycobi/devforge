@@ -851,6 +851,91 @@ class CmsTests(TestCase):
             self.assertIn(f"{coll.slug}.html", repo_for_project(self.project).list_files())
 
 
+class ScheduledProbingTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="o@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Acme Site", created_by=self.user)
+
+    def test_monitor_sites_command_probes_live_sites(self):
+        from django.core.management import call_command
+        from io import StringIO
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            repo = repo_for_project(self.project); repo.init()
+            repo.write_files({"index.html": PAGE}); repo.commit("seed")
+            site = pub.get_or_create_website(self.project)
+            pub.publish(site, user=self.user)          # 1 check from publish
+            before = site.health_checks.count()
+            out = StringIO()
+            call_command("monitor_sites", stdout=out)
+            self.assertIn("Checked 1 live site", out.getvalue())
+            self.assertEqual(site.health_checks.count(), before + 1)   # command recorded one more
+
+
+class CustomDomainRoutingTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="o@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Acme Site", created_by=self.user)
+
+    def _verified_domain(self, host="www.acme.test"):
+        from apps.publishing import domain_service as dom
+        from apps.publishing.domains import verify_name
+        repo = repo_for_project(self.project); repo.init()
+        repo.write_files({"index.html": "<html><body>Acme home</body></html>"}); repo.commit("seed")
+        site = pub.get_or_create_website(self.project)
+        pub.publish(site, user=self.user)
+        d = dom.connect_domain(site, hostname=host, user=self.user)
+
+        class _R:
+            def available(self): return True
+            def txt(self, name): return [d.verification_token]
+        dom.verify_domain(d, resolver=_R())
+        return site, d
+
+    def test_verified_domain_serves_the_site(self):
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            self._verified_domain("www.acme.test")
+            r = self.client.get("/", HTTP_HOST="www.acme.test")
+            self.assertEqual(r.status_code, 200)
+            self.assertIn(b"Acme home", b"".join(r.streaming_content))
+
+    def test_unverified_domain_does_not_serve(self):
+        from apps.publishing import domain_service as dom
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            repo = repo_for_project(self.project); repo.init()
+            repo.write_files({"index.html": "<html><body>x</body></html>"}); repo.commit("seed")
+            site = pub.get_or_create_website(self.project)
+            pub.publish(site, user=self.user)
+            dom.connect_domain(site, hostname="pending.acme.test", user=self.user)   # not verified
+            # Host doesn't match a verified domain → falls through to normal routing (not the site).
+            r = self.client.get("/", HTTP_HOST="pending.acme.test")
+            self.assertNotIn(b"<body>x</body>", b"".join(getattr(r, "streaming_content", [b""])))
+
+
+class AcmeChallengeTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="o@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Acme Site", created_by=self.user)
+
+    def test_challenge_served_as_plain_text(self):
+        from apps.publishing import domain_service as dom
+        from apps.publishing.models import AcmeChallenge
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = pub.get_or_create_website(self.project)
+            d = dom.connect_domain(site, hostname="www.acme.test", user=self.user)
+            AcmeChallenge.objects.create(domain=d, token="tok123", key_authorization="tok123.keyauth")
+            r = self.client.get("/.well-known/acme-challenge/tok123")
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r["Content-Type"], "text/plain")
+            self.assertEqual(r.content, b"tok123.keyauth")
+
+    def test_unknown_challenge_404(self):
+        r = self.client.get("/.well-known/acme-challenge/nope")
+        self.assertEqual(r.status_code, 404)
+
+
 class PublishUITests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="o@acme.com", password="x")

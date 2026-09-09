@@ -376,6 +376,27 @@ class ContentItem(models.Model):
         return self.title
 
 
+class AcmeChallenge(models.Model):
+    """An ACME HTTP-01 challenge DevForge serves for SSL issuance (spec §22).
+
+    During issuance an ACME client (Let's Encrypt et al.) stores a token + key
+    authorization here; the CA then fetches /.well-known/acme-challenge/<token> and
+    must get the key authorization back. Serving the challenge is real and testable;
+    the CA-client conversation itself needs network + an ACME library, so it stays
+    gated — but the piece the edge must provide is built."""
+
+    domain = models.ForeignKey(CustomDomain, on_delete=models.CASCADE, related_name="acme_challenges")
+    token = models.CharField(max_length=255, unique=True)
+    key_authorization = models.TextField()
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"acme-challenge {self.token[:12]}… for {self.domain.hostname}"
+
+
 class PublishCheck(models.Model):
     """One publish-readiness check result (spec §12, §41)."""
 

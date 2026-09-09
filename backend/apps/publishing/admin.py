@@ -1,9 +1,11 @@
 from django.contrib import admin
 
 from apps.publishing.models import (
-    Asset, ContentCollection, ContentItem, CustomDomain, Form, FormSubmission,
-    HealthCheck, Lead, PageSeo, PublishVersion, SeoConfig, Website,
+    AcmeChallenge, Asset, ContentCollection, ContentItem, CustomDomain, Form,
+    FormSubmission, HealthCheck, Lead, PageSeo, PublishVersion, SeoConfig, Website,
 )
+
+admin.site.register(AcmeChallenge)
 
 
 @admin.register(Website)
