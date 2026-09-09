@@ -40,6 +40,25 @@
   </div>
 
   <div class="card">
+    <h2 style="margin-top:0">Custom domains</h2>
+    {% if domains %}
+    <table>
+      <tr><th>Domain</th><th>Tenant</th><th>Verification</th><th>SSL</th><th>Provider</th><th>Added</th></tr>
+      {% for d in domains %}
+      <tr>
+        <td class="strong">{{ d.hostname }}</td>
+        <td class="muted">{{ d.website.project.organization.name }}</td>
+        <td>{% if d.verification_status == 'verified' %}<span class="ok">verified</span>{% else %}<span class="muted">{{ d.verification_status }}</span>{% endif %}</td>
+        <td>{% if d.ssl_status == 'active' %}<span class="ok">active</span>{% else %}<span class="muted">{{ d.ssl_status }}</span>{% endif %}</td>
+        <td class="muted">{{ d.provider }}</td>
+        <td class="muted">{{ d.created_at|date:"M j, Y" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No custom domains yet.</p>{% endif %}
+  </div>
+
+  <div class="card">
     <h2 style="margin-top:0">Publish versions</h2>
     {% if versions %}
     <table>

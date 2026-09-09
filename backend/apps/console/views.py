@@ -236,7 +236,7 @@ def websites(request):
     """Admin view of the Website Publishing platform (spec §43). Read-only, honest:
     host availability, every website, and its publish versions across tenants."""
     from apps.publishing.hosting import host_status
-    from apps.publishing.models import PublishVersion, Website
+    from apps.publishing.models import CustomDomain, PublishVersion, Website
     sites = (
         Website.objects.select_related("project", "project__organization").order_by("-created_at")[:100]
     )
@@ -244,8 +244,13 @@ def websites(request):
         PublishVersion.objects.select_related("website", "website__project__organization")
         .order_by("-created_at")[:200]
     )
+    domains = (
+        CustomDomain.objects.select_related("website", "website__project__organization")
+        .order_by("-created_at")[:100]
+    )
     return render(request, "console/websites.html", {
-        "active": "websites", "hosts": host_status(), "sites": sites, "versions": versions,
+        "active": "websites", "hosts": host_status(), "sites": sites,
+        "versions": versions, "domains": domains,
     })
 
 

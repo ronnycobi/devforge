@@ -79,6 +79,54 @@ class PublishVersion(models.Model):
         return f"{self.website.subdomain} {self.version} ({self.state})"
 
 
+class CustomDomain(models.Model):
+    """A custom domain a customer wants to point at their DevForge site (spec §19).
+
+    HONESTY: `verification_status` becomes 'verified' only when a real DNS lookup
+    finds the token; `ssl_status` becomes 'active' only when a real certificate is
+    installed. Neither is ever set on a timer or faked (spec §50)."""
+
+    VERIFY_PENDING = "pending"
+    VERIFY_VERIFIED = "verified"
+    VERIFY_FAILED = "failed"
+
+    SSL_NONE = "none"
+    SSL_PENDING = "pending"
+    SSL_ACTIVE = "active"
+    SSL_FAILED = "failed"
+
+    website = models.ForeignKey(Website, on_delete=models.CASCADE, related_name="domains")
+    hostname = models.CharField(max_length=253, unique=True)
+    provider = models.CharField(max_length=32, default="manual")
+    verification_token = models.CharField(max_length=64)
+    required_records = models.JSONField(default=list, blank=True)
+    verification_status = models.CharField(max_length=16, default=VERIFY_PENDING)
+    ssl_status = models.CharField(max_length=16, default=SSL_NONE)
+    detail = models.CharField(max_length=500, blank=True)
+    last_checked = models.DateTimeField(null=True, blank=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="custom_domains",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.hostname} ({self.verification_status})"
+
+    @property
+    def is_verified(self) -> bool:
+        return self.verification_status == self.VERIFY_VERIFIED
+
+    @property
+    def is_live(self) -> bool:
+        # Only truly live when verified AND a real certificate is active.
+        return self.is_verified and self.ssl_status == self.SSL_ACTIVE
+
+
 class PublishCheck(models.Model):
     """One publish-readiness check result (spec §12, §41)."""
 

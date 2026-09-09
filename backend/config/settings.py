@@ -213,6 +213,13 @@ DEVFORGE_ORG_DAILY_USD_CAP = env("DEVFORGE_ORG_DAILY_USD_CAP", "") or None
 # other way per request, or set a hard max_cost_per_mtok ceiling.
 DEVFORGE_PREFER_QUALITY = env("DEVFORGE_PREFER_QUALITY", "true").lower() in ("1", "true", "yes", "on")
 
+# Website publishing domains. BASE_DOMAIN is the DevForge subdomain zone; TARGET is
+# the hostname a customer points their custom domain at (CNAME target). These are
+# the correct DNS instructions to give; routing/SSL only complete once DevForge
+# hosting actually serves the domain (a later, infra-gated phase).
+DEVFORGE_BASE_DOMAIN = env("DEVFORGE_BASE_DOMAIN", "devforge.app")
+DEVFORGE_DOMAIN_TARGET = env("DEVFORGE_DOMAIN_TARGET", "hosting.devforge.app")
+
 # Email. Real delivery when EMAIL_BACKEND points at SMTP and the host is set;
 # dev defaults to the console backend (prints emails) so nothing is faked and no
 # server is required. Tests capture via the locmem backend automatically.

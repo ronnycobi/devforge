@@ -87,6 +87,79 @@
     {% endif %}
   </div>
 
+  <div class="card">
+    <h2 style="margin-top:0">Custom domain</h2>
+    <p class="muted" style="font-size:12px;margin-top:0">
+      Point your own domain at your site. DevForge shows the exact DNS records to add
+      and verifies ownership — it never changes your other DNS records.
+    </p>
+    {% for d in domains %}
+    <div style="border:1px solid var(--line2);border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <strong>{{ d.hostname }}</strong>
+        <span>
+          {% if d.verification_status == 'verified' %}<span class="ok">● Verified</span>
+          {% elif d.verification_status == 'failed' %}<span class="fail">● Not found yet</span>
+          {% else %}<span class="muted">○ Pending verification</span>{% endif %}
+          ·
+          {% if d.ssl_status == 'active' %}<span class="ok">SSL active</span>
+          {% elif d.ssl_status == 'pending' %}<span class="muted">SSL pending</span>
+          {% else %}<span class="muted">SSL not started</span>{% endif %}
+        </span>
+      </div>
+      {% if d.detail %}<p class="muted" style="font-size:12px;margin:6px 0">{{ d.detail }}</p>{% endif %}
+      {% if not d.is_verified %}
+      <p style="font-size:12px;margin:8px 0 4px">Add these DNS records at your domain provider:</p>
+      <div style="overflow-x:auto">
+        <table>
+          <tr><th>Type</th><th>Name</th><th>Value</th></tr>
+          {% for rec in d.required_records %}
+          <tr>
+            <td class="strong">{{ rec.type }}</td>
+            <td class="muted" style="word-break:break-all">{{ rec.name }}</td>
+            <td class="muted" style="word-break:break-all">{{ rec.value }}</td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+      {% endif %}
+      {% if can_manage %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        {% if not d.is_verified %}
+        <form method="post" style="display:inline">{% csrf_token %}
+          <input type="hidden" name="action" value="verify_domain">
+          <input type="hidden" name="domain" value="{{ d.id }}">
+          <button class="btn" type="submit">Verify DNS</button>
+        </form>
+        {% elif d.ssl_status != 'active' %}
+        <form method="post" style="display:inline">{% csrf_token %}
+          <input type="hidden" name="action" value="request_ssl">
+          <input type="hidden" name="domain" value="{{ d.id }}">
+          <button class="ghost" type="submit">Request SSL</button>
+        </form>
+        {% endif %}
+        <form method="post" style="display:inline">{% csrf_token %}
+          <input type="hidden" name="action" value="remove_domain">
+          <input type="hidden" name="domain" value="{{ d.id }}">
+          <button class="ghost" type="submit">Remove</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% if can_manage %}
+    <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px">{% csrf_token %}
+      <input type="hidden" name="action" value="connect_domain">
+      <input type="text" name="hostname" placeholder="www.yourdomain.com" style="flex:1;min-width:220px">
+      <button class="ghost" type="submit">Connect domain</button>
+    </form>
+    {% endif %}
+    <p class="muted" style="font-size:11px;margin:8px 0 0">
+      Once verified, your domain goes live with SSL when DevForge hosting serves it —
+      SSL is shown as active only when a real certificate is installed.
+    </p>
+  </div>
+
   {% if versions %}
   <div class="card">
     <h2 style="margin-top:0">Versions</h2>

@@ -424,6 +424,38 @@ def publish_center(request, pk):
                 messages.error(request, str(exc))
         elif action == "health_check" and website and website.current:
             pub.health_check(website.current)
+        elif action == "connect_domain" and website:
+            from apps.publishing import domain_service as dom
+            try:
+                dom.connect_domain(website, hostname=request.POST.get("hostname", ""),
+                                   user=request.user)
+                messages.success(request, "Domain added — set the DNS records shown, then verify.")
+            except dom.DomainServiceError as exc:
+                messages.error(request, str(exc))
+        elif action == "verify_domain" and website:
+            from apps.publishing import domain_service as dom
+            domain = website.domains.filter(pk=request.POST.get("domain", 0)).first()
+            if domain:
+                dom.verify_domain(domain, user=request.user)
+                if domain.is_verified:
+                    messages.success(request, f"{domain.hostname} ownership verified.")
+                else:
+                    messages.warning(request, domain.detail)
+        elif action == "request_ssl" and website:
+            from apps.publishing import domain_service as dom
+            domain = website.domains.filter(pk=request.POST.get("domain", 0)).first()
+            if domain:
+                try:
+                    dom.request_ssl(domain, user=request.user)
+                    messages.info(request, domain.detail)
+                except dom.DomainServiceError as exc:
+                    messages.error(request, str(exc))
+        elif action == "remove_domain" and website:
+            from apps.publishing import domain_service as dom
+            domain = website.domains.filter(pk=request.POST.get("domain", 0)).first()
+            if domain:
+                dom.remove_domain(domain, user=request.user)
+                messages.success(request, "Domain removed.")
         return redirect("dashboard:publish_center", pk=pk)
 
     checks = pub.evaluate(website) if website else []
@@ -434,6 +466,7 @@ def publish_center(request, pk):
         "score": pub_readiness.score(checks) if checks else 0,
         "versions": website.versions.all()[:10] if website else [],
         "can_publish": pub_readiness.can_publish(checks) if checks else False,
+        "domains": website.domains.all() if website else [],
     })
 
 

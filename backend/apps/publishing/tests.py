@@ -107,6 +107,98 @@ class PublishFlowTests(TestCase):
             self.assertIn(r.status_code, (404, 400))
 
 
+class _FakeResolver:
+    """A test resolver so the verification flow runs without network."""
+    def __init__(self, records=None, available=True, raises=False):
+        self._records = records or {}
+        self._available = available
+        self._raises = raises
+
+    def available(self):
+        return self._available
+
+    def txt(self, name):
+        if self._raises:
+            raise RuntimeError("NXDOMAIN")
+        return self._records.get(name, [])
+
+
+class CustomDomainTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="o@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Acme Site", created_by=self.user)
+        self.site = None
+
+    def _website(self, tmp):
+        return pub.get_or_create_website(self.project)
+
+    def test_connect_generates_token_and_records(self):
+        from apps.publishing import domain_service as dom
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._website(tmp)
+            d = dom.connect_domain(site, hostname="www.acme.com", user=self.user)
+            self.assertTrue(d.verification_token)
+            types = {r["type"] for r in d.required_records}
+            self.assertIn("TXT", types)
+            self.assertIn("CNAME", types)  # subdomain → CNAME
+            self.assertEqual(d.verification_status, "pending")
+            self.assertEqual(d.ssl_status, "none")
+
+    def test_apex_uses_alias_record(self):
+        from apps.publishing import domain_service as dom
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            d = dom.connect_domain(self._website(tmp), hostname="acme.com", user=self.user)
+            types = {r["type"] for r in d.required_records}
+            self.assertTrue(any("ALIAS" in t for t in types))
+
+    def test_rejects_invalid_hostname(self):
+        from apps.publishing import domain_service as dom
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            with self.assertRaises(dom.DomainServiceError):
+                dom.connect_domain(self._website(tmp), hostname="not a domain", user=self.user)
+
+    def test_verify_only_when_token_present(self):
+        from apps.publishing import domain_service as dom
+        from apps.publishing.domains import verify_name
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            d = dom.connect_domain(self._website(tmp), hostname="www.acme.com", user=self.user)
+            # Wrong/absent record → not verified.
+            dom.verify_domain(d, resolver=_FakeResolver({verify_name("www.acme.com"): ["someone-else"]}))
+            self.assertEqual(d.verification_status, "failed")
+            self.assertFalse(d.is_verified)
+            # Correct token present → verified, and SSL becomes pending (not active).
+            dom.verify_domain(d, resolver=_FakeResolver({verify_name("www.acme.com"): [d.verification_token]}))
+            self.assertTrue(d.is_verified)
+            self.assertEqual(d.ssl_status, "pending")
+            self.assertFalse(d.is_live)   # pending SSL → not live
+
+    def test_verify_honest_when_resolver_unavailable(self):
+        from apps.publishing import domain_service as dom
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            d = dom.connect_domain(self._website(tmp), hostname="www.acme.com", user=self.user)
+            dom.verify_domain(d, resolver=_FakeResolver(available=False))
+            self.assertEqual(d.verification_status, "pending")   # never faked
+            self.assertIn("could not be checked", d.detail.lower())
+
+    def test_ssl_requires_verification_and_never_active_offline(self):
+        from apps.publishing import domain_service as dom
+        from apps.publishing.domains import verify_name
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            d = dom.connect_domain(self._website(tmp), hostname="www.acme.com", user=self.user)
+            with self.assertRaises(dom.DomainServiceError):
+                dom.request_ssl(d)   # not verified yet
+            dom.verify_domain(d, resolver=_FakeResolver({verify_name("www.acme.com"): [d.verification_token]}))
+            dom.request_ssl(d, user=self.user)
+            self.assertEqual(d.ssl_status, "pending")   # honest — no real cert here
+            self.assertNotEqual(d.ssl_status, "active")
+
+    def test_dns_providers_gated(self):
+        from apps.publishing.domains import get_dns_provider
+        self.assertTrue(get_dns_provider("manual").is_available())
+        self.assertFalse(get_dns_provider("cloudflare").is_available())
+
+
 class PublishUITests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="o@acme.com", password="x")
@@ -127,6 +219,16 @@ class PublishUITests(TestCase):
             self.assertContains(r, "v1.0.0")
             self.assertContains(r, "/sites/")
 
+    def test_connect_domain_shows_dns_records(self):
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            url = reverse("dashboard:publish_center", args=[self.project.id])
+            self.client.post(url, {"action": "enable_website"})
+            self.client.post(url, {"action": "connect_domain", "hostname": "www.acme.com"})
+            r = self.client.get(url)
+            self.assertContains(r, "www.acme.com")
+            self.assertContains(r, "_devforge-verify.www.acme.com")
+            self.assertContains(r, "Pending verification")
+
     def test_admin_websites_page(self):
         staff = User.objects.create_user(email="s@devforge.local", password="x", is_staff=True)
         self.client.force_login(staff)
@@ -134,3 +236,4 @@ class PublishUITests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Hosting targets")
         self.assertContains(r, "Not configured")
+        self.assertContains(r, "Custom domains")
