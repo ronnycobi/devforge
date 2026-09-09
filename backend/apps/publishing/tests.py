@@ -1424,6 +1424,32 @@ class StorefrontTests(TestCase):
             self.assertEqual(order.items.count(), 2)
             self.assertEqual(order.subtotal_cents, 1500 * 2 + 2000)   # 5000, one order
 
+    def test_product_image_shown_in_storefront(self):
+        from apps.publishing import assets_service as assets
+        from apps.publishing import ecommerce_service as shop
+        from apps.publishing import storefront
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = pub.get_or_create_website(self.project)
+            asset = assets.store_asset(site, filename="mug.png", data=_png_bytes(), user=self.user)
+            p = shop.create_product(site, name="Mug", price_cents=1500,
+                                    image_asset_id=asset.id, user=self.user)
+            self.assertEqual(p.image_id, asset.id)
+            files = storefront.render_storefront(site)
+            self.assertIn(f'src="../{asset.path}"', files["shop/index.html"])   # relative → works live
+
+    def test_product_image_must_belong_to_site(self):
+        from apps.publishing import assets_service as assets
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = pub.get_or_create_website(self.project)
+            # An asset on a DIFFERENT project/site.
+            other_proj = Project.objects.create(organization=self.org, name="Other")
+            other = pub.get_or_create_website(other_proj)
+            foreign = assets.store_asset(other, filename="x.png", data=_png_bytes(), user=self.user)
+            p = shop.create_product(site, name="Mug", price_cents=1500,
+                                    image_asset_id=foreign.id, user=self.user)
+            self.assertIsNone(p.image)   # cross-site asset rejected
+
     def test_no_products_no_storefront(self):
         from apps.publishing import storefront
         with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):

@@ -52,7 +52,8 @@
     <table>
       <tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr>
       {% for p in products %}
-      <tr><td class="strong">{{ p.name }}</td><td>{{ p.price_display }}</td>
+      <tr><td class="strong">
+        {% if p.image %}<img src="{% url 'dashboard:asset_raw' project.id p.image.id %}" alt="" style="height:28px;width:28px;object-fit:cover;border-radius:5px;vertical-align:middle;margin-right:6px">{% endif %}{{ p.name }}</td><td>{{ p.price_display }}</td>
         <td>{% if p.track_inventory %}{% if p.stock > 0 %}{{ p.stock }}{% else %}<span class="fail">0 (out)</span>{% endif %}{% else %}<span class="muted">untracked</span>{% endif %}</td>
         <td>{% if p.active %}<span class="ok">active</span>{% else %}<span class="muted">inactive</span>{% endif %}</td>
         <td>{% if can_manage %}
@@ -63,6 +64,13 @@
               <input type="number" name="price" step="0.01" min="0" value="{{ p.price_units }}">
               <label style="font-size:12px"><input type="checkbox" name="track_inventory" {% if p.track_inventory %}checked{% endif %} style="width:auto"> Track stock
                 <input type="number" name="stock" value="{{ p.stock }}" min="0" style="width:100px"></label>
+              {% if image_assets %}
+              <label style="font-size:12px">Image
+                <select name="image_asset" style="width:auto">
+                  <option value="">— none —</option>
+                  {% for a in image_assets %}<option value="{{ a.id }}" {% if p.image_id == a.id %}selected{% endif %}>{{ a.original_name }}</option>{% endfor %}
+                </select></label>
+              {% else %}<span class="muted" style="font-size:11px">Upload images in Assets to attach them.</span>{% endif %}
               <textarea name="description" rows="2">{{ p.description }}</textarea>
               <button class="ghost" type="submit" style="justify-self:start;padding:5px 10px;font-size:12px">Save</button>
             </form>
@@ -85,6 +93,13 @@
         <input type="checkbox" name="track_inventory" style="width:auto"> Track stock
         <input type="number" name="stock" placeholder="Qty in stock" min="0" style="width:120px">
       </label>
+      {% if image_assets %}
+      <label style="font-size:13px">Image
+        <select name="image_asset" style="width:auto">
+          <option value="">— none —</option>
+          {% for a in image_assets %}<option value="{{ a.id }}">{{ a.original_name }}</option>{% endfor %}
+        </select></label>
+      {% endif %}
       <textarea name="description" rows="2" placeholder="Description (optional)"></textarea>
       <button class="ghost" type="submit" style="justify-self:start">Add product</button>
     </form>

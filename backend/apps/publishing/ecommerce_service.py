@@ -75,8 +75,15 @@ def _discount_for(code_obj: DiscountCode, subtotal_cents: int, currency: str) ->
     return min(discount, subtotal_cents)   # never below zero total
 
 
+def resolve_image(website, image_asset_id):
+    """An image asset that belongs to this website, or None. Guards cross-tenant use."""
+    if not image_asset_id:
+        return None
+    return website.assets.filter(pk=image_asset_id, kind__in=["image", "icon"]).first()
+
+
 def create_product(website, *, name, price_cents, currency="USD", description="",
-                   track_inventory=False, stock=0, user=None) -> Product:
+                   track_inventory=False, stock=0, image_asset_id=None, user=None) -> Product:
     if price_cents < 0:
         raise EcommerceError("Price cannot be negative.")
     base = slugify(name) or "product"
@@ -88,6 +95,7 @@ def create_product(website, *, name, price_cents, currency="USD", description=""
         website=website, slug=slug, name=name, description=description,
         price_cents=int(price_cents), currency=currency,
         track_inventory=bool(track_inventory), stock=max(0, int(stock)),
+        image=resolve_image(website, image_asset_id),
     )
     audit("shop.product", actor=user, organization=website.project.organization,
           target=f"product:{product.id}", summary=name)

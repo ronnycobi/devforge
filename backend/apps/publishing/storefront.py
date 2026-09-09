@@ -61,6 +61,15 @@ def _js_str(s: str) -> str:
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def _img(product) -> str:
+    """Product image, referenced relative to the /shop/ page so it works both on the
+    DevForge /sites/<sub>/ URL and on a custom domain (site root)."""
+    if not product.image:
+        return ""
+    return (f'<img src="../{html_lib.escape(product.image.path)}" '
+            f'alt="{html_lib.escape(product.name)}" style="max-width:220px;height:auto">')
+
+
 def _add_button(product) -> str:
     return (
         f'<button type="button" onclick="devforgeAdd(this)" '
@@ -92,6 +101,7 @@ def render_storefront(website) -> dict:
 
     cards = "".join(
         f'<article><h2><a href="/shop/{html_lib.escape(p.slug)}.html">{html_lib.escape(p.name)}</a></h2>'
+        f'{_img(p)}'
         f'<p>{html_lib.escape(p.price_display)}</p>'
         f'{f"<p>{html_lib.escape(p.description[:160])}</p>" if p.description else ""}'
         f'{(_add_button(p) + " ") if p.in_stock else ""}{_buy_form(website, p)}</article>'
@@ -102,6 +112,7 @@ def render_storefront(website) -> dict:
     for p in products:
         body = (
             f"<h1>{html_lib.escape(p.name)}</h1>"
+            f"{_img(p)}"
             f"<p>{html_lib.escape(p.price_display)}</p>"
             f'{f"<p>{html_lib.escape(p.description)}</p>" if p.description else ""}'
             f"{(_add_button(p) + ' ') if p.in_stock else ''}{_buy_form(website, p)}"

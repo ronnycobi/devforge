@@ -410,6 +410,10 @@ class Product(models.Model):
     active = models.BooleanField(default=True)
     track_inventory = models.BooleanField(default=False)
     stock = models.IntegerField(default=0)   # meaningful only when track_inventory
+    image = models.ForeignKey(
+        "publishing.Asset", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="product_images",
+    )
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:

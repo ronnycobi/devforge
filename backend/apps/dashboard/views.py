@@ -655,7 +655,9 @@ def store(request, pk):
                                     price_cents=cents,
                                     currency=(request.POST.get("currency") or "USD").strip().upper()[:3],
                                     description=(request.POST.get("description") or "").strip(),
-                                    track_inventory=track, stock=stock, user=request.user)
+                                    track_inventory=track, stock=stock,
+                                    image_asset_id=request.POST.get("image_asset") or None,
+                                    user=request.user)
                 messages.success(request, "Product added.")
             elif action == "confirm_payment":
                 order = Order.objects.filter(pk=request.POST.get("order", 0), website=website).first()
@@ -681,6 +683,8 @@ def store(request, pk):
                     product.description = (request.POST.get("description") or "").strip()
                     product.track_inventory = bool(request.POST.get("track_inventory"))
                     product.stock = max(0, int(request.POST.get("stock") or 0))
+                    if "image_asset" in request.POST:
+                        product.image = shop.resolve_image(website, request.POST.get("image_asset") or None)
                     product.save()
                     messages.success(request, "Product updated.")
             elif action == "toggle_product":
@@ -750,6 +754,7 @@ def store(request, pk):
         "discounts": list(website.discount_codes.all()) if website else [],
         "shipping_rates": list(website.shipping_rates.all()) if website else [],
         "tax": website.tax_rates.filter(active=True).first() if website else None,
+        "image_assets": list(website.assets.filter(kind__in=["image", "icon"])) if website else [],
     })
 
 
