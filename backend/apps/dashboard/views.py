@@ -303,6 +303,20 @@ def release_center(request, pk):
             if store_app:
                 rel.approve_metadata(store_app, user=request.user)
                 messages.success(request, "Listing approved.")
+        elif action == "generate_screenshots" and app:
+            store_app = app.store_apps.filter(provider=request.POST.get("provider")).first()
+            if store_app:
+                shots = rel.generate_store_screenshots(store_app, user=request.user)
+                if shots:
+                    messages.success(request, f"Generated {len(shots)} layout preview(s) from "
+                                              "your app's screens — review and approve them.")
+                else:
+                    messages.warning(request, "No screens detected yet to generate previews from.")
+        elif action == "approve_screenshots" and app:
+            store_app = app.store_apps.filter(provider=request.POST.get("provider")).first()
+            if store_app:
+                n = rel.approve_screenshots(store_app, user=request.user)
+                messages.success(request, f"Approved {n} screenshot(s).")
         elif action == "prepare_release" and app:
             provider_key = request.POST.get("provider")
             if get_provider(provider_key):
@@ -334,9 +348,12 @@ def release_center(request, pk):
         conn = proj.organization.store_connections.filter(provider=prov.key).first()
         store_app = app.store_apps.filter(provider=prov.key).first() if app else None
         release = (app.releases.filter(provider=prov.key).first() if app else None)
+        shots = list(store_app.assets.filter(kind="screenshot")) if store_app else []
         stores.append({
             "provider": prov, "connection": conn, "store_app": store_app, "release": release,
             "connected": bool(conn and conn.status == "connected"),
+            "screenshots": shots,
+            "screenshots_approved": bool(shots) and all(s.approved for s in shots),
         })
     return render(request, "dashboard/release_center.html", {
         "active": "projects", "project": proj, "can_manage": can_manage,

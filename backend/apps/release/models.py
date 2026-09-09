@@ -231,6 +231,46 @@ class StoreMetadata(models.Model):
         return f"metadata for {self.store_application}"
 
 
+class StoreAsset(models.Model):
+    """A visual asset for a store listing — screenshot / icon / feature graphic
+    (spec §17, §36).
+
+    `source` records how it was produced, honestly:
+      - "schematic" : a device-framed LAYOUT generated from the app's real screen
+                      definitions (screen name + its actual components). It represents
+                      the app's structure; it is NOT a pixel capture of the running app.
+      - "live"      : a real capture of the running application (needs the app running
+                      under a headless browser / simulator — gated on that infra).
+    Assets are drafts until a human approves; nothing is auto-submitted.
+    """
+
+    KIND_SCREENSHOT = "screenshot"
+    KIND_ICON = "icon"
+    KIND_FEATURE = "feature_graphic"
+
+    store_application = models.ForeignKey(
+        StoreApplication, on_delete=models.CASCADE, related_name="assets"
+    )
+    kind = models.CharField(max_length=24, default=KIND_SCREENSHOT)
+    screen_name = models.CharField(max_length=255, blank=True)
+    slot = models.CharField(max_length=64, blank=True)     # device slot, e.g. "phone_6.7"
+    width = models.PositiveIntegerField(default=0)
+    height = models.PositiveIntegerField(default=0)
+    source = models.CharField(max_length=16, default="schematic")
+    fmt = models.CharField(max_length=8, default="svg")
+    svg = models.TextField(blank=True)                     # inline vector for schematic previews
+    path = models.CharField(max_length=1024, blank=True)   # set only for real captured files
+    caption = models.CharField(max_length=255, blank=True)
+    approved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["slot", "id"]
+
+    def __str__(self):
+        return f"{self.kind} {self.screen_name} ({self.width}x{self.height}, {self.source})"
+
+
 # --- releases ------------------------------------------------------------------
 class Release(models.Model):
     """A traceable release of one app to one store (spec §22)."""

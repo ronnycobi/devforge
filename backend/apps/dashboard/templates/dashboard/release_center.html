@@ -106,6 +106,46 @@
     </div>
     {% endwith %}
 
+    <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <strong style="font-size:14px">Screenshots</strong>
+        {% if s.screenshots_approved %}<span class="ok">Approved</span>
+        {% elif s.screenshots %}<span class="chip" style="color:var(--brand)">Layout previews</span>{% endif %}
+      </div>
+      {% if s.screenshots %}
+      <div style="display:flex;gap:10px;overflow-x:auto;padding:8px 0">
+        {% for shot in s.screenshots %}
+        <div style="flex:none;width:120px">
+          <div style="border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:#fff;aspect-ratio:{{ shot.width }}/{{ shot.height }}">
+            {{ shot.svg|safe }}
+          </div>
+          <div class="muted" style="font-size:10px;margin-top:3px;text-align:center">{{ shot.screen_name }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="muted" style="font-size:11px;margin:0">
+        Generated layouts from your app's screens — not device captures. Submission-grade
+        screenshots are captured once your app is running/deployed.
+      </p>
+      {% endif %}
+      {% if can_manage %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <form method="post" style="display:inline">{% csrf_token %}
+          <input type="hidden" name="action" value="generate_screenshots">
+          <input type="hidden" name="provider" value="{{ s.provider.key }}">
+          <button class="ghost" type="submit">🖼 {% if s.screenshots %}Regenerate{% else %}Generate{% endif %} previews</button>
+        </form>
+        {% if s.screenshots and not s.screenshots_approved %}
+        <form method="post" style="display:inline">{% csrf_token %}
+          <input type="hidden" name="action" value="approve_screenshots">
+          <input type="hidden" name="provider" value="{{ s.provider.key }}">
+          <button class="btn" type="submit">Approve screenshots</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
     {% if s.release %}
     <div style="margin-top:10px">
       <div style="display:flex;justify-content:space-between;font-size:13px">

@@ -69,6 +69,21 @@ def evaluate(release) -> list[Check]:
               "" if md and md.privacy_url else "A privacy policy URL is required by stores.")
     )
 
+    # Screenshots
+    shots = store_app.assets.filter(kind="screenshot")
+    approved_shots = shots.filter(approved=True)
+    if approved_shots.exists():
+        # Schematic layouts are drafts for review, not submission-grade captures.
+        if approved_shots.filter(source="live").exists():
+            checks.append(Check("screenshots", "Screenshots", "ok"))
+        else:
+            checks.append(Check("screenshots", "Screenshots", "warn",
+                                "Layout previews approved; real device captures needed to submit."))
+    elif shots.exists():
+        checks.append(Check("screenshots", "Screenshots", "warn", "Screenshots not yet approved."))
+    else:
+        checks.append(Check("screenshots", "Screenshots", "fail", "No store screenshots yet."))
+
     # Live connection to the store — honest: not connected here
     if provider and provider.is_available():
         checks.append(Check("connection", f"{provider.name} connection", "ok"))

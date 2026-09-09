@@ -95,8 +95,9 @@ class ReleaseFlowTests(TestCase):
                          full_description="A CRM for field teams.", privacy_url="https://acme.com/privacy",
                          approved=True)
         release = rel.request_release(app=self.app, provider_key="google_play", user=self.owner)
-        self.assertGreaterEqual(release.readiness, 80)
-        # Even fully configured, the store connection is a manual step → not 100%.
+        self.assertGreaterEqual(release.readiness, 75)
+        # Even so, screenshots aren't done and the store connection is a manual step,
+        # so readiness cannot reach 100% — honestly reflecting real remaining work.
         self.assertLess(release.readiness, 100)
 
     def test_submit_requires_approval(self):
@@ -185,6 +186,63 @@ class ListingGeneratorTests(TestCase):
                          {"action": "generate_listing", "provider": "google_play"})
         r = self.client.get(reverse("dashboard:release_center", args=[self.project.id]))
         self.assertContains(r, "AI-generated draft")
+
+
+class ScreenshotStudioTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(email="o@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.owner)
+        self.project = Project.objects.create(organization=self.org, name="Field CRM", created_by=self.owner)
+        from apps.project_context.models import ContextKind
+        from apps.project_context.services import ProjectContext
+        ctx = ProjectContext(self.project)
+        ctx.set(ContextKind.SCREEN, "customers", title="[mobile] Customers", content="List",
+                data={"components": ["Search bar", "Customer list", "Add button"]})
+        ctx.set(ContextKind.SCREEN, "invoices", title="[mobile] Invoices", content="List",
+                data={"components": ["Invoice table", "Filter"]})
+        self.app = rel.create_mobile_application(project=self.project, name="Field CRM",
+                                                 package_identifier="com.acme.fieldcrm")
+        self.store_app = rel.ensure_store_application(self.app, "google_play")
+
+    def test_live_capture_is_unavailable_and_honest(self):
+        from apps.release.screenshots import LiveCaptureSource, ScreenshotError, spec_for
+        src = LiveCaptureSource()
+        self.assertFalse(src.is_available())
+        with self.assertRaises(ScreenshotError) as ctx:
+            src.render(screen_name="X", components=[], spec=spec_for("google_play"), app_name="A")
+        self.assertIn("not configured", str(ctx.exception).lower())
+
+    def test_schematic_uses_real_screens_and_components(self):
+        assets = rel.generate_store_screenshots(self.store_app, user=self.owner)
+        self.assertEqual(len(assets), 2)               # one per real screen
+        names = {a.screen_name for a in assets}
+        self.assertEqual(names, {"Customers", "Invoices"})
+        customers = next(a for a in assets if a.screen_name == "Customers")
+        self.assertEqual(customers.source, "schematic")  # honest — not a live capture
+        self.assertIn("Customer list", customers.svg)    # real component from the Twin
+        self.assertFalse(customers.approved)             # draft until approved
+
+    def test_dimensions_match_store_spec(self):
+        from apps.release.screenshots import spec_for, validate_dimensions
+        assets = rel.generate_store_screenshots(self.store_app, user=self.owner)
+        spec = spec_for("google_play")
+        for a in assets:
+            self.assertTrue(validate_dimensions(a.width, a.height, spec))
+
+    def test_no_screens_yields_no_fabricated_screenshots(self):
+        bare = Project.objects.create(organization=self.org, name="Bare")
+        app = rel.create_mobile_application(project=bare, name="Bare")
+        sa = rel.ensure_store_application(app, "google_play")
+        self.assertEqual(rel.generate_store_screenshots(sa, user=self.owner), [])
+
+    def test_readiness_reflects_screenshot_state(self):
+        r1 = rel.request_release(app=self.app, provider_key="google_play", user=self.owner)
+        self.assertEqual({c.key: c.status for c in r1.checks.all()}["screenshots"], "fail")
+        rel.generate_store_screenshots(self.store_app, user=self.owner)
+        rel.approve_screenshots(self.store_app, user=self.owner)
+        rel.evaluate_readiness(r1)
+        # Approved layout previews → warn (real device captures still needed), not ok/fail.
+        self.assertEqual({c.key: c.status for c in r1.checks.all()}["screenshots"], "warn")
 
 
 class CapabilityTests(TestCase):

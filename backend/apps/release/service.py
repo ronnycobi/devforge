@@ -173,6 +173,59 @@ def generate_store_listing(store_app: StoreApplication, *, user=None) -> StoreMe
     return md
 
 
+def generate_store_screenshots(store_app: StoreApplication, *, user=None, limit=6) -> list:
+    """Generate store screenshots from the app's real screens (spec §17).
+
+    Uses the best available source: a real device capture if that infra is wired,
+    otherwise honest schematic layout previews built from the app's own screens.
+    Assets are drafts (not approved) and captions come from the generated listing
+    where available. Nothing is auto-submitted."""
+    from apps.release.models import StoreAsset
+    from apps.release.screenshots import app_screens, capture_source, spec_for
+    project = store_app.mobile_application.project
+    spec = spec_for(store_app.provider)
+    source = capture_source()
+    screens = app_screens(project)[:limit]
+
+    md = getattr(store_app, "metadata", None)
+    captions = (md.generated.get("screenshot_captions", []) if md and md.generated else [])
+
+    store_app.assets.filter(kind=StoreAsset.KIND_SCREENSHOT, source=source.name).delete()
+    created = []
+    for i, screen in enumerate(screens):
+        rendered = source.render(
+            screen_name=screen["name"], components=screen["components"],
+            spec=spec, app_name=store_app.mobile_application.name,
+        )
+        created.append(StoreAsset.objects.create(
+            store_application=store_app, kind=StoreAsset.KIND_SCREENSHOT,
+            screen_name=screen["name"], slot=spec.slot,
+            width=rendered["width"], height=rendered["height"],
+            source=rendered["source"], fmt=rendered["fmt"], svg=rendered.get("svg", ""),
+            caption=(captions[i] if i < len(captions) else screen["name"])[:255],
+            approved=False,
+        ))
+    from apps.release.models import Release
+    for release in Release.objects.filter(store_application=store_app):
+        evaluate_readiness(release)
+    audit("screenshots.generate", actor=user, organization=project.organization,
+          target=f"store_app:{store_app.id}", summary=f"{len(created)} × {source.name}")
+    return created
+
+
+def approve_screenshots(store_app: StoreApplication, *, user=None) -> int:
+    """Human approval of the generated screenshots (spec §17 — customer approval)."""
+    from apps.release.models import StoreAsset
+    n = store_app.assets.filter(kind=StoreAsset.KIND_SCREENSHOT).update(approved=True)
+    from apps.release.models import Release
+    for release in Release.objects.filter(store_application=store_app):
+        evaluate_readiness(release)
+    audit("screenshots.approve", actor=user,
+          organization=store_app.mobile_application.project.organization,
+          target=f"store_app:{store_app.id}", summary=f"{n} approved")
+    return n
+
+
 def approve_metadata(store_app: StoreApplication, *, user=None) -> StoreMetadata:
     """Human approval of a listing draft (spec §16 — no auto-approval of copy)."""
     md, _ = StoreMetadata.objects.get_or_create(store_application=store_app)

@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from apps.release.models import (
     MobileApplication, MobileBuild, Release, ReleaseEvent, SigningConfiguration,
-    StoreApplication, StoreConnection, StoreRequirement,
+    StoreApplication, StoreAsset, StoreConnection, StoreRequirement,
 )
 
 
@@ -30,3 +30,9 @@ admin.site.register(MobileBuild)
 admin.site.register(SigningConfiguration)
 admin.site.register(ReleaseEvent)
 admin.site.register(StoreRequirement)
+
+
+@admin.register(StoreAsset)
+class StoreAssetAdmin(admin.ModelAdmin):
+    list_display = ("store_application", "kind", "screen_name", "width", "height", "source", "approved")
+    list_filter = ("kind", "source", "approved")
