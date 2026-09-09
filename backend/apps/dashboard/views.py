@@ -317,6 +317,29 @@ def release_center(request, pk):
             if store_app:
                 n = rel.approve_screenshots(store_app, user=request.user)
                 messages.success(request, f"Approved {n} screenshot(s).")
+        elif action == "report_rejection" and app:
+            release = app.releases.filter(provider=request.POST.get("provider")).first()
+            text = (request.POST.get("rejection_text") or "").strip()
+            if release and text:
+                record = rel.record_rejection(release, text=text, source="manual", user=request.user)
+                messages.success(request, f"Analysed the rejection — “{record.label}”. "
+                                          "Review the suggested fix below.")
+            else:
+                messages.error(request, "Prepare a release first, then paste the store's message.")
+        elif action == "plan_fix" and app:
+            from apps.release.models import ReleaseRejection
+            rejection = ReleaseRejection.objects.filter(
+                pk=request.POST.get("rejection", 0),
+                release__mobile_application__project=proj).first()
+            if rejection and not rejection.change:
+                change = rel.plan_fix(rejection, user=request.user)
+                return redirect("dashboard:change", pk=change.id)
+        elif action == "resubmit" and app:
+            release = app.releases.filter(pk=request.POST.get("release", 0)).first()
+            if release:
+                new_release = rel.prepare_resubmission(release, user=request.user)
+                messages.success(request, f"Prepared v{new_release.version}+{new_release.build_number} "
+                                          "for resubmission.")
         elif action == "prepare_release" and app:
             provider_key = request.POST.get("provider")
             if get_provider(provider_key):
@@ -349,11 +372,13 @@ def release_center(request, pk):
         store_app = app.store_apps.filter(provider=prov.key).first() if app else None
         release = (app.releases.filter(provider=prov.key).first() if app else None)
         shots = list(store_app.assets.filter(kind="screenshot")) if store_app else []
+        rejections = list(release.rejections.filter(resolved=False)) if release else []
         stores.append({
             "provider": prov, "connection": conn, "store_app": store_app, "release": release,
             "connected": bool(conn and conn.status == "connected"),
             "screenshots": shots,
             "screenshots_approved": bool(shots) and all(s.approved for s in shots),
+            "rejections": rejections,
         })
     return render(request, "dashboard/release_center.html", {
         "active": "projects", "project": proj, "can_manage": can_manage,

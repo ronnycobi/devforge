@@ -205,8 +205,13 @@ def mobile_releases(request):
     """Admin view of the Mobile Release & App Store Platform (spec §30). Read-only,
     honest: shows store-provider availability, connections, and every release across
     tenants so staff can diagnose failures without exposing internals to customers."""
-    from apps.release.models import MobileApplication, Release, StoreConnection
+    from apps.release.models import MobileApplication, Release, ReleaseRejection, StoreConnection
     from apps.release.providers import provider_status
+    rejections = (
+        ReleaseRejection.objects.select_related(
+            "release", "release__mobile_application", "release__mobile_application__project__organization")
+        .order_by("-created_at")[:50]
+    )
     releases = (
         Release.objects.select_related("mobile_application", "mobile_application__project",
                                         "mobile_application__project__organization")
@@ -222,6 +227,7 @@ def mobile_releases(request):
     return render(request, "console/mobile_releases.html", {
         "active": "mobile", "providers": provider_status(),
         "releases": releases, "connections": connections, "apps": apps,
+        "rejections": rejections,
     })
 
 

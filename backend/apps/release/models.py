@@ -359,6 +359,42 @@ class ReleaseEvent(models.Model):
         return f"{self.kind}: {self.message}"
 
 
+class ReleaseRejection(models.Model):
+    """A store rejection and DevForge's analysis of it (spec §23).
+
+    `raw_text` is the store's actual message — from the store API when connected, or
+    pasted by the customer from the rejection they received. `source` records which."""
+
+    release = models.ForeignKey(Release, on_delete=models.CASCADE, related_name="rejections")
+    provider = models.CharField(max_length=32)
+    source = models.CharField(max_length=16, default="manual")   # manual / store_api
+    raw_text = models.TextField()
+    category = models.CharField(max_length=32, blank=True)
+    label = models.CharField(max_length=128, blank=True)
+    summary = models.CharField(max_length=500, blank=True)
+    recommendation = models.CharField(max_length=1000, blank=True)
+    compliance_sensitive = models.BooleanField(default=False)
+    affected_capabilities = models.JSONField(default=list, blank=True)
+    # The DevForge change created to fix it (its normal approval-gated modify loop).
+    change = models.ForeignKey(
+        "changes.ChangeRequest", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="rejections",
+    )
+    resolved = models.BooleanField(default=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="reported_rejections",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.provider} rejection of {self.release_id} ({self.category})"
+
+
 # --- configurable store requirements (spec §20) --------------------------------
 class StoreRequirement(models.Model):
     """A store rule that gates a release (e.g. Google Play's testing period). Made

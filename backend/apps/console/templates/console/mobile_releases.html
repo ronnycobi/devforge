@@ -63,4 +63,24 @@
     </table>
     {% else %}<p class="empty">No releases yet.</p>{% endif %}
   </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Rejections &amp; review issues</h2>
+    {% if rejections %}
+    <table>
+      <tr><th>Application</th><th>Tenant</th><th>Store</th><th>Category</th><th>Compliance</th><th>Fix</th><th>When</th></tr>
+      {% for r in rejections %}
+      <tr>
+        <td class="strong">{{ r.release.mobile_application.name }}</td>
+        <td class="muted">{{ r.release.mobile_application.project.organization.name }}</td>
+        <td class="muted">{{ r.provider }}</td>
+        <td>{{ r.label }}</td>
+        <td>{% if r.compliance_sensitive %}<span class="fail">Sensitive</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>{% if r.change %}<span class="badge b-planning">Planned</span>{% elif r.resolved %}<span class="ok">Resolved</span>{% else %}<span class="muted">Open</span>{% endif %}</td>
+        <td class="muted">{{ r.created_at|date:"M j, H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No rejections recorded.</p>{% endif %}
+  </div>
 {% endblock %}

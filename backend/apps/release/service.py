@@ -297,6 +297,78 @@ def approve_release(release: Release, *, user, action="submit") -> ReleaseApprov
     return approval
 
 
+def record_rejection(release: Release, *, text, source="manual", user=None):
+    """Record a store rejection and analyse it (spec §23). Moves the release to
+    REJECTED and stores an honest, deterministic analysis of the real message."""
+    from apps.release.models import ReleaseRejection
+    from apps.release import rejection as rej
+    from apps.capabilities.infer import infer_capabilities
+
+    project = release.mobile_application.project
+    caps = [c.id for c in infer_capabilities(project.description or project.name)]
+    analysis = rej.analyze(text, app_capability_ids=caps, app_features=[])
+
+    record = ReleaseRejection.objects.create(
+        release=release, provider=release.provider, source=source, raw_text=text,
+        category=analysis["category"], label=analysis["label"], summary=analysis["summary"],
+        recommendation=analysis["recommendation"], compliance_sensitive=analysis["compliance"],
+        affected_capabilities=analysis["affected_capabilities"], created_by=user,
+    )
+    release.state = ReleaseState.REJECTED
+    release.save(update_fields=["state"])
+    _event(release, "rejected", f"{release.provider}: {analysis['label']}", user)
+    audit("release.rejected", actor=user, organization=project.organization,
+          target=f"release:{release.id}", summary=analysis["label"])
+    return record
+
+
+def plan_fix(rejection, *, user=None):
+    """Turn a rejection into DevForge's normal approval-gated change (spec §23).
+
+    This never edits the app directly — it creates a ChangeRequest and plans it, so
+    the modify→test→build loop runs under the existing human-approval gate. For
+    compliance-sensitive rejections the description explicitly asks for reviewed
+    changes, not automated ones."""
+    from apps.changes import service as changes_service
+    from apps.release import rejection as rej
+
+    project = rejection.release.mobile_application.project
+    analysis = {
+        "label": rejection.label, "recommendation": rejection.recommendation,
+        "compliance": rejection.compliance_sensitive,
+    }
+    desc = rej.fix_description(analysis, app_name=rejection.release.mobile_application.name)
+    change = changes_service.create_change(project, desc, user)
+    changes_service.build_plan(change)
+    rejection.change = change
+    rejection.save(update_fields=["change"])
+    _event(rejection.release, "fix_planned", f"Fix planned for {rejection.label}", user)
+    audit("rejection.plan_fix", actor=user, organization=project.organization,
+          target=f"rejection:{rejection.id}", summary=rejection.label)
+    return change
+
+
+def prepare_resubmission(release: Release, *, user=None, bump="build") -> Release:
+    """After a fix, create the next version's release for resubmission (spec §22).
+
+    Bumps the app's build number (or version) and requests a fresh release for the
+    same store, carrying over the store application."""
+    app = release.mobile_application
+    if bump == "version":
+        parts = (app.version.split(".") + ["0", "0"])[:3]
+        parts[-1] = str(int(parts[-1]) + 1) if parts[-1].isdigit() else "1"
+        app.version = ".".join(parts)
+    app.build_number += 1
+    app.save(update_fields=["version", "build_number", "updated_at"])
+    for r in release.rejections.filter(resolved=False):
+        r.resolved = True
+        r.resolved_at = timezone.now()
+        r.save(update_fields=["resolved", "resolved_at"])
+    return request_release(app=app, provider_key=release.provider, user=user,
+                           environment=release.environment,
+                           connection=release.store_application.connection)
+
+
 def submit_release(release: Release, *, user=None) -> Release:
     """Submit to the store — requires prior approval, and goes through the REAL
     provider. Offline the provider is unavailable, so this records an honest

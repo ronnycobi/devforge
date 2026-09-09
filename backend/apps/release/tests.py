@@ -245,6 +245,87 @@ class ScreenshotStudioTests(TestCase):
         self.assertEqual({c.key: c.status for c in r1.checks.all()}["screenshots"], "warn")
 
 
+class RejectionHandlingTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(email="o@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.owner)
+        self.project = Project.objects.create(
+            organization=self.org, name="Field CRM",
+            description="A CRM with customers, location tracking and invoices",
+            created_by=self.owner,
+        )
+        self.app = rel.create_mobile_application(project=self.project, name="Field CRM",
+                                                 package_identifier="com.acme.fieldcrm")
+
+    def test_classify_maps_known_reasons(self):
+        from apps.release.rejection import classify
+        self.assertEqual(classify("Your app requests background location permission").key, "permissions")
+        self.assertEqual(classify("We could not find your privacy policy URL").key, "privacy_policy")
+        self.assertEqual(classify("The app crashed on launch").key, "crash")
+        self.assertEqual(classify("Something entirely unusual").key, "other")
+
+    def test_analysis_only_names_features_the_app_has(self):
+        from apps.release.rejection import analyze
+        # App has location; does NOT have sms. Only real ones should surface.
+        a = analyze("background location permission not justified",
+                    app_capability_ids=["location", "users", "database"], app_features=[])
+        self.assertEqual(a["category"], "permissions")
+        self.assertIn("location", a["affected_capabilities"])
+        self.assertNotIn("sms", a["affected_capabilities"])
+        self.assertTrue(a["compliance"])
+
+    def test_record_rejection_sets_state_and_analysis(self):
+        release = rel.request_release(app=self.app, provider_key="google_play", user=self.owner)
+        rec = rel.record_rejection(release, text="App uses location in the background without a clear purpose",
+                                   user=self.owner)
+        release.refresh_from_db()
+        self.assertEqual(release.state, ReleaseState.REJECTED)
+        self.assertEqual(rec.category, "permissions")
+        self.assertTrue(rec.compliance_sensitive)
+        self.assertTrue(release.events.filter(kind="rejected").exists())
+
+    def test_plan_fix_uses_change_request_loop_not_autoedit(self):
+        release = rel.request_release(app=self.app, provider_key="google_play", user=self.owner)
+        rec = rel.record_rejection(release, text="Please provide reviewer demo account credentials",
+                                   user=self.owner)
+        change = rel.plan_fix(rec, user=self.owner)
+        rec.refresh_from_db()
+        # A ChangeRequest is created + planned (DevForge's approval-gated loop) —
+        # nothing is edited directly here.
+        self.assertEqual(rec.change_id, change.id)
+        self.assertEqual(change.project_id, self.project.id)
+        self.assertIn("Field CRM", change.description)
+
+    def test_compliance_fix_description_asks_for_review(self):
+        release = rel.request_release(app=self.app, provider_key="google_play", user=self.owner)
+        rec = rel.record_rejection(release, text="location permission not justified", user=self.owner)
+        change = rel.plan_fix(rec, user=self.owner)
+        self.assertIn("compliance-sensitive", change.description.lower())
+
+    def test_resubmission_bumps_build_and_resolves(self):
+        release = rel.request_release(app=self.app, provider_key="google_play", user=self.owner)
+        rec = rel.record_rejection(release, text="The app crashed on launch", user=self.owner)
+        old_build = self.app.build_number
+        new_release = rel.prepare_resubmission(release, user=self.owner)
+        self.app.refresh_from_db()
+        rec.refresh_from_db()
+        self.assertEqual(self.app.build_number, old_build + 1)
+        self.assertEqual(new_release.build_number, old_build + 1)
+        self.assertTrue(rec.resolved)
+
+    def test_ui_report_and_fix_flow(self):
+        Membership.objects.create(organization=self.org, user=self.owner, role=Role.OWNER)
+        self.client.force_login(self.owner)
+        url = reverse("dashboard:release_center", args=[self.project.id])
+        self.client.post(url, {"action": "create_app"})
+        self.client.post(url, {"action": "prepare_release", "provider": "google_play"})
+        self.client.post(url, {"action": "report_rejection", "provider": "google_play",
+                               "rejection_text": "Your privacy policy URL could not be reached."})
+        r = self.client.get(url)
+        self.assertContains(r, "Store rejection")
+        self.assertContains(r, "Privacy policy")
+
+
 class CapabilityTests(TestCase):
     def test_mobile_publishing_is_planned_not_available(self):
         from apps.capabilities.registry import get

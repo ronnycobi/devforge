@@ -184,6 +184,50 @@
           <button class="ghost" type="submit">Re-check readiness</button>
         </form>
       {% endif %}
+
+      {% for rej in s.rejections %}
+      <div style="margin-top:12px;border:1px solid var(--failbg);background:rgba(248,113,113,.06);border-radius:10px;padding:12px">
+        <div style="display:flex;justify-content:space-between;gap:8px">
+          <strong class="fail">Store rejection · {{ rej.label }}</strong>
+          {% if rej.compliance_sensitive %}<span class="chip" style="color:var(--wait)">Compliance-sensitive</span>{% endif %}
+        </div>
+        <p class="muted" style="font-size:12px;margin:6px 0">{{ rej.summary }}</p>
+        <p style="font-size:13px;margin:6px 0"><strong>Recommended:</strong> {{ rej.recommendation }}</p>
+        {% if rej.affected_capabilities %}
+        <p class="muted" style="font-size:12px;margin:6px 0">Affects: {% for c in rej.affected_capabilities %}<span class="chip">{{ c }}</span>{% endfor %}</p>
+        {% endif %}
+        {% if can_manage %}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+          {% if rej.change %}
+            <a class="ghost" href="{% url 'dashboard:change' rej.change.id %}" style="display:inline-block;padding:9px 14px;border:1px solid var(--line2);border-radius:9px">Review the planned fix →</a>
+          {% else %}
+          <form method="post" style="display:inline">{% csrf_token %}
+            <input type="hidden" name="action" value="plan_fix">
+            <input type="hidden" name="rejection" value="{{ rej.id }}">
+            <button class="btn" type="submit">Fix{% if rej.compliance_sensitive %} (for review){% endif %}</button>
+          </form>
+          {% endif %}
+          <form method="post" style="display:inline">{% csrf_token %}
+            <input type="hidden" name="action" value="resubmit">
+            <input type="hidden" name="release" value="{{ s.release.id }}">
+            <button class="ghost" type="submit">New version to resubmit</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+
+      {% if can_manage %}
+      <details style="margin-top:10px">
+        <summary class="muted" style="cursor:pointer;font-size:12px">Report a store rejection</summary>
+        <form method="post" style="margin-top:8px">{% csrf_token %}
+          <input type="hidden" name="action" value="report_rejection">
+          <input type="hidden" name="provider" value="{{ s.provider.key }}">
+          <textarea name="rejection_text" rows="3" placeholder="Paste the rejection message you received from {{ s.provider.name }}…" style="width:100%"></textarea>
+          <button class="ghost" type="submit" style="margin-top:6px">Analyse rejection</button>
+        </form>
+      </details>
+      {% endif %}
     </div>
     {% elif can_manage %}
     <form method="post" style="margin-top:10px">{% csrf_token %}

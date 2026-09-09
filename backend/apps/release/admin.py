@@ -1,8 +1,8 @@
 from django.contrib import admin
 
 from apps.release.models import (
-    MobileApplication, MobileBuild, Release, ReleaseEvent, SigningConfiguration,
-    StoreApplication, StoreAsset, StoreConnection, StoreRequirement,
+    MobileApplication, MobileBuild, Release, ReleaseEvent, ReleaseRejection,
+    SigningConfiguration, StoreApplication, StoreAsset, StoreConnection, StoreRequirement,
 )
 
 
@@ -36,3 +36,9 @@ admin.site.register(StoreRequirement)
 class StoreAssetAdmin(admin.ModelAdmin):
     list_display = ("store_application", "kind", "screen_name", "width", "height", "source", "approved")
     list_filter = ("kind", "source", "approved")
+
+
+@admin.register(ReleaseRejection)
+class ReleaseRejectionAdmin(admin.ModelAdmin):
+    list_display = ("release", "provider", "category", "compliance_sensitive", "resolved", "created_at")
+    list_filter = ("provider", "category", "compliance_sensitive", "resolved")
