@@ -75,6 +75,16 @@ def run(deployment: Deployment) -> Deployment:
             deployment, f"Provider '{deployment.provider}' is unavailable."
         )
 
+    # Generation hooks: a blocking pre_deploy guardrail (tests/security/sign-off) stops
+    # the deploy before anything ships.
+    try:
+        from apps.hooks.service import run_hooks
+        gate = run_hooks(deployment.project, "pre_deploy")
+        if gate["blocked"]:
+            return _fail(deployment, f"Blocked by guardrail — {gate['reason']}")
+    except Exception:
+        pass  # a hook subsystem error must not silently allow a blocked deploy path to crash
+
     deployment.status = DeploymentStatus.DEPLOYING
     deployment.save(update_fields=["status"])
     try:

@@ -1,0 +1,7 @@
+from django.apps import AppConfig
+
+
+class HooksConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.hooks"
+    verbose_name = "Generation Hooks"

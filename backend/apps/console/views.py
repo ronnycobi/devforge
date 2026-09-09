@@ -238,6 +238,27 @@ def mobile_releases(request):
 
 
 @staff_required
+def hooks(request):
+    """Generation hooks (Control Center): the guardrails + their recent runs."""
+    from apps.hooks.models import Hook, HookEvent, HookRun
+    if request.method == "POST":
+        from django.shortcuts import redirect
+        name = (request.POST.get("name") or "").strip()
+        event = request.POST.get("event")
+        action = request.POST.get("action")
+        if name and event in HookEvent.values and action in dict(Hook.ACTIONS):
+            Hook.objects.create(name=name, event=event, action=action,
+                                blocking=bool(request.POST.get("blocking")), scope=Hook.SCOPE_GLOBAL)
+        return redirect("console:hooks")
+    return render(request, "console/hooks.html", {
+        "active": "hooks",
+        "hooks": Hook.objects.all(),
+        "runs": HookRun.objects.select_related("hook", "project")[:40],
+        "events": HookEvent.choices, "actions": Hook.ACTIONS,
+    })
+
+
+@staff_required
 def skills(request):
     """Skills library (Control Center). Lists the built-in global playbooks and any
     DB-authored ones; staff can add a global skill."""

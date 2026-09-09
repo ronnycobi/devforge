@@ -1,0 +1,55 @@
+{% extends "console/base_console.html" %}
+{% block title %}Generation hooks · Control Center{% endblock %}
+{% block crumb %}Platform / Hooks{% endblock %}
+{% block content %}
+  <h1>Generation hooks</h1>
+  <p class="sub">Guardrails that fire on build/deploy events. A blocking hook that
+    fails stops promotion; actions reuse the real test runner and security scanner.</p>
+
+  <div class="card">
+    <h2 style="margin-top:0">Configured hooks</h2>
+    {% if hooks %}
+    <table>
+      <tr><th>Name</th><th>Event</th><th>Action</th><th>Mode</th><th>Scope</th><th>Status</th></tr>
+      {% for h in hooks %}
+      <tr>
+        <td class="strong">{{ h.name }}</td>
+        <td class="muted">{{ h.get_event_display }}</td>
+        <td>{{ h.action }}</td>
+        <td>{% if h.blocking %}<span class="fail">blocking</span>{% else %}<span class="muted">advisory</span>{% endif %}</td>
+        <td class="muted">{{ h.scope }}</td>
+        <td>{% if h.enabled %}<span class="ok">on</span>{% else %}<span class="muted">off</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No hooks yet — deploys proceed without extra guardrails.</p>{% endif %}
+
+    <h2>Add a hook</h2>
+    <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">{% csrf_token %}
+      <input type="text" name="name" placeholder="Name (e.g. Block on secrets)" required style="width:200px">
+      <select name="event" style="width:auto">{% for v, l in events %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+      <select name="action" style="width:auto">{% for v, l in actions %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+      <label style="font-size:13px"><input type="checkbox" name="blocking" checked style="width:auto"> Blocking</label>
+      <button class="btn" type="submit">Add</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Recent runs</h2>
+    {% if runs %}
+    <table>
+      <tr><th>Hook</th><th>Project</th><th>Event</th><th>Result</th><th>Detail</th><th>When</th></tr>
+      {% for r in runs %}
+      <tr>
+        <td class="strong">{{ r.hook.name }}</td>
+        <td class="muted">{{ r.project.name }}</td>
+        <td class="muted">{{ r.event }}</td>
+        <td>{% if r.status == 'pass' %}<span class="ok">pass</span>{% elif r.status == 'fail' %}<span class="fail">fail{% if r.blocked %} · blocked{% endif %}</span>{% else %}<span class="muted">skip</span>{% endif %}</td>
+        <td class="muted">{{ r.detail }}</td>
+        <td class="muted">{{ r.created_at|date:"M j, H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No runs recorded yet.</p>{% endif %}
+  </div>
+{% endblock %}
