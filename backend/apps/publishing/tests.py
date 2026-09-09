@@ -1321,6 +1321,50 @@ class PaymentsTests(TestCase):
                 shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}],
                                   shipping_rate_id=rate.id)
 
+    def test_tax_applied_exactly(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            shop.set_tax_rate(site, name="VAT", percent="15", user=self.user)
+            p = shop.create_product(site, name="Mug", price_cents=4500, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}])
+            self.assertEqual(order.tax_cents, 675)             # 15% of 4500 = 675, exact
+            self.assertEqual(order.total_cents, 5175)
+
+    def test_tax_on_discounted_goods_plus_shipping(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            shop.set_tax_rate(site, name="VAT", percent="10", user=self.user)
+            shop.create_discount(site, code="TEN", kind="percent", percent_off=10, user=self.user)
+            rate = shop.create_shipping_rate(site, name="Std", price_cents=500, user=self.user)
+            p = shop.create_product(site, name="Mug", price_cents=5000, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}],
+                                      code="TEN", shipping_rate_id=rate.id)
+            # goods_net = 5000-500 = 4500; tax 10% of 4500 = 450; +500 shipping = 5450
+            self.assertEqual(order.discount_cents, 500)
+            self.assertEqual(order.tax_cents, 450)
+            self.assertEqual(order.shipping_cents, 500)
+            self.assertEqual(order.total_cents, 5450)
+
+    def test_only_one_active_tax_rate(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            shop.set_tax_rate(site, name="VAT", percent="15", user=self.user)
+            shop.set_tax_rate(site, name="GST", percent="10", user=self.user)   # replaces
+            self.assertEqual(site.tax_rates.filter(active=True).count(), 1)
+            self.assertEqual(site.tax_rates.filter(active=True).first().name, "GST")
+
+    def test_no_tax_when_none_set(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1000, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}])
+            self.assertEqual(order.tax_cents, 0)
+            self.assertEqual(order.total_cents, 1000)
+
     def test_store_page_renders(self):
         Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
         with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):

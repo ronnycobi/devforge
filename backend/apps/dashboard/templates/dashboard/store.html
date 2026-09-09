@@ -135,6 +135,25 @@
   </div>
 
   <div class="card">
+    <h2 style="margin-top:0">Tax</h2>
+    {% if tax %}
+    <p style="margin:0 0 8px">Applying <strong>{{ tax.name }} {{ tax.rate_display }}</strong> to orders.</p>
+    {% if can_manage %}<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="clear_tax">
+      <button class="ghost" type="submit" style="padding:5px 10px;font-size:12px">Remove tax</button></form>{% endif %}
+    {% else %}
+    <p class="muted" style="margin:0 0 8px">No tax applied. Stores that must charge VAT/sales tax can set a rate.</p>
+    {% endif %}
+    {% if can_manage %}
+    <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">{% csrf_token %}
+      <input type="hidden" name="action" value="set_tax">
+      <input type="text" name="name" placeholder="VAT" value="{% if tax %}{{ tax.name }}{% else %}VAT{% endif %}" style="width:120px">
+      <input type="number" name="percent" placeholder="%" step="0.01" min="0" max="100" required style="width:110px">
+      <button class="ghost" type="submit">Set tax</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="card">
     <h2 style="margin-top:0">Shipping options</h2>
     {% if shipping_rates %}
     <table>

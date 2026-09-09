@@ -113,3 +113,12 @@ from apps.publishing.models import ShippingRate  # noqa: E402
 class ShippingRateAdmin(admin.ModelAdmin):
     list_display = ("name", "website", "price_cents", "currency", "free_over_cents", "active")
     list_filter = ("active", "currency")
+
+
+from apps.publishing.models import TaxRate  # noqa: E402
+
+
+@admin.register(TaxRate)
+class TaxRateAdmin(admin.ModelAdmin):
+    list_display = ("name", "website", "rate_bps", "active")
+    list_filter = ("active",)

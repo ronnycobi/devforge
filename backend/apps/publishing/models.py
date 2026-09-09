@@ -502,6 +502,32 @@ class ShippingRate(models.Model):
         return base
 
 
+class TaxRate(models.Model):
+    """A sales-tax / VAT rate a store applies (spec §32). Stored in basis points for
+    exact integer math (1500 = 15.00%). Applied to the discounted goods total at
+    checkout; the amount is computed deterministically, never estimated."""
+
+    website = models.ForeignKey(Website, on_delete=models.CASCADE, related_name="tax_rates")
+    name = models.CharField(max_length=60, default="Tax")     # "VAT", "Sales tax"
+    rate_bps = models.PositiveIntegerField(default=0)          # basis points
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} {self.rate_display}"
+
+    @property
+    def rate_display(self) -> str:
+        return f"{self.rate_bps / 100:.2f}%"
+
+    def tax_for(self, taxable_cents: int) -> int:
+        # Round half up, in integer cents.
+        return (taxable_cents * self.rate_bps + 5000) // 10000
+
+
 class Order(models.Model):
     """A customer order (spec §32). Status reflects the REAL payment state — it only
     becomes 'paid' when a payment actually succeeds (a gateway confirmation or a
@@ -519,6 +545,7 @@ class Order(models.Model):
     customer_email = models.EmailField(blank=True)
     subtotal_cents = models.PositiveIntegerField(default=0)   # before discount
     discount_cents = models.PositiveIntegerField(default=0)
+    tax_cents = models.PositiveIntegerField(default=0)
     shipping_cents = models.PositiveIntegerField(default=0)
     total_cents = models.PositiveIntegerField(default=0)      # what is actually charged
     discount_code = models.ForeignKey(
@@ -527,6 +554,10 @@ class Order(models.Model):
     )
     shipping_rate = models.ForeignKey(
         "publishing.ShippingRate", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="orders",
+    )
+    tax_rate = models.ForeignKey(
+        "publishing.TaxRate", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="orders",
     )
     shipping_address = models.TextField(blank=True)
@@ -560,6 +591,10 @@ class Order(models.Model):
     @property
     def shipping_display(self) -> str:
         return f"{self.currency} {self.shipping_cents / 100:.2f}"
+
+    @property
+    def tax_display(self) -> str:
+        return f"{self.currency} {self.tax_cents / 100:.2f}"
 
 
 class OrderItem(models.Model):

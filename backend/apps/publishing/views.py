@@ -106,6 +106,9 @@ def _order_page_html(order, *, thanks: bool) -> str:
     if order.discount_cents:
         totals += (f"<tr><td>Discount</td><td style='text-align:right'>"
                    f"-{order.discount_display}</td></tr>")
+    if order.tax_rate:
+        totals += (f"<tr><td>{_h.escape(order.tax_rate.name)} ({order.tax_rate.rate_display})</td>"
+                   f"<td style='text-align:right'>{order.tax_display}</td></tr>")
     if order.shipping_rate:
         totals += (f"<tr><td>Shipping ({_h.escape(order.shipping_rate.name)})</td>"
                    f"<td style='text-align:right'>{order.shipping_display}</td></tr>")

@@ -706,6 +706,13 @@ def store(request, pk):
                     dc.active = not dc.active
                     dc.save(update_fields=["active"])
                     messages.success(request, f"Code {'activated' if dc.active else 'deactivated'}.")
+            elif action == "set_tax":
+                shop.set_tax_rate(website, name=request.POST.get("name", "Tax"),
+                                  percent=request.POST.get("percent", "0"), user=request.user)
+                messages.success(request, "Tax rate set.")
+            elif action == "clear_tax":
+                website.tax_rates.filter(active=True).update(active=False)
+                messages.success(request, "Tax removed.")
             elif action == "add_shipping":
                 shop.create_shipping_rate(
                     website, name=request.POST.get("name", ""),
@@ -742,6 +749,7 @@ def store(request, pk):
         "summary": shop.sales_summary(website) if website else None,
         "discounts": list(website.discount_codes.all()) if website else [],
         "shipping_rates": list(website.shipping_rates.all()) if website else [],
+        "tax": website.tax_rates.filter(active=True).first() if website else None,
     })
 
 

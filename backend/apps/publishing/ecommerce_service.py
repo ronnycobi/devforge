@@ -16,7 +16,9 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from apps.audit.service import record as audit
-from apps.publishing.models import DiscountCode, Order, OrderItem, Payment, Product, ShippingRate
+from apps.publishing.models import (
+    DiscountCode, Order, OrderItem, Payment, Product, ShippingRate, TaxRate,
+)
 from apps.publishing.payments import PaymentError, get_provider
 
 
@@ -107,6 +109,21 @@ def create_shipping_rate(website, *, name, price_cents, currency="USD",
     return rate
 
 
+def set_tax_rate(website, *, name, percent, user=None) -> TaxRate:
+    """Set the store's tax rate (one active rate). Percent may be like 15 or 7.5."""
+    try:
+        bps = int(round(float(percent) * 100))
+    except (TypeError, ValueError):
+        raise EcommerceError("Enter a valid tax percentage.")
+    if not (0 < bps <= 10000):
+        raise EcommerceError("Tax must be between 0 and 100%.")
+    website.tax_rates.filter(active=True).update(active=False)   # only one active
+    rate = TaxRate.objects.create(website=website, name=(name or "Tax").strip(), rate_bps=bps)
+    audit("shop.tax_rate", actor=user, organization=website.project.organization,
+          target=f"tax:{rate.id}", summary=f"{rate.name} {rate.rate_display}")
+    return rate
+
+
 def create_order(website, *, items, customer_name="", customer_email="", code="",
                  shipping_rate_id="", shipping_address="") -> Order:
     """items: list of {product_id or product, quantity}. Totals are computed from the
@@ -176,17 +193,23 @@ def create_order(website, *, items, customer_name="", customer_email="", code=""
             code_obj.refresh_from_db(fields=["used_count"])
             order.discount_code = code_obj
 
+        goods_net = subtotal - discount
+        tax_rate = website.tax_rates.filter(active=True).first()
+        tax = tax_rate.tax_for(goods_net) if tax_rate else 0
         shipping = rate.cost_for(subtotal) if rate else 0
+
         order.subtotal_cents = subtotal
         order.discount_cents = discount
+        order.tax_cents = tax
+        order.tax_rate = tax_rate
         order.shipping_cents = shipping
         order.shipping_rate = rate
         order.shipping_address = (shipping_address or "").strip()
-        order.total_cents = (subtotal - discount) + shipping
+        order.total_cents = goods_net + tax + shipping
         order.currency = currency
-        order.save(update_fields=["subtotal_cents", "discount_cents", "shipping_cents",
-                                  "total_cents", "discount_code", "shipping_rate",
-                                  "shipping_address", "currency"])
+        order.save(update_fields=["subtotal_cents", "discount_cents", "tax_cents",
+                                  "shipping_cents", "total_cents", "discount_code",
+                                  "tax_rate", "shipping_rate", "shipping_address", "currency"])
     return order
 
 
@@ -206,10 +229,12 @@ def start_checkout(order: Order, *, provider_key="manual") -> dict:
     # Confirmation email to the buyer (best-effort, only if they gave an address).
     body = (f"Thanks for your order {order.reference} from "
             f"{order.website.project.name}.\n\n{_order_lines(order)}\n")
-    if order.discount_cents or order.shipping_cents:
+    if order.discount_cents or order.shipping_cents or order.tax_cents:
         body += f"Subtotal: {order.subtotal_display}\n"
         if order.discount_cents:
             body += f"Discount: -{order.discount_display}\n"
+        if order.tax_rate:
+            body += f"{order.tax_rate.name} ({order.tax_rate.rate_display}): {order.tax_display}\n"
         if order.shipping_rate:
             body += f"Shipping ({order.shipping_rate.name}): {order.shipping_display}\n"
     body += f"Total: {order.total_display}\n"

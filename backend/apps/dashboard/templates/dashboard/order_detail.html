@@ -27,6 +27,9 @@
         <tr><td>Discount {% if order.discount_code %}({{ order.discount_code.code }}){% endif %}</td>
           <td class="num">-{{ order.discount_display }}</td></tr>
         {% endif %}
+        {% if order.tax_rate %}
+        <tr><td>{{ order.tax_rate.name }} ({{ order.tax_rate.rate_display }})</td><td class="num">{{ order.tax_display }}</td></tr>
+        {% endif %}
         {% if order.shipping_rate %}
         <tr><td>Shipping ({{ order.shipping_rate.name }})</td><td class="num">{{ order.shipping_display }}</td></tr>
         {% endif %}
