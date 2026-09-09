@@ -136,10 +136,12 @@ def _order_page_html(order, *, thanks: bool) -> str:
 
 def _doc_page(title: str, main: str) -> str:
     import html as _h
+    from apps.publishing.storefront import STOREFRONT_CSS
     return (
         f"<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
         f"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-        f"<title>{_h.escape(title)}</title></head><body><main>{main}</main></body></html>"
+        f"<title>{_h.escape(title)}</title><style>{STOREFRONT_CSS}</style></head>"
+        f"<body><div class=\"wrap\">{main}</div></body></html>"
     )
 
 

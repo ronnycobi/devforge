@@ -4,9 +4,9 @@
     {
       "name": "devforge",
       "runtimeExecutable": "../env/bin/python",
-      "runtimeArgs": ["backend/manage.py", "runserver", "8000"],
-      "port": 8000,
-      "url": "http://localhost:8000/app/"
+      "runtimeArgs": ["manage.py", "runserver", "8000"],
+      "cwd": "backend",
+      "port": 8000
     }
   ]
 }
