@@ -27,6 +27,9 @@
         <tr><td>Discount {% if order.discount_code %}({{ order.discount_code.code }}){% endif %}</td>
           <td class="num">-{{ order.discount_display }}</td></tr>
         {% endif %}
+        {% if order.shipping_rate %}
+        <tr><td>Shipping ({{ order.shipping_rate.name }})</td><td class="num">{{ order.shipping_display }}</td></tr>
+        {% endif %}
         <tr><td class="strong">Total</td><td class="num strong">{{ order.total_display }}</td></tr>
       </table>
     </div>
@@ -35,6 +38,7 @@
       <h2 style="margin-top:0">Customer</h2>
       <p style="margin:0">{{ order.customer_name|default:"—" }}<br>
         <span class="muted">{{ order.customer_email|default:"no email" }}</span></p>
+      {% if order.shipping_address %}<p class="muted" style="font-size:13px;white-space:pre-line">📦 {{ order.shipping_address }}</p>{% endif %}
       <h2>Payments</h2>
       {% if order.payments.all %}
       <table>

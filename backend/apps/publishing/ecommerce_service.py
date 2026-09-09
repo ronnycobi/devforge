@@ -16,7 +16,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from apps.audit.service import record as audit
-from apps.publishing.models import DiscountCode, Order, OrderItem, Payment, Product
+from apps.publishing.models import DiscountCode, Order, OrderItem, Payment, Product, ShippingRate
 from apps.publishing.payments import PaymentError, get_provider
 
 
@@ -92,7 +92,23 @@ def create_product(website, *, name, price_cents, currency="USD", description=""
     return product
 
 
-def create_order(website, *, items, customer_name="", customer_email="", code="") -> Order:
+def create_shipping_rate(website, *, name, price_cents, currency="USD",
+                         free_over_cents=0, user=None) -> ShippingRate:
+    if not (name or "").strip():
+        raise EcommerceError("A shipping option needs a name.")
+    if int(price_cents) < 0:
+        raise EcommerceError("Shipping price cannot be negative.")
+    rate = ShippingRate.objects.create(
+        website=website, name=name.strip(), price_cents=int(price_cents),
+        currency=currency, free_over_cents=max(0, int(free_over_cents or 0)),
+    )
+    audit("shop.shipping_rate", actor=user, organization=website.project.organization,
+          target=f"shipping:{rate.id}", summary=f"{name} · {rate.price_display}")
+    return rate
+
+
+def create_order(website, *, items, customer_name="", customer_email="", code="",
+                 shipping_rate_id="", shipping_address="") -> Order:
     """items: list of {product_id or product, quantity}. Totals are computed from the
     products' real prices — never trusted from the client. An optional discount `code`
     is validated and applied server-side."""
@@ -115,6 +131,14 @@ def create_order(website, *, items, customer_name="", customer_email="", code=""
     code_obj = website.discount_codes.filter(code=code).first() if code else None
     if code and code_obj is None:
         raise DiscountError("That discount code isn't recognised.")
+
+    rate = None
+    if shipping_rate_id:
+        rate = website.shipping_rates.filter(pk=shipping_rate_id, active=True).first()
+        if rate is None:
+            raise EcommerceError("That shipping option isn't available.")
+        if rate.currency != currency:
+            raise EcommerceError("That shipping option can't be used in this currency.")
 
     with transaction.atomic():
         order = Order.objects.create(
@@ -152,12 +176,17 @@ def create_order(website, *, items, customer_name="", customer_email="", code=""
             code_obj.refresh_from_db(fields=["used_count"])
             order.discount_code = code_obj
 
+        shipping = rate.cost_for(subtotal) if rate else 0
         order.subtotal_cents = subtotal
         order.discount_cents = discount
-        order.total_cents = subtotal - discount
+        order.shipping_cents = shipping
+        order.shipping_rate = rate
+        order.shipping_address = (shipping_address or "").strip()
+        order.total_cents = (subtotal - discount) + shipping
         order.currency = currency
-        order.save(update_fields=["subtotal_cents", "discount_cents", "total_cents",
-                                  "discount_code", "currency"])
+        order.save(update_fields=["subtotal_cents", "discount_cents", "shipping_cents",
+                                  "total_cents", "discount_code", "shipping_rate",
+                                  "shipping_address", "currency"])
     return order
 
 
@@ -177,8 +206,12 @@ def start_checkout(order: Order, *, provider_key="manual") -> dict:
     # Confirmation email to the buyer (best-effort, only if they gave an address).
     body = (f"Thanks for your order {order.reference} from "
             f"{order.website.project.name}.\n\n{_order_lines(order)}\n")
-    if order.discount_cents:
-        body += f"Subtotal: {order.subtotal_display}\nDiscount: -{order.discount_display}\n"
+    if order.discount_cents or order.shipping_cents:
+        body += f"Subtotal: {order.subtotal_display}\n"
+        if order.discount_cents:
+            body += f"Discount: -{order.discount_display}\n"
+        if order.shipping_rate:
+            body += f"Shipping ({order.shipping_rate.name}): {order.shipping_display}\n"
     body += f"Total: {order.total_display}\n"
     body += (f"\nTrack your order: /sites/{order.website.subdomain}/order/{order.reference}\n")
     if result.get("instructions"):

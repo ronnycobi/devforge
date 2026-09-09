@@ -110,14 +110,29 @@ def render_storefront(website) -> dict:
 
     # Cart page — the JS in _cart_script renders line items and posts them to checkout.
     currency = products[0].currency
+    rates = list(website.shipping_rates.filter(active=True))
+    shipping_html = ""
+    if rates:
+        opts = "".join(
+            f'<label><input type="radio" name="shipping_rate" value="{r.id}"'
+            f'{" checked" if i == 0 else ""}> {html_lib.escape(r.name)} '
+            f'— {html_lib.escape(r.price_display)}</label>'
+            for i, r in enumerate(rates)
+        )
+        shipping_html = (
+            f"<fieldset><legend>Shipping</legend>{opts}</fieldset>"
+            '<label>Delivery address <textarea name="shipping_address" rows="3"></textarea></label>'
+        )
     cart_main = (
         "<h1>Your cart</h1>"
         '<ul id="devforge-cart-items"></ul>'
-        f'<p>Total: <span id="devforge-cart-total">0.00</span> {html_lib.escape(currency)}</p>'
+        f'<p>Total: <span id="devforge-cart-total">0.00</span> {html_lib.escape(currency)}'
+        '<br><small>Discounts and shipping are calculated at checkout.</small></p>'
         f'<form id="devforge-checkout" method="post" action="/sites/{website.subdomain}/checkout">'
         '<label>Your name <input type="text" name="name"></label>'
         '<label>Email <input type="email" name="email" required></label>'
         '<label>Discount code <input type="text" name="code"></label>'
+        f'{shipping_html}'
         '<button type="submit">Checkout</button></form>'
     )
     files["shop/cart.html"] = _doc(website, "Your cart", cart_main)

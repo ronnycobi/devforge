@@ -106,6 +106,9 @@ def _order_page_html(order, *, thanks: bool) -> str:
     if order.discount_cents:
         totals += (f"<tr><td>Discount</td><td style='text-align:right'>"
                    f"-{order.discount_display}</td></tr>")
+    if order.shipping_rate:
+        totals += (f"<tr><td>Shipping ({_h.escape(order.shipping_rate.name)})</td>"
+                   f"<td style='text-align:right'>{order.shipping_display}</td></tr>")
     totals += (f"<tr><td><strong>Total</strong></td><td style='text-align:right'>"
                f"<strong>{order.total_display}</strong></td></tr>")
     status_line = {
@@ -186,6 +189,8 @@ def checkout(request, subdomain):
             customer_name=request.POST.get("name", ""),
             customer_email=request.POST.get("email", ""),
             code=request.POST.get("code", ""),
+            shipping_rate_id=request.POST.get("shipping_rate", ""),
+            shipping_address=request.POST.get("shipping_address", ""),
         )
         result = shop.start_checkout(order, provider_key=provider_key)
     except (shop.EcommerceError, PaymentError) as exc:

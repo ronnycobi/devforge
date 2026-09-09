@@ -1273,6 +1273,54 @@ class PaymentsTests(TestCase):
             r = self.client.get(reverse("publishing:order_status", args=[site.subdomain, "ORD-NOPE"]))
             self.assertEqual(r.status_code, 404)
 
+    def test_shipping_added_to_total(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=2000, user=self.user)
+            rate = shop.create_shipping_rate(site, name="Standard", price_cents=500, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}],
+                                      shipping_rate_id=rate.id, shipping_address="1 Main St")
+            self.assertEqual(order.shipping_cents, 500)
+            self.assertEqual(order.total_cents, 2500)          # 2000 + 500
+            self.assertEqual(order.shipping_address, "1 Main St")
+
+    def test_free_over_threshold(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=6000, user=self.user)
+            rate = shop.create_shipping_rate(site, name="Standard", price_cents=500,
+                                             free_over_cents=5000, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}],
+                                      shipping_rate_id=rate.id)
+            self.assertEqual(order.shipping_cents, 0)          # 6000 ≥ 5000 → free
+            self.assertEqual(order.total_cents, 6000)
+
+    def test_discount_then_shipping(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=5000, user=self.user)
+            shop.create_discount(site, code="TEN", kind="percent", percent_off=10, user=self.user)
+            rate = shop.create_shipping_rate(site, name="Express", price_cents=800, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}],
+                                      code="TEN", shipping_rate_id=rate.id)
+            # (5000 - 500 discount) + 800 shipping = 5300
+            self.assertEqual(order.discount_cents, 500)
+            self.assertEqual(order.shipping_cents, 800)
+            self.assertEqual(order.total_cents, 5300)
+
+    def test_shipping_currency_must_match(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=2000, currency="USD", user=self.user)
+            rate = shop.create_shipping_rate(site, name="Std", price_cents=500, currency="EUR", user=self.user)
+            with self.assertRaises(shop.EcommerceError):
+                shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}],
+                                  shipping_rate_id=rate.id)
+
     def test_store_page_renders(self):
         Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
         with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):

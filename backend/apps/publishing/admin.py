@@ -104,3 +104,12 @@ from apps.publishing.models import DiscountCode  # noqa: E402
 class DiscountCodeAdmin(admin.ModelAdmin):
     list_display = ("code", "website", "kind", "percent_off", "amount_off_cents", "active", "used_count")
     list_filter = ("kind", "active")
+
+
+from apps.publishing.models import ShippingRate  # noqa: E402
+
+
+@admin.register(ShippingRate)
+class ShippingRateAdmin(admin.ModelAdmin):
+    list_display = ("name", "website", "price_cents", "currency", "free_over_cents", "active")
+    list_filter = ("active", "currency")

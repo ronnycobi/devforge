@@ -470,6 +470,38 @@ class DiscountCode(models.Model):
             else f"{self.currency} {self.amount_off_cents / 100:.2f} off"
 
 
+class ShippingRate(models.Model):
+    """A delivery option a store offers (spec §32). Flat price, with an optional
+    free-over threshold. Applied to physical orders at checkout; the cost is added to
+    the order total exactly (deterministic)."""
+
+    website = models.ForeignKey(Website, on_delete=models.CASCADE, related_name="shipping_rates")
+    name = models.CharField(max_length=120)             # "Standard", "Express", "Pickup"
+    price_cents = models.PositiveIntegerField(default=0)
+    currency = models.CharField(max_length=3, default="USD")
+    free_over_cents = models.PositiveIntegerField(default=0)   # 0 = no free threshold
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["price_cents", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.currency} {self.price_cents / 100:.2f})"
+
+    def cost_for(self, subtotal_cents: int) -> int:
+        if self.free_over_cents and subtotal_cents >= self.free_over_cents:
+            return 0
+        return self.price_cents
+
+    @property
+    def price_display(self) -> str:
+        base = f"{self.currency} {self.price_cents / 100:.2f}"
+        if self.free_over_cents:
+            base += f" (free over {self.currency} {self.free_over_cents / 100:.2f})"
+        return base
+
+
 class Order(models.Model):
     """A customer order (spec §32). Status reflects the REAL payment state — it only
     becomes 'paid' when a payment actually succeeds (a gateway confirmation or a
@@ -487,11 +519,17 @@ class Order(models.Model):
     customer_email = models.EmailField(blank=True)
     subtotal_cents = models.PositiveIntegerField(default=0)   # before discount
     discount_cents = models.PositiveIntegerField(default=0)
+    shipping_cents = models.PositiveIntegerField(default=0)
     total_cents = models.PositiveIntegerField(default=0)      # what is actually charged
     discount_code = models.ForeignKey(
         "publishing.DiscountCode", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="orders",
     )
+    shipping_rate = models.ForeignKey(
+        "publishing.ShippingRate", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="orders",
+    )
+    shipping_address = models.TextField(blank=True)
     currency = models.CharField(max_length=3, default="USD")
     status = models.CharField(max_length=20, choices=STATUS, default="pending")
     provider = models.CharField(max_length=32, blank=True)
@@ -518,6 +556,10 @@ class Order(models.Model):
     @property
     def discount_display(self) -> str:
         return f"{self.currency} {self.discount_cents / 100:.2f}"
+
+    @property
+    def shipping_display(self) -> str:
+        return f"{self.currency} {self.shipping_cents / 100:.2f}"
 
 
 class OrderItem(models.Model):

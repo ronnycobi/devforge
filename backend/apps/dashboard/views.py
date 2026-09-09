@@ -696,6 +696,21 @@ def store(request, pk):
                     dc.active = not dc.active
                     dc.save(update_fields=["active"])
                     messages.success(request, f"Code {'activated' if dc.active else 'deactivated'}.")
+            elif action == "add_shipping":
+                shop.create_shipping_rate(
+                    website, name=request.POST.get("name", ""),
+                    price_cents=int(round(float(request.POST.get("price") or 0) * 100)),
+                    currency=(request.POST.get("currency") or "USD").strip().upper()[:3],
+                    free_over_cents=int(round(float(request.POST.get("free_over") or 0) * 100)),
+                    user=request.user)
+                messages.success(request, "Shipping option added.")
+            elif action == "toggle_shipping":
+                from apps.publishing.models import ShippingRate
+                rate = ShippingRate.objects.filter(pk=request.POST.get("rate", 0), website=website).first()
+                if rate:
+                    rate.active = not rate.active
+                    rate.save(update_fields=["active"])
+                    messages.success(request, f"Shipping option {'enabled' if rate.active else 'disabled'}.")
             elif action == "generate_storefront":
                 from apps.publishing import storefront
                 try:
@@ -716,6 +731,7 @@ def store(request, pk):
         "providers": payments.provider_status(),
         "summary": shop.sales_summary(website) if website else None,
         "discounts": list(website.discount_codes.all()) if website else [],
+        "shipping_rates": list(website.shipping_rates.all()) if website else [],
     })
 
 
