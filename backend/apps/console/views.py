@@ -201,6 +201,31 @@ def leads(request):
 
 
 @staff_required
+def mobile_releases(request):
+    """Admin view of the Mobile Release & App Store Platform (spec §30). Read-only,
+    honest: shows store-provider availability, connections, and every release across
+    tenants so staff can diagnose failures without exposing internals to customers."""
+    from apps.release.models import MobileApplication, Release, StoreConnection
+    from apps.release.providers import provider_status
+    releases = (
+        Release.objects.select_related("mobile_application", "mobile_application__project",
+                                        "mobile_application__project__organization")
+        .order_by("-created_at")[:200]
+    )
+    connections = (
+        StoreConnection.objects.select_related("organization").order_by("-created_at")[:100]
+    )
+    apps = (
+        MobileApplication.objects.select_related("project", "project__organization")
+        .order_by("-created_at")[:100]
+    )
+    return render(request, "console/mobile_releases.html", {
+        "active": "mobile", "providers": provider_status(),
+        "releases": releases, "connections": connections, "apps": apps,
+    })
+
+
+@staff_required
 def audit(request):
     from apps.audit.models import AuditEvent
     action = request.GET.get("action") or ""

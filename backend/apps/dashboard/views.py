@@ -246,6 +246,79 @@ def project(request, pk):
 
 
 @login_required
+def release_center(request, pk):
+    """Mobile Release Center (spec §19): one page to prepare and release a mobile
+    app to Google Play, App Store and AppGallery. Every store shows its REAL state
+    — not connected here, because live publishing needs the customer's own store
+    credentials — and readiness is computed from actual records. Nothing is faked.
+    """
+    from apps.release import service as rel
+    from apps.release.models import MobileApplication
+    from apps.release.providers import all_providers, get_provider
+
+    proj = get_object_or_404(
+        Project.objects.filter(organization__in=organizations_for(request.user)), pk=pk
+    )
+    can_manage = proj.organization_id in _manageable_ids(request.user)
+    app = MobileApplication.objects.filter(project=proj).order_by("created_at").first()
+
+    if request.method == "POST":
+        if not can_manage:
+            messages.error(request, "Owner or admin required for this action.")
+            return redirect("dashboard:release_center", pk=pk)
+        action = request.POST.get("action")
+        if action == "create_app":
+            slug = (proj.slug or proj.name).lower().replace("-", "").replace(" ", "")
+            pkg = f"com.devforge.{slug}"[:250] or "com.devforge.app"
+            app = rel.create_mobile_application(
+                project=proj, name=proj.name, package_identifier=pkg, bundle_identifier=pkg,
+            )
+            for prov in all_providers():
+                store_app = rel.ensure_store_application(app, prov.key)
+                rel.set_metadata(store_app, app_name=app.name)
+            messages.success(request, "Mobile application created. Connect your store accounts to publish.")
+        elif action == "prepare_release" and app:
+            provider_key = request.POST.get("provider")
+            if get_provider(provider_key):
+                release = rel.request_release(app=app, provider_key=provider_key, user=request.user)
+                messages.success(
+                    request, f"Prepared a release for {get_provider(provider_key).name} "
+                             f"({release.readiness}% ready)."
+                )
+            else:
+                messages.error(request, "Unknown store.")
+        elif action == "approve_release" and app:
+            release = app.releases.filter(pk=request.POST.get("release", 0)).first()
+            if release:
+                rel.approve_release(release, user=request.user)
+                messages.success(request, "Release approved for submission.")
+        elif action == "submit_release" and app:
+            release = app.releases.filter(pk=request.POST.get("release", 0)).first()
+            if release:
+                release = rel.submit_release(release, user=request.user)
+                if release.state == "submitted":
+                    messages.success(request, "Submitted to the store.")
+                else:
+                    last = release.events.first()
+                    messages.warning(request, last.message if last else "Store not connected.")
+        return redirect("dashboard:release_center", pk=pk)
+
+    stores = []
+    for prov in all_providers():
+        conn = proj.organization.store_connections.filter(provider=prov.key).first()
+        store_app = app.store_apps.filter(provider=prov.key).first() if app else None
+        release = (app.releases.filter(provider=prov.key).first() if app else None)
+        stores.append({
+            "provider": prov, "connection": conn, "store_app": store_app, "release": release,
+            "connected": bool(conn and conn.status == "connected"),
+        })
+    return render(request, "dashboard/release_center.html", {
+        "active": "projects", "project": proj, "can_manage": can_manage,
+        "app": app, "stores": stores,
+    })
+
+
+@login_required
 def preview(request, pk):
     """Two-pane preview: chat (change requests) + a visual view of the app.
 

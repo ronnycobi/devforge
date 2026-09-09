@@ -66,6 +66,8 @@ _CATALOG = [
     Capability("campaigns", "Email campaigns", "Growth", PLANNED, "Marketing email sends."),
     # Infrastructure
     Capability("hosting", "Hosting", "Infrastructure", AVAILABLE, "Preview and deploy your app."),
+    Capability("mobile_publishing", "App store publishing", "Infrastructure", PLANNED,
+               "Prepare and release mobile apps to Google Play, App Store and AppGallery."),
     Capability("domains", "Custom domains", "Infrastructure", PLANNED, "Your own domain + SSL."),
     Capability("backups", "Backups", "Infrastructure", AVAILABLE, "Create restore points and roll back."),
     Capability("environments", "Environments", "Infrastructure", AVAILABLE, "Dev/staging workspaces."),

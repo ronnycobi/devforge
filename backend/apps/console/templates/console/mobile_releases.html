@@ -1,0 +1,66 @@
+{% extends "console/base_console.html" %}
+{% block title %}Mobile releases · Control Center{% endblock %}
+{% block crumb %}Platform / Mobile releases{% endblock %}
+{% block content %}
+  <h1>Mobile releases</h1>
+  <p class="sub">Store providers, connections and releases across every tenant.</p>
+
+  <div class="card">
+    <h2 style="margin-top:0">Store providers</h2>
+    <table>
+      <tr><th>Provider</th><th>Live here</th><th>Auth mechanism</th><th>Artifact</th><th class="num">Capabilities</th></tr>
+      {% for p in providers %}
+      <tr>
+        <td class="strong">{{ p.name }}</td>
+        <td>{% if p.available %}<span class="ok">● Live</span>{% else %}<span class="muted">○ Not connected</span>{% endif %}</td>
+        <td class="muted">{{ p.auth_mechanism }}</td>
+        <td class="muted">.{{ p.artifact_format }}</td>
+        <td class="num">{{ p.capabilities|length }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p class="muted" style="font-size:12px;margin-bottom:0">
+      Providers are provider-agnostic adapters. "Not connected" means no live developer
+      account/credentials are configured on this host — publishing is a manual step, never faked.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Store connections</h2>
+    {% if connections %}
+    <table>
+      <tr><th>Organization</th><th>Provider</th><th>Status</th><th>Verified</th><th>Created</th></tr>
+      {% for c in connections %}
+      <tr>
+        <td>{{ c.organization.name }}</td>
+        <td class="muted">{{ c.provider }}</td>
+        <td>{% if c.status == 'connected' %}<span class="ok">{{ c.get_status_display }}</span>
+          {% else %}<span class="muted">{{ c.get_status_display }}</span>{% endif %}</td>
+        <td class="muted">{{ c.last_verified|date:"M j, H:i"|default:"—" }}</td>
+        <td class="muted">{{ c.created_at|date:"M j, Y" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No store connections yet.</p>{% endif %}
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Releases</h2>
+    {% if releases %}
+    <table>
+      <tr><th>Application</th><th>Tenant</th><th>Store</th><th>Version</th><th>State</th><th class="num">Ready</th><th>When</th></tr>
+      {% for r in releases %}
+      <tr>
+        <td class="strong">{{ r.mobile_application.name }}</td>
+        <td class="muted">{{ r.mobile_application.project.organization.name }}</td>
+        <td class="muted">{{ r.provider }}</td>
+        <td>{{ r.version }}+{{ r.build_number }}</td>
+        <td><span class="badge b-{{ r.state }}">{{ r.get_state_display }}</span></td>
+        <td class="num">{{ r.readiness }}%</td>
+        <td class="muted">{{ r.created_at|date:"M j, H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="empty">No releases yet.</p>{% endif %}
+  </div>
+{% endblock %}

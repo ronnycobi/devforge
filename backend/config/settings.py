@@ -82,6 +82,7 @@ INSTALLED_APPS = [
     "apps.dashboard",
     "apps.console",
     "apps.audit",
+    "apps.release",
     "apps.marketing",
     "apps.notifications",
 ]

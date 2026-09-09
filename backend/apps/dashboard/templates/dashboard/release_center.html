@@ -1,0 +1,105 @@
+{% extends "dashboard/base_dash.html" %}
+{% block title %}Release Center · {{ project.name }}{% endblock %}
+{% block crumb %}Build / Projects / {{ project.name }} / Release{% endblock %}
+{% block content %}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+    <h1>Release Center</h1>
+    <a class="btn ghost" href="{% url 'dashboard:project' project.id %}">← Back to project</a>
+  </div>
+  <p class="sub">{{ project.name }} · publish your mobile app to the app stores.</p>
+
+  {% if not app %}
+  <div class="card">
+    <h2 style="margin-top:0">Publish {{ project.name }} as a mobile app</h2>
+    <p class="muted" style="font-size:13px">
+      DevForge prepares the build, signing, store listing and release checks. You connect
+      your own Google, Apple and Huawei developer accounts when you're ready to publish —
+      DevForge never asks for your store passwords.
+    </p>
+    {% if can_manage %}
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="action" value="create_app">
+      <button class="btn" type="submit">Set up mobile release</button>
+    </form>
+    {% else %}<p class="muted">Owner or admin required.</p>{% endif %}
+  </div>
+  {% else %}
+
+  <div class="card" style="margin-bottom:4px">
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+      <div><strong>{{ app.name }}</strong> <span class="muted">v{{ app.version }} · build {{ app.build_number }}</span></div>
+      <div class="muted">{{ app.package_identifier }}</div>
+    </div>
+  </div>
+
+  {% for s in stores %}
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <h2 style="margin:0">{{ s.provider.name }}</h2>
+      {% if s.connected %}
+        <span class="ok">● Connected</span>
+      {% elif s.connection %}
+        <span class="fail">● {{ s.connection.get_status_display }}</span>
+      {% else %}
+        <span class="muted">○ Not connected</span>
+      {% endif %}
+    </div>
+
+    {% if not s.connected %}
+    <p class="muted" style="font-size:13px;margin:8px 0 0">
+      Connect your {{ s.provider.name }} developer account to publish. DevForge uses your
+      official {{ s.provider.auth_mechanism }} — never a password.
+      {% if s.connection and s.connection.detail %}<br><span class="fail">{{ s.connection.detail }}</span>{% endif %}
+    </p>
+    {% endif %}
+
+    {% if s.release %}
+    <div style="margin-top:10px">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span>Release readiness</span><span class="strong">{{ s.release.readiness }}%</span>
+      </div>
+      <div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:4px 0 10px">
+        <div style="height:100%;width:{{ s.release.readiness }}%;background:var(--brand)"></div>
+      </div>
+      <span class="badge b-{{ s.release.state }}">{{ s.release.get_state_display }}</span>
+      <table style="margin-top:10px">
+        {% for c in s.release.checks.all %}
+        <tr>
+          <td style="width:20px">{% if c.status == 'ok' %}✓{% elif c.status == 'fail' %}<span class="fail">✕</span>{% else %}<span style="color:#d08">⚠</span>{% endif %}</td>
+          <td>{{ c.label }}</td>
+          <td class="muted">{{ c.detail }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% if can_manage %}
+        {% if s.release.state == 'ready_for_submission' and not s.release.approved_at %}
+        <form method="post" style="display:inline">{% csrf_token %}
+          <input type="hidden" name="action" value="approve_release">
+          <input type="hidden" name="release" value="{{ s.release.id }}">
+          <button class="btn" type="submit">Approve for submission</button>
+        </form>
+        {% elif s.release.approved_at %}
+        <form method="post" style="display:inline">{% csrf_token %}
+          <input type="hidden" name="action" value="submit_release">
+          <input type="hidden" name="release" value="{{ s.release.id }}">
+          <button class="btn" type="submit">Submit to {{ s.provider.name }}</button>
+        </form>
+        {% endif %}
+        <form method="post" style="display:inline">{% csrf_token %}
+          <input type="hidden" name="action" value="prepare_release">
+          <input type="hidden" name="provider" value="{{ s.provider.key }}">
+          <button class="ghost" type="submit">Re-check readiness</button>
+        </form>
+      {% endif %}
+    </div>
+    {% elif can_manage %}
+    <form method="post" style="margin-top:10px">{% csrf_token %}
+      <input type="hidden" name="action" value="prepare_release">
+      <input type="hidden" name="provider" value="{{ s.provider.key }}">
+      <button class="ghost" type="submit">Prepare release</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+{% endblock %}
