@@ -443,6 +443,9 @@ class Order(models.Model):
     currency = models.CharField(max_length=3, default="USD")
     status = models.CharField(max_length=20, choices=STATUS, default="pending")
     provider = models.CharField(max_length=32, blank=True)
+    # Honest email state: only True when an email actually sent (buyer gave an address).
+    confirmation_sent = models.BooleanField(default=False)
+    receipt_sent = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 

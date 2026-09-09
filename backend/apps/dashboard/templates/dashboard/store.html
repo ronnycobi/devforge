@@ -63,7 +63,9 @@
       {% for o in orders %}
       <tr>
         <td class="strong">{{ o.reference }}</td>
-        <td class="muted">{{ o.customer_email|default:o.customer_name|default:"—" }}</td>
+        <td class="muted">{{ o.customer_email|default:o.customer_name|default:"—" }}
+          {% if o.confirmation_sent %}<span class="chip" title="Confirmation emailed" style="font-size:10px">✉ confirmed</span>{% endif %}
+          {% if o.receipt_sent %}<span class="chip" title="Receipt emailed" style="font-size:10px">✉ receipt</span>{% endif %}</td>
         <td class="muted">{% for it in o.items.all %}{{ it.quantity }}×{{ it.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
         <td>{{ o.total_display }}</td>
         <td class="muted">{{ o.provider|default:"—" }}</td>

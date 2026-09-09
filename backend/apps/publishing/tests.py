@@ -1009,6 +1009,39 @@ class PaymentsTests(TestCase):
             self.assertEqual(order.subtotal_cents, 3000)
             self.assertEqual(order.status, "awaiting_payment")
 
+    def test_confirmation_and_receipt_emails(self):
+        from django.core import mail
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 2}],
+                                      customer_email="buyer@x.com")
+            shop.start_checkout(order, provider_key="manual")
+            order.refresh_from_db()
+            self.assertTrue(order.confirmation_sent)
+            self.assertEqual(len(mail.outbox), 1)               # confirmation sent
+            self.assertIn(order.reference, mail.outbox[0].body)
+            self.assertIn("2 × Mug", mail.outbox[0].body)       # line items
+            shop.confirm_manual_payment(order, user=self.user)
+            order.refresh_from_db()
+            self.assertTrue(order.receipt_sent)
+            self.assertEqual(len(mail.outbox), 2)               # receipt sent
+            self.assertIn("Payment received", mail.outbox[1].subject)
+
+    def test_no_email_no_send_but_order_stands(self):
+        from django.core import mail
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}])  # no email
+            shop.start_checkout(order, provider_key="manual")
+            order.refresh_from_db()
+            self.assertFalse(order.confirmation_sent)           # honest: nothing sent
+            self.assertEqual(len(mail.outbox), 0)
+            self.assertEqual(order.status, "awaiting_payment")  # order still stands
+
     def test_store_page_renders(self):
         Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
         with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):

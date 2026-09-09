@@ -87,6 +87,14 @@ def start_checkout(order: Order, *, provider_key="manual") -> dict:
         amount_cents=order.subtotal_cents, currency=order.currency, status="pending",
         detail=result.get("instructions", "")[:500],
     )
+    # Confirmation email to the buyer (best-effort, only if they gave an address).
+    body = (f"Thanks for your order {order.reference} from "
+            f"{order.website.project.name}.\n\n{_order_lines(order)}\n"
+            f"Total: {order.total_display}\n")
+    if result.get("instructions"):
+        body += f"\n{result['instructions']}\n"
+    order.confirmation_sent = _email_buyer(order, f"Order {order.reference} received", body)
+    order.save(update_fields=["confirmation_sent", "updated_at"])
     audit("shop.checkout", organization=order.website.project.organization,
           target=f"order:{order.id}", summary=f"{provider_key} · {order.total_display}")
     return result
@@ -104,7 +112,12 @@ def confirm_manual_payment(order: Order, *, user) -> Order:
         payment.detail = "Confirmed received by the seller."
         payment.save(update_fields=["status", "confirmed_by", "detail"])
     order.status = "paid"
-    order.save(update_fields=["status", "updated_at"])
+    # Receipt email to the buyer (best-effort).
+    body = (f"We've received your payment for order {order.reference} from "
+            f"{order.website.project.name}.\n\n{_order_lines(order)}\n"
+            f"Total paid: {order.total_display}\n\nThank you!")
+    order.receipt_sent = _email_buyer(order, f"Payment received — order {order.reference}", body)
+    order.save(update_fields=["status", "receipt_sent", "updated_at"])
     audit("shop.paid", actor=user, organization=order.website.project.organization,
           target=f"order:{order.id}", summary=order.total_display)
     return order
@@ -120,3 +133,24 @@ def cancel_order(order: Order, *, user=None) -> Order:
 
 def _reference() -> str:
     return "ORD-" + secrets.token_hex(4).upper()
+
+
+def _order_lines(order) -> str:
+    return "\n".join(
+        f"  {it.quantity} × {it.name} — {order.currency} {it.line_total_cents / 100:.2f}"
+        for it in order.items.all()
+    )
+
+
+def _email_buyer(order, subject: str, text: str) -> bool:
+    """Send an email to the buyer if they gave an address. Returns whether it sent;
+    never lets a delivery failure break the order flow (honest: no address / send
+    failure → False, and the order still stands)."""
+    if not order.customer_email:
+        return False
+    try:
+        from apps.notifications.email import send_email
+        return bool(send_email(subject=f"{subject} · {order.website.project.name}",
+                               to=order.customer_email, text=text))
+    except Exception:
+        return False
