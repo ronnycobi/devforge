@@ -30,6 +30,8 @@ def _doc(title: str, main: str) -> str:
 
 
 def _buy_form(website, product) -> str:
+    if not product.in_stock:
+        return '<p class="devforge-oos">Out of stock</p>'
     action = f"/sites/{website.subdomain}/checkout"
     return (
         f'<form method="post" action="{action}">'

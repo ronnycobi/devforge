@@ -639,11 +639,13 @@ def store(request, pk):
             if action == "add_product":
                 price = request.POST.get("price", "0").strip()
                 cents = int(round(float(price) * 100))
+                track = bool(request.POST.get("track_inventory"))
+                stock = int(request.POST.get("stock") or 0)
                 shop.create_product(website, name=(request.POST.get("name") or "").strip(),
                                     price_cents=cents,
                                     currency=(request.POST.get("currency") or "USD").strip().upper()[:3],
                                     description=(request.POST.get("description") or "").strip(),
-                                    user=request.user)
+                                    track_inventory=track, stock=stock, user=request.user)
                 messages.success(request, "Product added.")
             elif action == "confirm_payment":
                 order = Order.objects.filter(pk=request.POST.get("order", 0), website=website).first()

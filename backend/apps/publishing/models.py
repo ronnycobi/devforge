@@ -408,6 +408,8 @@ class Product(models.Model):
     price_cents = models.PositiveIntegerField(default=0)
     currency = models.CharField(max_length=3, default="USD")
     active = models.BooleanField(default=True)
+    track_inventory = models.BooleanField(default=False)
+    stock = models.IntegerField(default=0)   # meaningful only when track_inventory
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -422,6 +424,10 @@ class Product(models.Model):
     @property
     def price_display(self) -> str:
         return f"{self.currency} {self.price_cents / 100:.2f}"
+
+    @property
+    def in_stock(self) -> bool:
+        return (not self.track_inventory) or self.stock > 0
 
 
 class Order(models.Model):

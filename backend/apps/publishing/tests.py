@@ -1042,6 +1042,64 @@ class PaymentsTests(TestCase):
             self.assertEqual(len(mail.outbox), 0)
             self.assertEqual(order.status, "awaiting_payment")  # order still stands
 
+    def test_inventory_reserved_on_order(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500,
+                                    track_inventory=True, stock=5, user=self.user)
+            shop.create_order(site, items=[{"product_id": p.id, "quantity": 2}])
+            p.refresh_from_db()
+            self.assertEqual(p.stock, 3)     # reserved
+
+    def test_oversell_is_prevented(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500,
+                                    track_inventory=True, stock=1, user=self.user)
+            with self.assertRaises(shop.EcommerceError):
+                shop.create_order(site, items=[{"product_id": p.id, "quantity": 3}])
+            p.refresh_from_db()
+            self.assertEqual(p.stock, 1)     # unchanged — transaction rolled back
+            self.assertEqual(site.orders.count(), 0)
+
+    def test_cancel_restocks(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500,
+                                    track_inventory=True, stock=5, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 2}])
+            shop.cancel_order(order, user=self.user)
+            p.refresh_from_db()
+            self.assertEqual(p.stock, 5)     # returned
+            # A second cancel doesn't double-restock.
+            shop.cancel_order(order, user=self.user)
+            p.refresh_from_db()
+            self.assertEqual(p.stock, 5)
+
+    def test_untracked_product_ignores_stock(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Service", price_cents=9900, user=self.user)  # untracked
+            shop.create_order(site, items=[{"product_id": p.id, "quantity": 99}])
+            p.refresh_from_db()
+            self.assertFalse(p.track_inventory)
+            self.assertEqual(site.orders.count(), 1)   # no stock limit
+
+    def test_storefront_shows_out_of_stock(self):
+        from apps.publishing import ecommerce_service as shop
+        from apps.publishing import storefront
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            shop.create_product(site, name="Mug", price_cents=1500,
+                                track_inventory=True, stock=0, user=self.user)
+            files = storefront.render_storefront(site)
+            self.assertIn("Out of stock", files["shop/index.html"])
+            self.assertNotIn("/checkout", files["shop/index.html"])   # no buy form when out
+
     def test_store_page_renders(self):
         Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
         with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):

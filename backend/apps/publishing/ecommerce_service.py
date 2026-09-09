@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import secrets
 
+from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 from django.utils.text import slugify
 
@@ -22,7 +24,8 @@ class EcommerceError(Exception):
     pass
 
 
-def create_product(website, *, name, price_cents, currency="USD", description="", user=None) -> Product:
+def create_product(website, *, name, price_cents, currency="USD", description="",
+                   track_inventory=False, stock=0, user=None) -> Product:
     if price_cents < 0:
         raise EcommerceError("Price cannot be negative.")
     base = slugify(name) or "product"
@@ -33,6 +36,7 @@ def create_product(website, *, name, price_cents, currency="USD", description=""
     product = Product.objects.create(
         website=website, slug=slug, name=name, description=description,
         price_cents=int(price_cents), currency=currency,
+        track_inventory=bool(track_inventory), stock=max(0, int(stock)),
     )
     audit("shop.product", actor=user, organization=website.project.organization,
           target=f"product:{product.id}", summary=name)
@@ -44,33 +48,41 @@ def create_order(website, *, items, customer_name="", customer_email="") -> Orde
     products' real prices — never trusted from the client."""
     if not items:
         raise EcommerceError("An order needs at least one item.")
-    order = Order.objects.create(
-        website=website, reference=_reference(),
-        customer_name=customer_name.strip(), customer_email=customer_email.strip(),
-        currency=website.products.first().currency if website.products.exists() else "USD",
-        status="pending",
-    )
-    subtotal = 0
-    currency = order.currency
+    # Resolve products + quantities first (outside the transaction).
+    resolved = []
     for row in items:
         product = row.get("product")
         if product is None:
             product = website.products.filter(pk=row.get("product_id"), active=True).first()
         if product is None:
             continue
-        qty = max(1, int(row.get("quantity", 1)))
-        OrderItem.objects.create(
-            order=order, product=product, name=product.name,
-            unit_price_cents=product.price_cents, quantity=qty,
-        )
-        subtotal += product.price_cents * qty
-        currency = product.currency
-    if not order.items.exists():
-        order.delete()
+        resolved.append((product, max(1, int(row.get("quantity", 1)))))
+    if not resolved:
         raise EcommerceError("None of the requested products are available.")
-    order.subtotal_cents = subtotal
-    order.currency = currency
-    order.save(update_fields=["subtotal_cents", "currency"])
+
+    with transaction.atomic():
+        order = Order.objects.create(
+            website=website, reference=_reference(),
+            customer_name=customer_name.strip(), customer_email=customer_email.strip(),
+            currency=resolved[0][0].currency, status="pending",
+        )
+        subtotal = 0
+        for product, qty in resolved:
+            if product.track_inventory:
+                # Atomic, race-safe reserve: only succeeds if enough stock remains.
+                reserved = Product.objects.filter(
+                    pk=product.pk, stock__gte=qty
+                ).update(stock=F("stock") - qty)
+                if not reserved:
+                    raise EcommerceError(f"“{product.name}” is out of stock.")
+            OrderItem.objects.create(
+                order=order, product=product, name=product.name,
+                unit_price_cents=product.price_cents, quantity=qty,
+            )
+            subtotal += product.price_cents * qty
+        order.subtotal_cents = subtotal
+        order.currency = resolved[-1][0].currency
+        order.save(update_fields=["subtotal_cents", "currency"])
     return order
 
 
@@ -124,8 +136,15 @@ def confirm_manual_payment(order: Order, *, user) -> Order:
 
 
 def cancel_order(order: Order, *, user=None) -> Order:
-    order.status = "cancelled"
-    order.save(update_fields=["status", "updated_at"])
+    if order.status in ("cancelled", "refunded"):
+        return order
+    # Return reserved stock to inventory (only once, and only for tracked products).
+    with transaction.atomic():
+        for it in order.items.select_related("product"):
+            if it.product and it.product.track_inventory:
+                Product.objects.filter(pk=it.product_id).update(stock=F("stock") + it.quantity)
+        order.status = "cancelled"
+        order.save(update_fields=["status", "updated_at"])
     audit("shop.cancel", actor=user, organization=order.website.project.organization,
           target=f"order:{order.id}")
     return order
