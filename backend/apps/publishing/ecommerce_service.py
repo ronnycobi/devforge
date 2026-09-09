@@ -180,6 +180,7 @@ def start_checkout(order: Order, *, provider_key="manual") -> dict:
     if order.discount_cents:
         body += f"Subtotal: {order.subtotal_display}\nDiscount: -{order.discount_display}\n"
     body += f"Total: {order.total_display}\n"
+    body += (f"\nTrack your order: /sites/{order.website.subdomain}/order/{order.reference}\n")
     if result.get("instructions"):
         body += f"\n{result['instructions']}\n"
     order.confirmation_sent = _email_buyer(order, f"Order {order.reference} received", body)

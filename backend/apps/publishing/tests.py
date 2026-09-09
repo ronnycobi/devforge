@@ -1228,6 +1228,51 @@ class PaymentsTests(TestCase):
             with self.assertRaises(shop.DiscountError):     # usage limit reached
                 shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}], code="ONCE")
 
+    def test_checkout_shows_confirmation_with_reference(self):
+        from apps.publishing import ecommerce_service as shop
+        from apps.publishing.models import Order
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            r = self.client.post(reverse("publishing:checkout", args=[site.subdomain]),
+                                  {"product_id": p.id, "quantity": "1", "email": "b@x.com"})
+            self.assertEqual(r.status_code, 200)
+            order = Order.objects.get(website=site)
+            self.assertIn(order.reference.encode(), r.content)     # reference shown
+            self.assertIn(b"Thank you", r.content)
+
+    def test_order_status_page_persistent(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 2}])
+            shop.start_checkout(order, provider_key="manual")
+            r = self.client.get(reverse("publishing:order_status", args=[site.subdomain, order.reference]))
+            self.assertEqual(r.status_code, 200)
+            self.assertIn(b"Mug", r.content)
+            self.assertIn(b"Awaiting payment", r.content)
+            # Reflects status after the merchant confirms.
+            shop.confirm_manual_payment(order, user=self.user)
+            r2 = self.client.get(reverse("publishing:order_status", args=[site.subdomain, order.reference]))
+            self.assertIn(b"Paid", r2.content)
+
+    def test_order_status_does_not_leak_email(self):
+        from apps.publishing import ecommerce_service as shop
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            p = shop.create_product(site, name="Mug", price_cents=1500, user=self.user)
+            order = shop.create_order(site, items=[{"product_id": p.id, "quantity": 1}],
+                                      customer_email="private@buyer.com")
+            r = self.client.get(reverse("publishing:order_status", args=[site.subdomain, order.reference]))
+            self.assertNotIn(b"private@buyer.com", r.content)   # shareable URL → no PII
+
+    def test_unknown_order_reference_404(self):
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._site()
+            r = self.client.get(reverse("publishing:order_status", args=[site.subdomain, "ORD-NOPE"]))
+            self.assertEqual(r.status_code, 404)
+
     def test_store_page_renders(self):
         Membership.objects.create(organization=self.org, user=self.user, role=Role.OWNER)
         with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):

@@ -93,6 +93,59 @@ def submit_form(request, subdomain, slug):
     return HttpResponseRedirect(safe)
 
 
+def _order_page_html(order, *, thanks: bool) -> str:
+    """A public order-confirmation page. Shows the order's items and status but NOT
+    the buyer's personal details (the reference URL is shareable)."""
+    import html as _h
+    rows = "".join(
+        f"<tr><td>{it.quantity} × {_h.escape(it.name)}</td>"
+        f"<td style='text-align:right'>{order.currency} {it.line_total_cents / 100:.2f}</td></tr>"
+        for it in order.items.all()
+    )
+    totals = f"<tr><td>Subtotal</td><td style='text-align:right'>{order.subtotal_display}</td></tr>"
+    if order.discount_cents:
+        totals += (f"<tr><td>Discount</td><td style='text-align:right'>"
+                   f"-{order.discount_display}</td></tr>")
+    totals += (f"<tr><td><strong>Total</strong></td><td style='text-align:right'>"
+               f"<strong>{order.total_display}</strong></td></tr>")
+    status_line = {
+        "awaiting_payment": "Awaiting payment.",
+        "paid": "Paid — thank you!",
+        "pending": "Pending.",
+        "refunded": "This order was refunded.",
+        "cancelled": "This order was cancelled.",
+        "failed": "Payment failed.",
+    }.get(order.status, order.get_status_display())
+    pay = order.payments.filter(status="pending").first()
+    instructions = f"<p>{_h.escape(pay.detail)}</p>" if pay and order.status == "awaiting_payment" and pay.detail else ""
+    heading = "Thank you for your order" if thanks else f"Order {_h.escape(order.reference)}"
+    return _doc_page(
+        f"Order {order.reference}",
+        f"<h1>{heading}</h1>"
+        f"<p>Reference: <strong>{_h.escape(order.reference)}</strong> — {_h.escape(status_line)}</p>"
+        f"<table>{rows}{totals}</table>{instructions}"
+        f"<p><a href='/sites/{_h.escape(order.website.subdomain)}/'>Back to the site</a></p>"
+    )
+
+
+def _doc_page(title: str, main: str) -> str:
+    import html as _h
+    return (
+        f"<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+        f"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+        f"<title>{_h.escape(title)}</title></head><body><main>{main}</main></body></html>"
+    )
+
+
+def order_status(request, subdomain, reference):
+    """Public order-confirmation / status page, looked up by its reference."""
+    from apps.publishing.models import Order
+    order = Order.objects.filter(website__subdomain=subdomain, reference=reference).first()
+    if order is None:
+        raise Http404("Order not found.")
+    return HttpResponse(_order_page_html(order, thanks=False))
+
+
 @csrf_exempt
 @require_POST
 def checkout(request, subdomain):
@@ -137,7 +190,12 @@ def checkout(request, subdomain):
         result = shop.start_checkout(order, provider_key=provider_key)
     except (shop.EcommerceError, PaymentError) as exc:
         return HttpResponse(f"<h1>Checkout</h1><p>{exc}</p>", status=400)
-    if result.get("mode") == "manual":
+    if request.headers.get("Accept", "").startswith("application/json"):
         return HttpResponse(
-            f"<h1>Thank you</h1><p>{result['instructions']}</p>", content_type="text/html")
-    return HttpResponseRedirect(result.get("redirect_url", f"/sites/{subdomain}/"))
+            '{"ok":true,"reference":"%s","url":"/sites/%s/order/%s"}'
+            % (order.reference, subdomain, order.reference),
+            content_type="application/json")
+    if result.get("mode") == "manual" or result.get("mode") == "":
+        # Show the order-confirmation page (also reachable at /sites/<sub>/order/<ref>).
+        return HttpResponse(_order_page_html(order, thanks=True))
+    return HttpResponseRedirect(result.get("redirect_url", f"/sites/{subdomain}/order/{order.reference}"))
