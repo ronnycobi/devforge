@@ -127,6 +127,48 @@ class CustomDomain(models.Model):
         return self.is_verified and self.ssl_status == self.SSL_ACTIVE
 
 
+class SeoConfig(models.Model):
+    """Site-level SEO settings (spec §27). AI may draft copy; the customer edits it,
+    and nothing is applied to the actual pages without an explicit apply step."""
+
+    website = models.OneToOneField(Website, on_delete=models.CASCADE, related_name="seo")
+    title_suffix = models.CharField(max_length=120, blank=True)   # e.g. " · Acme"
+    default_description = models.CharField(max_length=320, blank=True)
+    og_image = models.CharField(max_length=1024, blank=True)
+    robots_allow = models.BooleanField(default=True)              # allow indexing
+    sitemap_enabled = models.BooleanField(default=True)
+    applied_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"SEO for {self.website.subdomain}"
+
+
+class PageSeo(models.Model):
+    """Per-page SEO metadata draft (spec §27)."""
+
+    config = models.ForeignKey(SeoConfig, on_delete=models.CASCADE, related_name="pages")
+    path = models.CharField(max_length=512)                       # repo-relative html file
+    title = models.CharField(max_length=200, blank=True)
+    description = models.CharField(max_length=320, blank=True)
+    og_title = models.CharField(max_length=200, blank=True)
+    og_description = models.CharField(max_length=320, blank=True)
+    canonical = models.CharField(max_length=1024, blank=True)
+    ai_generated = models.BooleanField(default=False)
+    approved = models.BooleanField(default=False)
+    applied = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["path"]
+        constraints = [
+            models.UniqueConstraint(fields=["config", "path"], name="uniq_pageseo_path")
+        ]
+
+    def __str__(self):
+        return f"{self.path} SEO"
+
+
 class PublishCheck(models.Model):
     """One publish-readiness check result (spec §12, §41)."""
 

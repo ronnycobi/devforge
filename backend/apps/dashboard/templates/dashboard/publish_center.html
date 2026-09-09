@@ -87,6 +87,76 @@
     {% endif %}
   </div>
 
+  {% if seo %}
+  <div class="card">
+    <h2 style="margin-top:0">SEO</h2>
+    <div style="display:flex;justify-content:space-between;font-size:13px">
+      <span>SEO health ({{ seo.audits|length }} page{{ seo.audits|length|pluralize }})</span>
+      <span class="strong">{{ seo.score }}%</span>
+    </div>
+    <div style="height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:4px 0 10px">
+      <div style="height:100%;width:{{ seo.score }}%;background:var(--brand)"></div>
+    </div>
+    {% if seo.audits %}
+    <div style="overflow-x:auto">
+      <table>
+        <tr><th>Page</th><th>Title</th><th>Description</th><th>Canonical</th><th>Social</th><th>Headings</th><th>Alt text</th></tr>
+        {% for a in seo.audits %}
+        <tr>
+          <td class="strong">{{ a.path }}</td>
+          {% for f in a.findings %}
+          <td>{% if f.status == 'ok' %}✓{% elif f.status == 'fail' %}<span class="fail">✕</span>{% else %}<span style="color:#d08">⚠</span>{% endif %}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% else %}
+    <p class="muted" style="font-size:13px">No HTML pages found to audit yet — build the site first.</p>
+    {% endif %}
+
+    {% if seo.pages %}
+    <p class="muted" style="font-size:12px;margin:10px 0 4px">Drafted metadata (AI-generated · edit before applying):</p>
+    <div style="overflow-x:auto">
+      <table>
+        <tr><th>Page</th><th>Title</th><th>Description</th><th>Status</th></tr>
+        {% for p in seo.pages %}
+        <tr>
+          <td class="muted">{{ p.path }}</td>
+          <td>{{ p.title }}</td>
+          <td class="muted">{{ p.description|truncatechars:60 }}</td>
+          <td>{% if p.applied %}<span class="ok">applied</span>{% elif p.approved %}<span class="chip">approved</span>{% else %}<span class="chip" style="color:var(--brand)">draft</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+
+    {% if can_manage %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <form method="post" style="display:inline">{% csrf_token %}
+        <input type="hidden" name="action" value="seo_generate">
+        <button class="ghost" type="submit">✨ {% if seo.pages %}Regenerate{% else %}Generate{% endif %} SEO</button>
+      </form>
+      {% if seo.pages %}
+      <form method="post" style="display:inline">{% csrf_token %}
+        <input type="hidden" name="action" value="seo_approve_all">
+        <button class="ghost" type="submit">Approve all</button>
+      </form>
+      <form method="post" style="display:inline">{% csrf_token %}
+        <input type="hidden" name="action" value="seo_apply">
+        <button class="btn" type="submit">Apply SEO + sitemap</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+    <p class="muted" style="font-size:11px;margin:8px 0 0">
+      Applying writes sitemap.xml and robots.txt and updates your pages' metadata.
+      Good SEO helps discoverability — DevForge doesn't guarantee search rankings.
+    </p>
+  </div>
+  {% endif %}
+
   <div class="card">
     <h2 style="margin-top:0">Custom domain</h2>
     <p class="muted" style="font-size:12px;margin-top:0">

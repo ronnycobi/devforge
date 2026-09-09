@@ -199,6 +199,81 @@ class CustomDomainTests(TestCase):
         self.assertFalse(get_dns_provider("cloudflare").is_available())
 
 
+POOR_PAGE = "<html><body><h1>Welcome</h1><p>We build bridges for cities across the region.</p><img src='a.png'></body></html>"
+
+
+class SeoEngineTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="o@acme.com", password="x")
+        self.org = Organization.objects.create(name="Acme", created_by=self.user)
+        self.project = Project.objects.create(organization=self.org, name="Acme Engineering", created_by=self.user)
+
+    def _seed(self, files):
+        repo = repo_for_project(self.project); repo.init()
+        repo.write_files(files); repo.commit("seed")
+        return pub.get_or_create_website(self.project)
+
+    def test_audit_flags_real_gaps(self):
+        from apps.publishing import seo
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._seed({"index.html": POOR_PAGE})
+            audit = seo.audit_pages(site)[0]
+            status = {f["key"]: f["status"] for f in audit.findings}
+            self.assertEqual(status["title"], "fail")        # no <title>
+            self.assertEqual(status["description"], "fail")  # no meta description
+            self.assertEqual(status["h1"], "ok")             # has <h1>
+            self.assertEqual(status["alt"], "warn")          # img without alt
+
+    def test_generate_drafts_from_real_content(self):
+        from apps.publishing import seo_service as seo_svc
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._seed({"index.html": POOR_PAGE})
+            drafts = seo_svc.generate_drafts(site, user=self.user)
+            self.assertEqual(len(drafts), 1)
+            page = drafts[0]
+            self.assertTrue(page.ai_generated)
+            self.assertFalse(page.approved)
+            self.assertLessEqual(len(page.title), 200)
+            # Drawn from the real heading/content, not invented.
+            self.assertIn("Welcome", page.title)
+            self.assertIn("bridges", page.description.lower())
+
+    def test_sitemap_and_robots_are_real(self):
+        from apps.publishing import seo
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._seed({"index.html": POOR_PAGE, "about.html": POOR_PAGE})
+            sitemap = seo.build_sitemap(site)
+            self.assertIn("<urlset", sitemap)
+            self.assertEqual(sitemap.count("<loc>"), 2)
+            self.assertIn("Sitemap:", seo.build_robots(site, allow=True))
+            self.assertIn("Disallow: /", seo.build_robots(site, allow=False))
+
+    def test_apply_writes_files_and_injects_meta(self):
+        from apps.publishing import seo_service as seo_svc
+        with tempfile.TemporaryDirectory() as tmp, override_settings(DEVFORGE_WORKSPACES_ROOT=tmp):
+            site = self._seed({"index.html": POOR_PAGE})
+            seo_svc.generate_drafts(site, user=self.user)
+            config = seo_svc.ensure_config(site)
+            config.pages.update(approved=True)
+            result = seo_svc.apply_seo(site, user=self.user)
+            self.assertEqual(result["pages"], 1)
+            repo = repo_for_project(self.project)
+            self.assertIn("sitemap.xml", repo.list_files())
+            self.assertIn("robots.txt", repo.list_files())
+            html = (repo.path / "index.html").read_text()
+            self.assertIn("<title>", html)                 # meta injected
+            self.assertIn('name="description"', html)
+            self.assertIn("devforge:seo", html)
+
+    def test_apply_is_idempotent(self):
+        from apps.publishing import seo
+        applied = seo.apply_meta_to_html(
+            "<html><head></head><body>x</body></html>",
+            {"title": "A", "description": "B"})
+        twice = seo.apply_meta_to_html(applied, {"title": "A", "description": "B"})
+        self.assertEqual(twice.count("devforge:seo -->"), 2)  # one open + one close marker only
+
+
 class PublishUITests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="o@acme.com", password="x")

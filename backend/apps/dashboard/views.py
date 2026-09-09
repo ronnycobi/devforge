@@ -456,6 +456,23 @@ def publish_center(request, pk):
             if domain:
                 dom.remove_domain(domain, user=request.user)
                 messages.success(request, "Domain removed.")
+        elif action == "seo_generate" and website:
+            from apps.publishing import seo_service as seo
+            drafts = seo.generate_drafts(website, user=request.user)
+            messages.success(request, f"Drafted SEO for {len(drafts)} page(s) — review and apply.")
+        elif action == "seo_approve_all" and website:
+            from apps.publishing import seo_service as seo
+            config = seo.ensure_config(website)
+            n = config.pages.update(approved=True)
+            messages.success(request, f"Approved SEO for {n} page(s).")
+        elif action == "seo_apply" and website:
+            from apps.publishing import seo_service as seo
+            try:
+                result = seo.apply_seo(website, user=request.user)
+                messages.success(request, f"Applied SEO to {result['pages']} page(s) "
+                                          "plus sitemap.xml and robots.txt.")
+            except seo.SeoServiceError as exc:
+                messages.error(request, str(exc))
         return redirect("dashboard:publish_center", pk=pk)
 
     checks = pub.evaluate(website) if website else []
@@ -467,7 +484,20 @@ def publish_center(request, pk):
         "versions": website.versions.all()[:10] if website else [],
         "can_publish": pub_readiness.can_publish(checks) if checks else False,
         "domains": website.domains.all() if website else [],
+        "seo": _seo_context(website) if website else None,
     })
+
+
+def _seo_context(website):
+    from apps.publishing import seo
+    audits = seo.audit_pages(website)
+    config = getattr(website, "seo", None)
+    return {
+        "audits": audits,
+        "score": seo.audit_score(audits),
+        "pages": list(config.pages.all()) if config else [],
+        "applied_at": config.applied_at if config else None,
+    }
 
 
 @login_required

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from apps.publishing.models import CustomDomain, PublishVersion, Website
+from apps.publishing.models import CustomDomain, PageSeo, PublishVersion, SeoConfig, Website
 
 
 @admin.register(Website)
@@ -18,3 +18,12 @@ class PublishVersionAdmin(admin.ModelAdmin):
 class CustomDomainAdmin(admin.ModelAdmin):
     list_display = ("hostname", "website", "verification_status", "ssl_status", "provider", "created_at")
     list_filter = ("verification_status", "ssl_status", "provider")
+
+
+admin.site.register(SeoConfig)
+
+
+@admin.register(PageSeo)
+class PageSeoAdmin(admin.ModelAdmin):
+    list_display = ("path", "config", "ai_generated", "approved", "applied")
+    list_filter = ("ai_generated", "approved", "applied")
